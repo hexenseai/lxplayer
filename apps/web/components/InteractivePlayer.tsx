@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeH
 import { VideoFrame } from './player/VideoFrame';
 import { OverlayManager, OverlayComponent } from './player/Overlay';
 import { api, type TrainingSection, type Overlay as OverlayT, type CompanyTraining } from '@/lib/api';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface InteractivePlayerProps {
   accessCode: string;
@@ -30,6 +31,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   const wsReconnectTimerRef = useRef<any>(null);
   const wsDidOpenRef = useRef(false);
   const wsUnmountedRef = useRef(false);
+  const wsHelloSentRef = useRef(false);
 
   const [companyTraining, setCompanyTraining] = useState<CompanyTraining | null>(null);
   const [trainingTitle, setTrainingTitle] = useState<string>('');
@@ -44,6 +46,9 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   const [overlayPaused, setOverlayPaused] = useState<boolean>(false);
   const [pausedByOverlayId, setPausedByOverlayId] = useState<string | null>(null);
   const [modalContentOverlay, setModalContentOverlay] = useState<any | null>(null);
+  const [chatOpen, setChatOpen] = useState<boolean>(false);
+  const [chatMessages, setChatMessages] = useState<Array<{ type: 'user'|'ai'; content: string; ts: number }>>([]);
+  const lastOverlayIdRef = useRef<string | null>(null);
 
   useImperativeHandle(ref, () => ({
     seekTo: (time: number) => playerRef.current?.seekTo(time),
@@ -89,13 +94,32 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
           // optional init context
           const ctx = { accessCode };
           ws.send(JSON.stringify({ type: 'init', context: ctx }));
+          // Optionally send an initial hello shortly after opening (fallback if no ack)
+          setTimeout(() => {
+            try {
+              if (!wsHelloSentRef.current && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'user_message', content: 'Merhaba!' }));
+                wsHelloSentRef.current = true;
+              }
+            } catch {}
+          }, 200);
         };
         ws.onmessage = (ev) => {
           if (wsUnmountedRef.current) return;
           try {
             const data = JSON.parse(ev.data);
+            if ((data.type === 'session_started' || data.type === 'initialized') && !wsHelloSentRef.current) {
+              try {
+                ws.send(JSON.stringify({ type: 'user_message', content: 'Merhaba!' }));
+                wsHelloSentRef.current = true;
+                setChatOpen(true);
+                setChatMessages(m => [...m, { type: 'user', content: 'Merhaba!', ts: Date.now() }]);
+              } catch {}
+            }
             if (data.type === 'assistant_message') {
               console.log('[chat] assistant:', data.content);
+              setChatOpen(true);
+              setChatMessages(m => [...m, { type: 'ai', content: String(data.content || ''), ts: Date.now() }]);
             }
           } catch {}
         };
@@ -118,6 +142,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     return () => {
       // Close chat websocket on unmount; cancel reconnects
       wsUnmountedRef.current = true;
+      wsHelloSentRef.current = false;
       try {
         clearTimeout(wsReconnectTimerRef.current);
       } catch {}
@@ -220,9 +245,36 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             isPlaying={isPlaying}
             frame={currentFrame}
             onTimeUpdate={handleTimeUpdate}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onEnded={() => setIsPlaying(false)}
+            onPlay={() => {
+              setIsPlaying(true);
+              // Chat penceresini video oynarken gizle
+              setChatOpen(false);
+            }}
+            onPause={() => {
+              setIsPlaying(false);
+              // Kullanıcı tarafından durdurulduğunda LLM'e bağlamlı mesaj gönder
+              const sectionTitle = currentSection?.title || '';
+              const ovId = lastOverlayIdRef.current;
+              const payload = {
+                type: 'user_message',
+                content: `Kullanıcı videoyu durdurdu. Bölüm: ${sectionTitle}. Zaman: ${Math.floor(currentTime)}s. Son overlay: ${ovId || 'yok'}.`,
+              };
+              try { wsRef.current?.send(JSON.stringify(payload)); } catch {}
+              setChatOpen(true);
+              setChatMessages(m => [...m, { type: 'user', content: payload.content, ts: Date.now() }]);
+            }}
+            onEnded={() => {
+              setIsPlaying(false);
+              // Video bittiğinde LLM'e bilgi gönder
+              const sectionTitle = currentSection?.title || '';
+              const payload = {
+                type: 'user_message',
+                content: `Kullanıcı bölümü tamamladı. Bölüm: ${sectionTitle}.`,
+              };
+              try { wsRef.current?.send(JSON.stringify(payload)); } catch {}
+              setChatOpen(true);
+              setChatMessages(m => [...m, { type: 'user', content: payload.content, ts: Date.now() }]);
+            }}
           />
 
           {/* Overlays */}
@@ -247,6 +299,8 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
                   setPausedByOverlayId(null);
                   setModalContentOverlay(null);
                   setIsPlaying(true);
+                  // Video tekrar oynarken chat penceresini gizle
+                  setChatOpen(false);
                 }
                 if (action === 'show_fullscreen_content' && value) {
                   const ov = overlays.find(o => o.id === value);
@@ -258,6 +312,9 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
                     };
                     setModalContentOverlay(fullscreenOverlay);
                   }
+                }
+                if (action === 'overlay_visible' && value) {
+                  lastOverlayIdRef.current = String(value);
                 }
               }}
             />
@@ -274,7 +331,8 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             </div>
           )}
 
-          {/* Resume button */}
+          {/* Resume button */
+          }
           {overlayPaused && (
             <button
               onClick={() => { setIsPlaying(true); setOverlayPaused(false); setPausedByOverlayId(null); setModalContentOverlay(null); }}
@@ -283,6 +341,31 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
               ▶ Oynat
             </button>
           )}
+
+          {/* Chat window */}
+          <AnimatePresence>
+            {chatOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.2 }}
+                className="absolute bottom-16 right-3 z-40 w-80 max-h-[60%] bg-gray-900/95 border border-gray-700 rounded-lg shadow-lg pointer-events-auto flex flex-col"
+              >
+                <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700">
+                  <div className="text-white text-sm font-medium">Sohbet</div>
+                  <button onClick={() => setChatOpen(false)} className="text-gray-400 hover:text-white text-sm">Kapat</button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                  {chatMessages.map((m, i) => (
+                    <div key={i} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`${m.type === 'user' ? 'bg-purple-600' : 'bg-gray-700'} text-white text-sm px-3 py-2 rounded-lg max-w-[75%] whitespace-pre-wrap`}>{m.content}</div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Controls */}

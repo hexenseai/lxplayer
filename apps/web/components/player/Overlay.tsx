@@ -43,6 +43,14 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVisible]);
 
+  // Notify when overlay becomes visible (for last shown overlay tracking)
+  useEffect(() => {
+    if (isVisible) {
+      onAction?.('overlay_visible', overlay.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible]);
+
   // Load style data when overlay changes
   useEffect(() => {
     const loadStyle = async () => {
@@ -436,7 +444,6 @@ export function OverlayManager({
         // frame_set overlay'leri sürekli aktif kalır, sadece başlangıç zamanını kontrol et
         if (currentTime >= overlay.time_stamp) {
           newActiveOverlays.add(overlay.id);
-          console.log('Frame set overlay activated:', overlay.frame, 'at time:', currentTime);
         }
       } else {
         // Diğer overlay'ler için normal zamanlama

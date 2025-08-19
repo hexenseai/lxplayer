@@ -14,8 +14,9 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Build the web workspace
-RUN npm run build --workspace=@lxplayer/web
+# Build shared UI first, then web
+RUN npm run build --workspace=@lxplayer/ui \
+ && npm run build --workspace=@lxplayer/web
 
 FROM node:20-alpine AS runner
 WORKDIR /app
