@@ -1,11 +1,13 @@
+from dotenv import load_dotenv, find_dotenv
+
+# Load environment variables before importing routers that may read them at import time
+load_dotenv(find_dotenv(usecwd=True))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from .routers import trainings, assets, sessions, tools, users, organizations, auth, uploads, llm, company_trainings, styles, generate
 from .db import init_db
-from dotenv import load_dotenv, find_dotenv
-
-load_dotenv(find_dotenv(usecwd=True))
 
 app = FastAPI(title="LXPlayer API")
 

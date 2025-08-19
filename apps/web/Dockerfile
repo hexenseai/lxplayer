@@ -2,6 +2,9 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 # Install workspace dependencies using root lockfile
 COPY package.json package-lock.json ./
+# Include workspace manifests so npm can resolve workspaces
+COPY apps/web/package.json apps/web/package.json
+COPY packages/ui/package.json packages/ui/package.json
 RUN npm ci
 
 FROM node:20-alpine AS builder
@@ -13,15 +16,19 @@ COPY . .
 RUN npm run build --workspace=@lxplayer/web
 
 FROM node:20-alpine AS runner
-WORKDIR /app/apps/web
+WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1
+# Prepare prod deps for the web workspace only
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY packages/ui/package.json packages/ui/package.json
+RUN npm ci --omit=dev --workspace=@lxplayer/web
+
+WORKDIR /app/apps/web
 # App runtime artifacts
 COPY --from=builder /app/apps/web/.next ./.next
 COPY --from=builder /app/apps/web/public ./public
-COPY --from=builder /app/apps/web/package.json ./package.json
-# Share root node_modules for workspace resolution
-COPY --from=deps /app/node_modules /app/node_modules
 EXPOSE 3000
 CMD ["npm", "start"]
 
