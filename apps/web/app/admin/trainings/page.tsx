@@ -4,7 +4,6 @@ import { TrainingForm } from '@/components/admin/forms/TrainingForm';
 import { TrainingSectionsList } from '@/components/admin/TrainingSectionsList';
 import { DeleteTrainingButton } from '@/components/admin/DeleteTrainingButton';
 import { Drawer } from '@/components/admin/Drawer';
-import AIFlowButton from '@/components/admin/AIFlowButton';
 import TrainingDetails from '@/components/admin/TrainingDetails';
 import Link from 'next/link';
 

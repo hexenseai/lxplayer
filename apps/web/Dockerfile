@@ -1,5 +1,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
+# Next.js on Alpine needs glibc compatibility for SWC prebuilt binaries
+RUN apk add --no-cache libc6-compat
 # Install workspace dependencies using root lockfile
 COPY package.json package-lock.json ./
 # Include workspace manifests so npm can resolve workspaces

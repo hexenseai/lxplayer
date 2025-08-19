@@ -6,7 +6,7 @@ from . import users  # noqa: F401
 from . import organizations  # noqa: F401
 from . import auth  # noqa: F401
 from . import uploads  # noqa: F401
-from . import llm  # noqa: F401
 from . import company_trainings  # noqa: F401
 from . import styles  # noqa: F401
 from . import generate  # noqa: F401
+from . import chat  # noqa: F401

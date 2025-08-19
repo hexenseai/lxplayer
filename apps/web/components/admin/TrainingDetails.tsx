@@ -6,7 +6,6 @@ import { TrainingForm } from './forms/TrainingForm';
 import { TrainingSectionsList } from './TrainingSectionsList';
 import { DeleteTrainingButton } from './DeleteTrainingButton';
 import { Drawer } from './Drawer';
-import AIFlowButton from './AIFlowButton';
 
 interface TrainingDetailsProps {
   training: TrainingT;
@@ -58,7 +57,6 @@ export default function TrainingDetails({ training }: TrainingDetailsProps) {
             <Drawer buttonLabel="Eğitimi Düzenle" title="Eğitimi Düzenle">
               <TrainingForm initialTraining={training as any} />
             </Drawer>
-            <AIFlowButton trainingId={training.id} />
             <DeleteTrainingButton trainingId={training.id} trainingTitle={training.title} />
           </div>
         </div>

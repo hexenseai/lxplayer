@@ -26,6 +26,10 @@ function buildVideoUrl(section: TrainingSection | null): string | undefined {
 
 export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ accessCode }, ref) => {
   const playerRef = useRef<any>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const wsReconnectTimerRef = useRef<any>(null);
+  const wsDidOpenRef = useRef(false);
+  const wsUnmountedRef = useRef(false);
 
   const [companyTraining, setCompanyTraining] = useState<CompanyTraining | null>(null);
   const [trainingTitle, setTrainingTitle] = useState<string>('');
@@ -71,6 +75,70 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
       }
     };
     load();
+    // Open chat websocket on mount
+    const openSocket = () => {
+      try {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const wsUrl = apiBase.replace(/^http/i, 'ws') + '/chat/ws';
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+        wsDidOpenRef.current = false;
+        ws.onopen = () => {
+          wsDidOpenRef.current = true;
+          if (wsUnmountedRef.current) return;
+          // optional init context
+          const ctx = { accessCode };
+          ws.send(JSON.stringify({ type: 'init', context: ctx }));
+        };
+        ws.onmessage = (ev) => {
+          if (wsUnmountedRef.current) return;
+          try {
+            const data = JSON.parse(ev.data);
+            if (data.type === 'assistant_message') {
+              console.log('[chat] assistant:', data.content);
+            }
+          } catch {}
+        };
+        ws.onerror = () => {
+          // no-op; reconnect handled on close
+        };
+        ws.onclose = () => {
+          wsRef.current = null;
+          if (!wsUnmountedRef.current) {
+            // reconnect with small backoff
+            clearTimeout(wsReconnectTimerRef.current);
+            wsReconnectTimerRef.current = setTimeout(openSocket, wsDidOpenRef.current ? 1500 : 400);
+          }
+        };
+      } catch {}
+    };
+    wsUnmountedRef.current = false;
+    openSocket();
+    
+    return () => {
+      // Close chat websocket on unmount; cancel reconnects
+      wsUnmountedRef.current = true;
+      try {
+        clearTimeout(wsReconnectTimerRef.current);
+      } catch {}
+      try {
+        const ws = wsRef.current;
+        wsRef.current = null;
+        if (ws) {
+          // Detach handlers to avoid side-effects
+          ws.onopen = null as any;
+          ws.onmessage = null as any;
+          ws.onerror = null as any;
+          ws.onclose = null as any;
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          } else if (ws.readyState === WebSocket.CONNECTING) {
+            // In dev StrictMode, avoid closing while CONNECTING to prevent warning; close right after open
+            ws.onopen = () => ws.close();
+          }
+        }
+      } catch {}
+    };
   }, [accessCode]);
 
   // When section changes, fetch its overlays
@@ -168,12 +236,12 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
                 if (action === 'frame_set' && value) {
                   setCurrentFrame(value);
                 }
-                if (action === 'pause_video') {
+                if (action === 'pause_video' || action === 'pause_video_overlay') {
                   setIsPlaying(false);
                   setOverlayPaused(true);
                   if (value) setPausedByOverlayId(String(value));
                 }
-                if (action === 'resume_video') {
+                if (action === 'resume_video' || action === 'resume_video_overlay') {
                   if (value && pausedByOverlayId && String(value) !== pausedByOverlayId) return;
                   setOverlayPaused(false);
                   setPausedByOverlayId(null);

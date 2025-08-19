@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 from openai import AsyncOpenAI
-from app.ai_flow_engine import AIFlowEngine
 
 # Test flow JSON - kullanıcının verdiği flow'u kullan
 TEST_FLOW = {
@@ -63,8 +62,7 @@ async def test_flow_debug():
     # Initialize OpenAI client
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", "test-key"))
     
-    # Initialize flow engine
-    flow_engine = AIFlowEngine(client)
+    # AI Flow removed; placeholder
     
     # Test context
     training_context = {
@@ -77,60 +75,28 @@ async def test_flow_debug():
         print("Test 1: Initial flow execution (no user message)")
         print("-" * 50)
         
-        result = await flow_engine.execute_flow(
-            json.dumps(TEST_FLOW), 
-            "", 
-            training_context
-        )
-        
-        print(f"Result: {json.dumps(result, indent=2, ensure_ascii=False)}")
-        print(f"Current Node: {flow_engine.state.current_node_id}")
-        print(f"Visited Nodes: {flow_engine.state.visited_nodes}")
+        print("AI Flow removed. Skipping flow execution.")
         print()
         
         # Test 2: User says "start"
         print("Test 2: User says 'start'")
         print("-" * 50)
         
-        result = await flow_engine.execute_flow(
-            json.dumps(TEST_FLOW), 
-            "start", 
-            training_context
-        )
-        
-        print(f"Result: {json.dumps(result, indent=2, ensure_ascii=False)}")
-        print(f"Current Node: {flow_engine.state.current_node_id}")
-        print(f"Visited Nodes: {flow_engine.state.visited_nodes}")
+        print("AI Flow removed. Skipping.")
         print()
         
         # Test 3: User says "hazır"
         print("Test 3: User says 'hazır'")
         print("-" * 50)
         
-        result = await flow_engine.execute_flow(
-            json.dumps(TEST_FLOW), 
-            "hazır", 
-            training_context
-        )
-        
-        print(f"Result: {json.dumps(result, indent=2, ensure_ascii=False)}")
-        print(f"Current Node: {flow_engine.state.current_node_id}")
-        print(f"Visited Nodes: {flow_engine.state.visited_nodes}")
+        print("AI Flow removed. Skipping.")
         print()
         
         # Test 4: User answers question
         print("Test 4: User answers question")
         print("-" * 50)
         
-        result = await flow_engine.execute_flow(
-            json.dumps(TEST_FLOW), 
-            "Bu eğitimden çok şey öğrenmeyi bekliyorum", 
-            training_context
-        )
-        
-        print(f"Result: {json.dumps(result, indent=2, ensure_ascii=False)}")
-        print(f"Current Node: {flow_engine.state.current_node_id}")
-        print(f"Visited Nodes: {flow_engine.state.visited_nodes}")
+        print("AI Flow removed. Skipping.")
         print()
         
     except Exception as e:

@@ -157,12 +157,12 @@ export default function SectionPreviewPage() {
                   if (action === 'frame_set' && value) {
                     setRightFrame(value);
                   }
-                  if (action === 'pause_video') {
+                  if (action === 'pause_video' || action === 'pause_video_overlay') {
                     setIsPlaying(false);
                     setOverlayPaused(true);
                     if (value) setPausedByOverlayId(String(value));
                   }
-                  if (action === 'resume_video') {
+                  if (action === 'resume_video' || action === 'resume_video_overlay') {
                     if (value && pausedByOverlayId && String(value) !== pausedByOverlayId) return;
                     setOverlayPaused(false);
                     setPausedByOverlayId(null);
