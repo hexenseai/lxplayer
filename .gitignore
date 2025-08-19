@@ -1,0 +1,35 @@
+# Node
+node_modules/
+.npm/
+.pnpm-store/
+.next/
+.dist/
+dist/
+coverage/
+**/.turbo/
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Env
+.env
+.env.*
+apps/**/.env*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env.python
+
+# Alembic
+apps/api/alembic/versions/*.pyc
+
+# Playwright
+playwright-report/
+blob-report/
+
+# Docker
+**/docker-data/
