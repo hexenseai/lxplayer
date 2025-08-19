@@ -4,6 +4,7 @@ import { VideoFrame } from './player/VideoFrame';
 import { OverlayManager, OverlayComponent } from './player/Overlay';
 import { api, type TrainingSection, type Overlay as OverlayT, type CompanyTraining } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Mic, MicOff, Volume2, VolumeX, Send } from 'lucide-react';
 
 interface InteractivePlayerProps {
   accessCode: string;
@@ -49,6 +50,10 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   const [chatOpen, setChatOpen] = useState<boolean>(false);
   const [chatMessages, setChatMessages] = useState<Array<{ type: 'user'|'ai'; content: string; ts: number }>>([]);
   const lastOverlayIdRef = useRef<string | null>(null);
+  const [chatInput, setChatInput] = useState<string>('');
+  const [sttActive, setSttActive] = useState<boolean>(false);
+  const [ttsActive, setTtsActive] = useState<boolean>(false);
+  const [playerVolume, setPlayerVolume] = useState<number>(1);
 
   useImperativeHandle(ref, () => ({
     seekTo: (time: number) => playerRef.current?.seekTo(time),
@@ -112,8 +117,6 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
               try {
                 ws.send(JSON.stringify({ type: 'user_message', content: 'Merhaba!' }));
                 wsHelloSentRef.current = true;
-                setChatOpen(true);
-                setChatMessages(m => [...m, { type: 'user', content: 'Merhaba!', ts: Date.now() }]);
               } catch {}
             }
             if (data.type === 'assistant_message') {
@@ -165,6 +168,11 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
       } catch {}
     };
   }, [accessCode]);
+
+  // Sync initial volume to player once ref is ready
+  useEffect(() => {
+    try { playerRef.current?.setVolume?.(playerVolume); } catch {}
+  }, [playerRef]);
 
   // When section changes, fetch its overlays
   useEffect(() => {
@@ -260,8 +268,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
                 content: `Kullanıcı videoyu durdurdu. Bölüm: ${sectionTitle}. Zaman: ${Math.floor(currentTime)}s. Son overlay: ${ovId || 'yok'}.`,
               };
               try { wsRef.current?.send(JSON.stringify(payload)); } catch {}
-              setChatOpen(true);
-              setChatMessages(m => [...m, { type: 'user', content: payload.content, ts: Date.now() }]);
+              // Otomatik mesajları akışta göstermiyoruz
             }}
             onEnded={() => {
               setIsPlaying(false);
@@ -272,8 +279,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
                 content: `Kullanıcı bölümü tamamladı. Bölüm: ${sectionTitle}.`,
               };
               try { wsRef.current?.send(JSON.stringify(payload)); } catch {}
-              setChatOpen(true);
-              setChatMessages(m => [...m, { type: 'user', content: payload.content, ts: Date.now() }]);
+              // Otomatik mesajları akışta göstermiyoruz
             }}
           />
 
@@ -350,18 +356,75 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 transition={{ duration: 0.2 }}
-                className="absolute bottom-16 right-3 z-40 w-80 max-h-[60%] bg-gray-900/95 border border-gray-700 rounded-lg shadow-lg pointer-events-auto flex flex-col"
+                className="absolute bottom-16 right-3 left-3 z-40 max-h-[70%] bg-gray-900/95 border border-gray-700 rounded-lg shadow-lg pointer-events-auto flex flex-col"
               >
                 <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700">
                   <div className="text-white text-sm font-medium">Sohbet</div>
-                  <button onClick={() => setChatOpen(false)} className="text-gray-400 hover:text-white text-sm">Kapat</button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSttActive(s => !s)}
+                      className={`p-1.5 rounded ${sttActive ? 'bg-red-600 text-white' : 'text-gray-300 hover:text-white bg-gray-700/40'}`}
+                      title={sttActive ? 'Mikrofon açık' : 'Mikrofon kapalı'}
+                    >
+                      {sttActive ? <Mic size={16} /> : <MicOff size={16} />}
+                    </button>
+                    <button
+                      onClick={() => setTtsActive(s => !s)}
+                      className={`p-1.5 rounded ${ttsActive ? 'bg-emerald-600 text-white' : 'text-gray-300 hover:text-white bg-gray-700/40'}`}
+                      title={ttsActive ? 'TTS aktif' : 'TTS pasif'}
+                    >
+                      <Volume2 size={16} />
+                    </button>
+                    <button onClick={() => setChatOpen(false)} className="text-gray-400 hover:text-white text-sm">Kapat</button>
+                  </div>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                  {chatMessages.map((m, i) => (
-                    <div key={i} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`${m.type === 'user' ? 'bg-purple-600' : 'bg-gray-700'} text-white text-sm px-3 py-2 rounded-lg max-w-[75%] whitespace-pre-wrap`}>{m.content}</div>
+                <div className="flex-1 overflow-hidden grid grid-cols-3 gap-0">
+                  <div className="col-span-2 flex flex-col">
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                      {chatMessages.map((m, i) => (
+                        <div key={i} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`${m.type === 'user' ? 'bg-purple-600' : 'bg-gray-700'} text-white text-sm px-3 py-2 rounded-lg max-w-[75%] whitespace-pre-wrap`}>{m.content}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                    <div className="p-2 border-t border-gray-700 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            const text = chatInput.trim();
+                            if (text) {
+                              try { wsRef.current?.send(JSON.stringify({ type: 'user_message', content: text })); } catch {}
+                              setChatMessages(m => [...m, { type: 'user', content: text, ts: Date.now() }]);
+                              setChatInput('');
+                            }
+                          }
+                        }}
+                        placeholder="Mesaj yazın..."
+                        className="flex-1 px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-600 focus:border-purple-500 outline-none text-sm"
+                      />
+                      <button
+                        onClick={() => {
+                          const text = chatInput.trim();
+                          if (!text) return;
+                          try { wsRef.current?.send(JSON.stringify({ type: 'user_message', content: text })); } catch {}
+                          setChatMessages(m => [...m, { type: 'user', content: text, ts: Date.now() }]);
+                          setChatInput('');
+                        }}
+                        className="px-2 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                        title="Gönder"
+                      >
+                        <Send size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="col-span-1 border-l border-gray-700 p-2 text-sm text-gray-300">
+                    <div className="font-medium text-white mb-2">Hazır Mesajlar</div>
+                    <div className="text-gray-400">Yakında burada öneriler ve seçenekler görünecek.</div>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -376,6 +439,23 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
           >
             {isPlaying ? 'Durdur' : 'Oynat'}
           </button>
+          {/* Ses kontrolü */}
+          <div className="flex items-center gap-2 text-white/80 text-xs">
+            <span>{playerVolume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={playerVolume}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                setPlayerVolume(v);
+                try { playerRef.current?.setVolume?.(v); } catch {}
+              }}
+            />
+            <span className="w-10 text-right">{Math.round(playerVolume * 100)}%</span>
+          </div>
           <input
             type="range"
             min={0}
