@@ -2,6 +2,8 @@ import './globals.css';
 import type { ReactNode } from 'react';
 import { Navbar } from '@/components/Navbar';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'LXPlayer - AI Destekli İnteraktif Eğitim Platformu',
   description: 'Yapay zeka destekli interaktif eğitim oynatıcı ile öğrenme deneyiminizi geliştirin',

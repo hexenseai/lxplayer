@@ -54,6 +54,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   const [sttActive, setSttActive] = useState<boolean>(false);
   const [ttsActive, setTtsActive] = useState<boolean>(false);
   const [playerVolume, setPlayerVolume] = useState<number>(1);
+  const isPlayingRef = useRef<boolean>(false);
 
   useImperativeHandle(ref, () => ({
     seekTo: (time: number) => playerRef.current?.seekTo(time),
@@ -121,6 +122,9 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             }
             if (data.type === 'assistant_message') {
               console.log('[chat] assistant:', data.content);
+              if (isPlayingRef.current) {
+                setIsPlaying(false);
+              }
               setChatOpen(true);
               setChatMessages(m => [...m, { type: 'ai', content: String(data.content || ''), ts: Date.now() }]);
             }
@@ -203,6 +207,10 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     setCurrentTime(value);
     playerRef.current?.seekTo(value);
   };
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   if (!companyTraining || !currentSection) {
     return (
