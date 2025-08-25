@@ -58,12 +58,12 @@ Write-Log "Deploy Directory: $DeployDir"
 # SSH bağlantısını test etme
 Write-Log "SSH bağlantısı test ediliyor..."
 try {
-    $sshTest = ssh -o ConnectTimeout=10 -o BatchMode=yes $Username@$ServerIP "echo 'SSH connection successful'"
+    $sshTest = ssh -o ConnectTimeout=10 $Username@$ServerIP "echo 'SSH connection successful'"
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "SSH bağlantısı başarısız! SSH key'inizin sunucuda olduğundan emin olun."
+        Write-Warning "SSH key ile bağlantı başarısız. Şifre ile bağlanmayı deneyeceğiz."
     }
 } catch {
-    Write-Error "SSH bağlantısı test edilemedi: $_"
+    Write-Warning "SSH key ile bağlantı başarısız. Şifre ile bağlanmayı deneyeceğiz."
 }
 
 # Sunucuda güncelleme scriptini çalıştırma
@@ -153,11 +153,12 @@ fi
 "@
 
 # Script'i sunucuya gönderme ve çalıştırma
+Write-Log "Güncelleme scripti sunucuya gönderiliyor..."
 $updateScript | ssh $Username@$ServerIP "cat > /tmp/update.sh && chmod +x /tmp/update.sh && /tmp/update.sh"
 
 # Systemd service güncelleme (eğer varsa)
 Write-Log "Systemd service kontrol ediliyor..."
-$serviceCheck = ssh $Username@$Server_IP "[ -f '/etc/systemd/system/lxplayer.service' ] && echo 'exists'"
+$serviceCheck = ssh $Username@$ServerIP "[ -f '/etc/systemd/system/lxplayer.service' ] && echo 'exists'"
 if ($serviceCheck -eq "exists") {
     Write-Log "Systemd service güncelleniyor..."
     ssh $Username@$ServerIP "sudo systemctl daemon-reload && sudo systemctl restart lxplayer"
