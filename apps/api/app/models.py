@@ -81,13 +81,49 @@ class Overlay(SQLModel, table=True):
     type: str = Field(description="frame_set|button_link|button_message|button_content|label|content")
     caption: Optional[str] = Field(default=None, description="metin içeriği")
     content_id: Optional[str] = Field(default=None, foreign_key="asset.id")
-    frame: Optional[str] = Field(default=None, description="wide|face_left|face_right|face_middle|face_close")
+    frame: Optional[str] = Field(default=None, description="wide|face_left|face_right|face_middle|face_close|custom")
     animation: Optional[str] = Field(default=None, description="fade_in|slide_in_left|slide_in_right|scale_in")
     duration: Optional[float] = Field(default=2.0, description="animation duration in seconds")
     position: Optional[str] = Field(default=None, description="left_half_content|right_half_content|left_content|right_content|buttom_left|bottom_middle|bottom_right|bottom_face")
     style_id: Optional[str] = Field(default=None, foreign_key="style.id", description="Reference to saved style")
+    icon_style_id: Optional[str] = Field(default=None, foreign_key="style.id", description="Reference to icon-specific style")
     icon: Optional[str] = Field(default=None, description="Lucide icon name for label and button overlays")
     pause_on_show: Optional[bool] = Field(default=False, description="When true, pauses the base video while this overlay is visible")
+    frame_config_id: Optional[str] = Field(default=None, foreign_key="frameconfig.id", description="Reference to custom frame configuration")
+
+
+class FrameConfig(SQLModel, table=True):
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    training_section_id: str = Field(foreign_key="trainingsection.id", description="Training section this frame config belongs to")
+    name: str = Field(description="Frame configuration name")
+    description: Optional[str] = Field(default=None, description="Frame configuration description")
+    object_position_x: float = Field(default=50.0, description="Object position X percentage (0-100)")
+    object_position_y: float = Field(default=50.0, description="Object position Y percentage (0-100)")
+    scale: float = Field(default=1.0, description="Zoom scale factor")
+    transform_origin_x: float = Field(default=50.0, description="Transform origin X percentage (0-100)")
+    transform_origin_y: float = Field(default=50.0, description="Transform origin Y percentage (0-100)")
+    transition_duration: float = Field(default=0.8, description="Transition duration in seconds")
+    transition_easing: str = Field(default="cubic-bezier(0.4, 0, 0.2, 1)", description="CSS transition easing function")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    is_default: bool = Field(default=False, description="Whether this is a default frame configuration")
+    global_config_id: Optional[str] = Field(default=None, foreign_key="globalframeconfig.id", description="Reference to global frame configuration if copied from one")
+
+
+class GlobalFrameConfig(SQLModel, table=True):
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    name: str = Field(description="Global frame configuration name")
+    description: Optional[str] = Field(default=None, description="Global frame configuration description")
+    object_position_x: float = Field(default=50.0, description="Object position X percentage (0-100)")
+    object_position_y: float = Field(default=50.0, description="Object position Y percentage (0-100)")
+    scale: float = Field(default=1.0, description="Zoom scale factor")
+    transform_origin_x: float = Field(default=50.0, description="Transform origin X percentage (0-100)")
+    transform_origin_y: float = Field(default=50.0, description="Transform origin Y percentage (0-100)")
+    transition_duration: float = Field(default=0.8, description="Transition duration in seconds")
+    transition_easing: str = Field(default="cubic-bezier(0.4, 0, 0.2, 1)", description="CSS transition easing function")
+    is_active: bool = Field(default=True, description="Whether this global config is active")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class Style(SQLModel, table=True):

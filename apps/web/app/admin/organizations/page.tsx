@@ -1,14 +1,11 @@
-import { api, Organization as OrgT, Training, CompanyTraining } from '@/lib/api';
+import { api, Organization as OrgT } from '@/lib/api';
 import { AdminNav } from '@/components/admin/AdminNav';
 import { OrganizationForm } from '@/components/admin/forms/OrganizationForm';
-import { CompanyTrainingForm } from '@/components/admin/forms/CompanyTrainingForm';
-import { AddTrainingToOrgForm } from '@/components/admin/forms/AddTrainingToOrgForm';
 import { Drawer } from '@/components/admin/Drawer';
 import { revalidatePath } from 'next/cache';
 
 export default async function AdminOrganizationsPage() {
   let orgs: OrgT[] = [];
-  let trainings: Training[] = [];
   let backendOnline = false;
   
   try {
@@ -16,27 +13,14 @@ export default async function AdminOrganizationsPage() {
     await api.healthCheck();
     backendOnline = true;
     
-    [orgs, trainings] = await Promise.all([
-      api.listOrganizations(),
-      api.listTrainings(),
-    ]);
+    orgs = await api.listOrganizations();
   } catch (error) {
     console.error('API Error:', error);
     // Backend çalışmıyorsa boş array'ler kullan
   }
 
-  // Her organizasyon için eğitimleri al
-  const orgsWithTrainings = await Promise.all(
-    orgs.map(async (org) => {
-      let companyTrainings: CompanyTraining[] = [];
-      try {
-        companyTrainings = await api.listOrgTrainings(org.id);
-      } catch (error) {
-        console.error(`Error fetching trainings for org ${org.id}:`, error);
-      }
-      return { ...org, companyTrainings };
-    })
-  );
+  // Tek firma varsa onu al, yoksa ilk firmayı al
+  const currentOrg = orgs.length > 0 ? orgs[0] : null;
 
   return (
     <main className="p-0">
@@ -52,13 +36,15 @@ export default async function AdminOrganizationsPage() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-indigo-900">Firmalar</h1>
-                <p className="text-indigo-600 text-sm">Firma bilgileri ve eğitim atamaları</p>
+                <h1 className="text-2xl font-bold text-indigo-900">Firma Profili</h1>
+                <p className="text-indigo-600 text-sm">Firma bilgilerini düzenleyin</p>
               </div>
             </div>
-            <Drawer buttonLabel="Yeni Firma Ekle" title="Yeni Firma">
-              <OrganizationForm />
-            </Drawer>
+            {!currentOrg && (
+              <Drawer buttonLabel="Firma Oluştur" title="Yeni Firma">
+                <OrganizationForm />
+              </Drawer>
+            )}
           </div>
         </div>
 
@@ -86,8 +72,8 @@ export default async function AdminOrganizationsPage() {
         )}
 
         <div className="space-y-8">
-          {orgsWithTrainings.map((org) => (
-            <div key={org.id} className="bg-white border border-indigo-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+          {currentOrg ? (
+            <div className="bg-white border border-indigo-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
               {/* Firma Başlığı - Blue Header */}
               <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-indigo-200 rounded-t-xl p-6">
                 <div className="flex items-center justify-between">
@@ -98,123 +84,70 @@ export default async function AdminOrganizationsPage() {
                       </svg>
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-indigo-900">{org.name}</h2>
-                      <p className="text-indigo-600 text-sm">{org.business_topic}</p>
+                      <h2 className="text-xl font-bold text-indigo-900">{currentOrg.name}</h2>
+                      <p className="text-indigo-600 text-sm">{currentOrg.business_topic}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Drawer buttonLabel="Firmayı Düzenle" title="Firmayı Düzenle">
-                      <OrganizationForm initialOrganization={org as any} />
+                      <OrganizationForm initialOrganization={currentOrg as any} />
                     </Drawer>
-                    <form action={async (fd) => {
-                      'use server';
-                      const id = String(fd.get('id') || '');
-                      if (id) await api.deleteOrganization(id);
-                      revalidatePath('/admin/organizations');
-                    }}>
-                      <input type="hidden" name="id" value={org.id} />
-                      <button className="border border-red-200 rounded-lg px-3 py-1.5 text-red-700 hover:bg-red-50 transition-colors">Firmayı Sil</button>
-                    </form>
                   </div>
                 </div>
               </div>
 
-              {/* Eğitim Ekleme Butonu */}
-              <div className="p-6 pb-4">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                      <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                      </svg>
-                    </div>
-                    <h3 className="font-semibold text-gray-800">Firma Eğitimleri</h3>
+              {/* Firma Bilgileri */}
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-800 mb-2">Firma Adı</h3>
+                    <p className="text-gray-600">{currentOrg.name}</p>
                   </div>
-                  <Drawer buttonLabel="Yeni Eğitim Ekle" title="Firmaya Eğitim Ekle">
-                    <AddTrainingToOrgForm 
-                      orgId={org.id} 
-                      trainings={trainings}
-                    />
-                  </Drawer>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-800 mb-2">İş Konusu</h3>
+                    <p className="text-gray-600">{currentOrg.business_topic || 'Belirtilmemiş'}</p>
+                  </div>
                 </div>
-
-                {/* Eğitimler Tablosu */}
-                {org.companyTrainings.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="bg-blue-100 border-b border-blue-200">
-                            <th className="px-4 py-3 text-left text-blue-900 font-semibold">Eğitim</th>
-                            <th className="px-4 py-3 text-left text-blue-900 font-semibold">Beklentiler</th>
-                            <th className="px-4 py-3 text-left text-blue-900 font-semibold">Access Code</th>
-                            <th className="px-4 py-3 text-left text-blue-900 font-semibold">İşlemler</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {org.companyTrainings.map((ct) => {
-                            const training = trainings.find(t => t.id === ct.training_id);
-                            return (
-                              <tr key={ct.id} className="hover:bg-blue-100/50 border-b border-blue-200 last:border-b-0">
-                                <td className="px-4 py-3">
-                                  <div className="font-medium text-gray-900">{training?.title || 'Bilinmeyen Eğitim'}</div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="max-w-xs truncate text-gray-600" title={ct.expectations || ''}>
-                                    {ct.expectations || '-'}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <code className="bg-blue-100 px-2 py-1 rounded text-sm font-mono text-blue-800 border border-blue-200">
-                                    {ct.access_code}
-                                  </code>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex items-center gap-2">
-                                    <Drawer buttonLabel="Düzenle" title="Eğitimi Düzenle">
-                                      <CompanyTrainingForm 
-                                        orgId={org.id} 
-                                        companyTraining={ct} 
-                                        trainings={trainings}
-                                      />
-                                    </Drawer>
-                                    <form action={async (fd) => {
-                                      'use server';
-                                      const trainingId = String(fd.get('training_id') || '');
-                                      if (trainingId) await api.deleteCompanyTraining(org.id, trainingId);
-                                      revalidatePath('/admin/organizations');
-                                    }}>
-                                      <input type="hidden" name="training_id" value={ct.id} />
-                                      <button className="border border-red-200 rounded px-2 py-1 text-red-700 hover:bg-red-50 text-sm transition-colors">
-                                        Sil
-                                      </button>
-                                    </form>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {org.companyTrainings.length === 0 && (
-                  <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    Bu firmaya henüz eğitim eklenmemiş.
+                    <div>
+                      <h4 className="font-medium text-blue-900 mb-1">Portal Bilgisi</h4>
+                      <p className="text-blue-800 text-sm">
+                        Bu portal {currentOrg.name} firması için özel olarak kurulmuştur. 
+                        Eklenen tüm kullanıcılar otomatik olarak bu firmaya bağlanacaktır.
+                      </p>
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             </div>
-          ))}
+          ) : (
+            <div className="text-center py-12 bg-white border border-gray-200 rounded-xl">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Henüz Firma Oluşturulmamış
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Portal kullanımı için önce firma bilgilerini oluşturmanız gerekiyor.
+              </p>
+              <Drawer buttonLabel="Firma Oluştur" title="Yeni Firma">
+                <OrganizationForm />
+              </Drawer>
+            </div>
+          )}
         </div>
       </div>
     </main>
   );
 }
+

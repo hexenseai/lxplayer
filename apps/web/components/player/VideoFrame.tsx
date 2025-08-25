@@ -8,6 +8,7 @@ export const VideoFrame = forwardRef<any, VideoFrameProps>(({
   currentTime,
   isPlaying,
   frame = 'wide',
+  frameConfig,
   onTimeUpdate,
   onPlay,
   onPause,
@@ -47,25 +48,39 @@ export const VideoFrame = forwardRef<any, VideoFrameProps>(({
   // Log frame changes for debugging and handle transitions
   useEffect(() => {
     console.log('VideoFrame: Frame changed to:', frame);
+    const transitionDuration = frameConfig?.transition_duration || 0.8;
     if (frame !== 'wide') {
       setIsTransitioning(true);
       const timer = setTimeout(() => {
         setIsTransitioning(false);
-      }, 800); // Match transition duration
+      }, transitionDuration * 1000); // Convert to milliseconds
       return () => clearTimeout(timer);
     } else {
       setIsTransitioning(false);
     }
-  }, [frame]);
+  }, [frame, frameConfig]);
 
   const getFrameStyles = () => {
+    const transitionDuration = frameConfig?.transition_duration || 0.8;
+    const transitionEasing = frameConfig?.transition_easing || 'cubic-bezier(0.4, 0, 0.2, 1)';
+    
     const baseStyles: React.CSSProperties = {
       width: '100%',
       height: '100%',
       objectFit: 'cover',
-      transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: `all ${transitionDuration}s ${transitionEasing}`,
       transformOrigin: 'center center'
     };
+
+    // If we have a custom frame configuration, use it
+    if (frame === 'custom' && frameConfig) {
+      return {
+        ...baseStyles,
+        objectPosition: `${frameConfig.object_position_x}% ${frameConfig.object_position_y}%`,
+        transform: `scale(${frameConfig.scale})`,
+        transformOrigin: `${frameConfig.transform_origin_x}% ${frameConfig.transform_origin_y}%`
+      };
+    }
 
     switch (frame) {
       case 'wide':

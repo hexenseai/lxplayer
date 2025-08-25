@@ -12,6 +12,10 @@ interface TinyMCEEditorProps {
 
 export function TinyMCEEditorComponent({ value, onChange, placeholder, disabled }: TinyMCEEditorProps) {
   const editorRef = useRef<any>(null);
+  
+  // Debug: API key'in yüklenip yüklenmediğini kontrol et
+  console.log('TinyMCE API Key loaded:', !!process.env.NEXT_PUBLIC_TINYMCE_API_KEY);
+  console.log('TinyMCE API Key length:', process.env.NEXT_PUBLIC_TINYMCE_API_KEY?.length || 0);
 
   const rewriteHtmlAssetUrls = (html: string): string => {
     const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -95,35 +99,48 @@ export function TinyMCEEditorComponent({ value, onChange, placeholder, disabled 
     }
   };
 
+  // API key - environment variable'dan al
+  const apiKey = process.env.NEXT_PUBLIC_TINYMCE_API_KEY;
+
+  // API key kontrolü
+  if (!apiKey) {
+    console.error('TinyMCE API key bulunamadı. Lütfen NEXT_PUBLIC_TINYMCE_API_KEY environment variable\'ını ayarlayın.');
+    return (
+      <div className="border border-gray-300 rounded-md p-4 bg-red-50 text-red-700">
+        <p>TinyMCE API key yapılandırılmamış. Lütfen NEXT_PUBLIC_TINYMCE_API_KEY environment variable'ını ayarlayın.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="border border-gray-300 rounded-md">
       <Editor
-        apiKey={process.env.NEXT_PUBLIC_TINYMCE_API_KEY || ''}
+        apiKey={apiKey}
         onInit={(evt: any, editor: any) => editorRef.current = editor}
         value={processedValue}
         onEditorChange={(content: string) => onChange(content)}
         init={{
           height: 600,
           menubar: true,
-          // Sadece temel ve stabil pluginler
+          // Core editing features
           plugins: [
-            'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-            'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-            'insertdatetime', 'media', 'table', 'help', 'wordcount',
-            'paste', 'hr', 'pagebreak', 'nonbreaking', 'directionality',
-            'emoticons', 'visualchars', 'codesample'
+            'anchor', 'autolink', 'charmap', 'codesample', 'emoticons', 'link', 'lists', 'media', 'searchreplace', 'table', 'visualblocks', 'wordcount',
+            // Premium features (trial)
+            'checklist', 'mediaembed', 'casechange', 'formatpainter', 'pageembed', 'a11ychecker', 'tinymcespellchecker', 'permanentpen', 'powerpaste', 'advtable', 'advcode', 'advtemplate', 'ai', 'uploadcare', 'mentions', 'tinycomments', 'tableofcontents', 'footnotes', 'mergetags', 'autocorrect', 'typography', 'inlinecss', 'markdown', 'importword', 'exportword', 'exportpdf'
           ],
-          // Basitleştirilmiş toolbar
-          toolbar: [
-            'undo redo | formatselect | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify',
-            'bullist numlist outdent indent | removeformat | subscript superscript | code | fullscreen',
-            'link image media table | charmap emoticons hr pagebreak | ltr rtl | visualchars visualblocks nonbreaking | preview | help'
-          ].join(' | '),
+          // Enhanced toolbar with premium features
+          toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | link media table mergetags | addcomment showcomments | spellcheckdialog a11ycheck typography uploadcare | align lineheight | checklist numlist bullist indent outdent | emoticons charmap | removeformat',
           content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
           placeholder: placeholder || 'İçeriğinizi buraya yazın...',
-          // Türkçe dil desteği kaldırıldı - 404 hatası veriyordu
-          // language: 'tr',
-          // language_url: '/tinymce/langs/tr.js',
+          // Premium features configuration
+          tinycomments_mode: 'embedded',
+          tinycomments_author: 'LXPlayer Editor',
+          mergetags_list: [
+            { value: 'First.Name', title: 'First Name' },
+            { value: 'Email', title: 'Email' },
+          ],
+          ai_request: (request: any, respondWith: any) => respondWith.string(() => Promise.reject('AI Assistant not implemented')),
+          uploadcare_public_key: '423126f79cc1d78bfbf4',
           images_upload_handler: handleImageUpload,
           images_upload_base_path: '/uploads',
           automatic_uploads: true,

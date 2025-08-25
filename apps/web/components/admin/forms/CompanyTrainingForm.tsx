@@ -14,13 +14,15 @@ const Schema = z.object({
 type FormValues = z.infer<typeof Schema>;
 
 interface CompanyTrainingFormProps {
-  orgId: string;
+  orgId?: string;
+  userId?: string;
   companyTraining: CompanyTraining;
   trainings: Training[];
   onDone?: () => void;
+  onTrainingUpdated?: () => void;
 }
 
-export function CompanyTrainingForm({ orgId, companyTraining, trainings, onDone }: CompanyTrainingFormProps) {
+export function CompanyTrainingForm({ orgId, userId, companyTraining, trainings, onDone, onTrainingUpdated }: CompanyTrainingFormProps) {
   const router = useRouter();
   const defaultValues = {
     training_id: companyTraining.training_id,
@@ -34,9 +36,14 @@ export function CompanyTrainingForm({ orgId, companyTraining, trainings, onDone 
 
   const onSubmit = async (values: FormValues) => {
     try {
-      await api.updateCompanyTraining(orgId, companyTraining.id, values);
+      if (orgId) {
+        await api.updateCompanyTraining(orgId, companyTraining.id, values);
+      } else if (userId) {
+        await api.updateUserTraining(userId, companyTraining.id, values);
+      }
       router.refresh();
       onDone?.();
+      onTrainingUpdated?.();
     } catch (error) {
       setError('training_id', { type: 'manual', message: 'Güncelleme başarısız' });
     }
@@ -59,16 +66,21 @@ export function CompanyTrainingForm({ orgId, companyTraining, trainings, onDone 
       </div>
       
       <div>
-        <Label htmlFor="expectations">Firma Beklentileri</Label>
+        <Label htmlFor="expectations">
+          {orgId ? 'Firma Beklentileri' : 'Eğitimden Beklentiler'}
+        </Label>
         <textarea 
           id="expectations" 
           {...register('expectations')} 
-          placeholder="Firma beklentilerini buraya yazın..."
+          placeholder={orgId ? "Firma beklentilerini buraya yazın..." : "Bu eğitimden ne beklediğinizi yazın..."}
           rows={4}
           className="w-full border rounded px-3 py-2 resize-none"
         />
         <p className="text-xs text-gray-500 mt-1">
-          Firma için özel beklentiler, hedefler veya notlar ekleyebilirsiniz.
+          {orgId 
+            ? "Firma için özel beklentiler, hedefler veya notlar ekleyebilirsiniz."
+            : "Bu eğitimden ne beklediğinizi, hedeflerinizi veya notlarınızı ekleyebilirsiniz."
+          }
         </p>
       </div>
 

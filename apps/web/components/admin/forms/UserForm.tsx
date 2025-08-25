@@ -21,16 +21,22 @@ type FormValues = z.infer<typeof Schema>;
 
 export function UserForm({ orgs, initialUser, onDone }: { orgs: { id: string; name: string }[]; initialUser?: User; onDone?: () => void }) {
   const router = useRouter();
+  
+  // Yeni kullanıcı için otomatik olarak ilk firmayı seç
   const defaultValues: Partial<FormValues> | undefined = initialUser
     ? {
         email: initialUser.email,
         username: initialUser.username ?? undefined,
         full_name: initialUser.full_name ?? undefined,
         organization_id: initialUser.organization_id ?? '',
-        role: initialUser.role ?? undefined,
+        role: (initialUser.role as 'Admin' | 'User') ?? undefined,
         department: initialUser.department ?? undefined,
       }
-    : undefined;
+    : {
+        // Yeni kullanıcı için otomatik olarak ilk firmayı seç
+        organization_id: orgs.length > 0 ? orgs[0].id : '',
+        role: 'User' as const,
+      };
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setError } = useForm<FormValues>({ resolver: zodResolver(Schema), defaultValues });
 
@@ -39,7 +45,14 @@ export function UserForm({ orgs, initialUser, onDone }: { orgs: { id: string; na
     const isUpdate = Boolean(initialUser?.id);
     const path = isUpdate ? `${base}/users/${initialUser!.id}` : `${base}/users`;
     const method = isUpdate ? 'PUT' : 'POST';
-    const payload: Record<string, unknown> = { ...values, organization_id: values.organization_id || null };
+    
+    // Yeni kullanıcı için otomatik olarak ilk firmayı ata
+    let organization_id = values.organization_id;
+    if (!isUpdate && !organization_id && orgs.length > 0) {
+      organization_id = orgs[0].id;
+    }
+    
+    const payload: Record<string, unknown> = { ...values, organization_id: organization_id || null };
     if (isUpdate && (!values.password || values.password.length === 0)) {
       delete payload.password;
     }
@@ -89,12 +102,18 @@ export function UserForm({ orgs, initialUser, onDone }: { orgs: { id: string; na
       </div>
       <div>
         <Label htmlFor="organization_id">Firma</Label>
-        <select id="organization_id" {...register('organization_id')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900">
-          <option value="">(firma yok)</option>
-          {orgs.map((o) => (
-            <option key={o.id} value={o.id}>{o.name}</option>
-          ))}
-        </select>
+        {orgs.length === 1 ? (
+          <div className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 bg-gray-50 text-gray-600">
+            {orgs[0].name} (Otomatik atanmış)
+          </div>
+        ) : (
+          <select id="organization_id" {...register('organization_id')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900">
+            <option value="">(firma yok)</option>
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
+        )}
       </div>
       <div>
         <Label htmlFor="password">Geçici Şifre</Label>

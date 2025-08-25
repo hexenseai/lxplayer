@@ -9,7 +9,7 @@ interface IconSelectorProps {
   placeholder?: string;
 }
 
-// Popüler iconların listesi
+// Popüler iconların listesi (tekrarlanan isimler kaldırıldı)
 const popularIcons = [
   'Info',
   'AlertCircle',
@@ -114,30 +114,21 @@ const popularIcons = [
   'Droplet',
   'Flame',
   'Sparkles',
-  'Zap',
   'Lightning',
   'Sunrise',
   'Sunset',
-  'Moon',
-  'Star',
   'Compass',
   'Navigation',
   'Map',
   'Flag',
   'Anchor',
   'Ship',
-  'Anchor',
   'LifeBuoy',
-  'Shield',
   'Sword',
-  'Target',
   'Crosshair',
   'Aim',
   'Focus',
-  'Eye',
   'Glasses',
-  'Camera',
-  'Video',
   'Film',
   'Music',
   'Headphones',
@@ -171,14 +162,11 @@ const popularIcons = [
   'HardDrive',
   'Usb',
   'SdCard',
-  'Wifi',
-  'Bluetooth',
   'Signal',
   'SignalHigh',
   'SignalMedium',
   'SignalLow',
   'SignalZero',
-  'Battery',
   'BatteryCharging',
   'BatteryFull',
   'BatteryMedium',
@@ -192,21 +180,13 @@ const popularIcons = [
   'Slider',
   'Volume',
   'Volume1',
-  'Volume2',
-  'VolumeX',
   'Mute',
-  'Mic',
-  'MicOff',
   'Mic2',
-  'Video',
   'VideoOff',
   'Video2',
-  'Camera',
   'CameraOff',
-  'Image',
   'ImageOff',
   'File',
-  'FileText',
   'FileImage',
   'FileVideo',
   'FileAudio',
@@ -245,7 +225,6 @@ const popularIcons = [
   'FolderCheck2',
   'FolderSearch2',
   'FolderHeart2',
-  'FolderGit2',
   'FolderKanban2',
   'FolderInput2',
   'FolderOutput2',
@@ -271,7 +250,7 @@ export function IconSelector({ value, onChange, placeholder = "Icon seçiniz" }:
     iconName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const selectedIcon = value ? (LucideIcons as any)[value] : null;
+  const SelectedIconComponent = value ? (LucideIcons as any)[value] : null;
 
   return (
     <div className="relative">
@@ -281,9 +260,9 @@ export function IconSelector({ value, onChange, placeholder = "Icon seçiniz" }:
           onClick={() => setIsOpen(!isOpen)}
           className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
-          {selectedIcon ? (
+          {SelectedIconComponent ? (
             <>
-              <selectedIcon className="w-4 h-4" />
+              <SelectedIconComponent className="w-4 h-4" />
               <span className="text-sm text-gray-700">{value}</span>
             </>
           ) : (

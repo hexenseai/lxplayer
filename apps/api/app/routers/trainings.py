@@ -1,9 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlmodel import Session, select
-from typing import Optional
+from sqlalchemy.exc import IntegrityError
+import uuid
+import os
+import subprocess
+import tempfile
+import requests
 from ..db import get_session
-from ..models import Training, TrainingSection, Overlay, CompanyTraining, Asset
+from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining
+from ..auth import hash_password
 
 router = APIRouter(prefix="/trainings", tags=["trainings"])
 
@@ -17,27 +23,26 @@ class TrainingIn(BaseModel):
 
 class TrainingSectionIn(BaseModel):
     title: str
-    description: Optional[str] = None
-    script: Optional[str] = None
-    duration: Optional[int] = None
-    video_object: Optional[str] = None
-    asset_id: Optional[str] = None
+    description: str | None = None
+    script: str | None = None
+    duration: int | None = None
+    video_object: str | None = None
+    asset_id: str | None = None
     order_index: int = 0
 
 
 class OverlayIn(BaseModel):
     time_stamp: int
     type: str
-    caption: Optional[str] = None
-    content_id: Optional[str] = None
-    style_id: Optional[str] = None
-    frame: Optional[str] = None
-    animation: Optional[str] = None
-    duration: Optional[float] = 2.0
-    position: Optional[str] = None  # includes 'fullscreen'
-    training_section_id: Optional[str] = None
-    icon: Optional[str] = None
-    pause_on_show: Optional[bool] = False
+    caption: str | None = None
+    content_id: str | None = None
+    style_id: str | None = None
+    frame: str | None = None
+    animation: str | None = None
+    duration: float | None = None
+    position: str | None = None
+    icon: str | None = None
+    pause_on_show: bool | None = None
 
 
 @router.get("", operation_id="list_trainings")
@@ -414,3 +419,130 @@ def delete_section_overlay(training_id: str, section_id: str, overlay_id: str, s
     except Exception as e:
         session.rollback()
         raise HTTPException(500, f"Error deleting overlay: {str(e)}")
+
+
+# Transcript generation endpoint
+@router.post("/{training_id}/sections/{section_id}/transcript")
+def generate_transcript(training_id: str, section_id: str, session: Session = Depends(get_session)):
+    section = session.get(TrainingSection, section_id)
+    if not section or section.training_id != training_id:
+        raise HTTPException(404, "Training section not found")
+    
+    # Get the video asset
+    if not section.asset_id:
+        raise HTTPException(400, "No video asset found for this section")
+    
+    asset = session.get(Asset, section.asset_id)
+    if not asset or asset.kind != 'video':
+        raise HTTPException(400, "Asset is not a video")
+    
+    try:
+        # Check if ffmpeg is available
+        ffmpeg_paths = [
+            'ffmpeg',  # PATH'te varsa
+            r'C:\ffmpeg\bin\ffmpeg.exe',  # Tam yol
+            r'C:\Program Files\ffmpeg\bin\ffmpeg.exe',  # Program Files
+        ]
+        
+        ffmpeg_found = False
+        ffmpeg_cmd = None
+        
+        for path in ffmpeg_paths:
+            try:
+                result = subprocess.run([path, '-version'], capture_output=True, text=True, check=True)
+                print(f"FFmpeg found at: {path}")  # Debug log
+                ffmpeg_found = True
+                ffmpeg_cmd = path
+                break
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                print(f"FFmpeg not found at: {path} - {e}")  # Debug log
+                continue
+        
+        if not ffmpeg_found:
+            raise HTTPException(500, "FFmpeg is not installed or not in PATH. Please install FFmpeg and restart the server.")
+        
+        # Download video to temporary file
+        video_url = asset.uri
+        if not video_url.startswith('http'):
+            # Assume it's a local file path
+            cdn_url = os.getenv('CDN_URL', 'http://localhost:9000/lxplayer')
+            video_url = f"{cdn_url}/{video_url}"
+        
+        # Create temporary file for video
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_video:
+            response = requests.get(video_url, stream=True)
+            response.raise_for_status()
+            for chunk in response.iter_content(chunk_size=8192):
+                temp_video.write(chunk)
+            temp_video_path = temp_video.name
+        
+        # Extract audio using ffmpeg
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
+            audio_path = temp_audio.name
+        
+        # Extract audio from video
+        subprocess.run([
+            ffmpeg_cmd, '-i', temp_video_path, 
+            '-vn', '-acodec', 'pcm_s16le', 
+            '-ar', '16000', '-ac', '1', 
+            audio_path, '-y'
+        ], check=True)
+        
+        # Use OpenAI Whisper API to transcribe
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not openai_api_key:
+            raise HTTPException(500, "OpenAI API key not configured")
+        
+        with open(audio_path, 'rb') as audio_file:
+            response = requests.post(
+                'https://api.openai.com/v1/audio/transcriptions',
+                headers={
+                    'Authorization': f'Bearer {openai_api_key}'
+                },
+                files={
+                    'file': ('audio.wav', audio_file, 'audio/wav')
+                },
+                data={
+                    'model': 'whisper-1',
+                    'language': 'tr',  # Turkish language
+                    'response_format': 'verbose_json'  # Zaman etiketli çıktı için
+                }
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            # Tam transcript
+            transcript = result.get('text', '')
+            
+            # Zaman etiketli segmentler
+            segments = result.get('segments', [])
+            
+            # SRT formatına çevir
+            srt_content = ""
+            for i, segment in enumerate(segments, 1):
+                start_time = segment.get('start', 0)
+                end_time = segment.get('end', 0)
+                text = segment.get('text', '').strip()
+                
+                # Saniyeyi SRT formatına çevir (HH:MM:SS,mmm)
+                start_srt = f"{int(start_time//3600):02d}:{int((start_time%3600)//60):02d}:{int(start_time%60):02d},{int((start_time%1)*1000):03d}"
+                end_srt = f"{int(end_time//3600):02d}:{int((end_time%3600)//60):02d}:{int(end_time%60):02d},{int((end_time%1)*1000):03d}"
+                
+                srt_content += f"{i}\n{start_srt} --> {end_srt}\n{text}\n\n"
+        
+        # Clean up temporary files
+        os.unlink(temp_video_path)
+        os.unlink(audio_path)
+        
+        return {
+            "transcript": transcript,
+            "srt": srt_content,
+            "segments": segments
+        }
+        
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(500, f"Error processing video: {str(e)}")
+    except requests.RequestException as e:
+        raise HTTPException(500, f"Error downloading video or calling OpenAI API: {str(e)}")
+    except Exception as e:
+        raise HTTPException(500, f"Unexpected error: {str(e)}")

@@ -1,19 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import OverlayForm from './OverlayForm';
+import FrameConfigForm from './FrameConfigForm';
 
-interface OverlayModalProps {
-  trainingId: string;
+interface FrameConfigModalProps {
   sectionId: string;
-  overlayId?: string;
+  frameConfigId?: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialTimeStamp?: number;
 }
 
-export default function OverlayModal({ trainingId, sectionId, overlayId, isOpen, onClose, onSuccess, initialTimeStamp }: OverlayModalProps) {
+export default function FrameConfigModal({ sectionId, frameConfigId, isOpen, onClose, onSuccess }: FrameConfigModalProps) {
   if (!isOpen) return null;
 
   const handleSuccess = () => {
@@ -35,15 +33,13 @@ export default function OverlayModal({ trainingId, sectionId, overlayId, isOpen,
             <div className="sm:flex sm:items-start">
               <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
                 <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                  {overlayId ? 'Overlay Düzenle' : 'Yeni Overlay Ekle'}
+                  {frameConfigId ? 'Frame Konfigürasyonu Düzenle' : 'Yeni Frame Konfigürasyonu Ekle'}
                 </h3>
-                <OverlayForm
-                  trainingId={trainingId}
+                <FrameConfigForm
                   sectionId={sectionId}
-                  overlayId={overlayId}
+                  frameConfigId={frameConfigId}
                   onSuccess={handleSuccess}
                   onCancel={onClose}
-                  initialTimeStamp={initialTimeStamp}
                 />
               </div>
             </div>

@@ -62,7 +62,7 @@ export default async function TrainingDetail({ params, searchParams }: TrainingD
             {companyTraining?.access_code && (
               <Link 
                 className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors"
-                href={`/player/${companyTraining.access_code}`}
+                href={`/player/${companyTraining.access_code}?userId=${companyTraining.id}`}
               >
                 InteractivePlayer'ı Başlat
               </Link>
@@ -145,7 +145,7 @@ export default async function TrainingDetail({ params, searchParams }: TrainingD
               </div>
               <Link 
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                href={`/player/${companyTraining.access_code}`}
+                href={`/player/${companyTraining.access_code}?userId=${companyTraining.id}`}
               >
                 InteractivePlayer'ı Başlat
               </Link>

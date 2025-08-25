@@ -4,11 +4,12 @@ import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/admin", label: "Ana Sayfa" },
+  { href: "/admin/organizations", label: "Firma Profili" },
   { href: "/admin/users", label: "Kullanıcılar" },
-  { href: "/admin/organizations", label: "Firmalar" },
-  { href: "/admin/assets", label: "İçerikler" },
   { href: "/admin/trainings", label: "Eğitimler" },
+  { href: "/admin/assets", label: "İçerikler" },
   { href: "/admin/styles", label: "Stiller" },
+  { href: "/admin/frame-configs", label: "Frame Ayarları" },
 ];
 
 export function AdminNav() {

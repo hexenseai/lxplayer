@@ -15,6 +15,7 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
 }) {
   const [isActive, setIsActive] = useState(false);
   const [styleData, setStyleData] = useState<any>(null);
+  const [iconStyleData, setIconStyleData] = useState<any>(null);
 
   useEffect(() => {
     if (isVisible) {
@@ -53,8 +54,11 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
 
   // Load style data when overlay changes
   useEffect(() => {
-    const loadStyle = async () => {
-      if (overlay.style_id) {
+    // Use style from training_json if available, otherwise fetch from API
+    if (overlay.style) {
+      setStyleData(overlay.style);
+    } else if (overlay.style_id) {
+      const loadStyle = async () => {
         try {
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/styles/${overlay.style_id}`);
           if (response.ok) {
@@ -64,13 +68,32 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
         } catch (error) {
           console.error('Error loading style:', error);
         }
-      } else {
-        setStyleData(null);
-      }
-    };
+      };
+      loadStyle();
+    } else {
+      setStyleData(null);
+    }
+  }, [overlay.style_id, overlay.style]);
 
-    loadStyle();
-  }, [overlay.style_id]);
+  // Load icon style data when overlay changes
+  useEffect(() => {
+    if (overlay.icon_style_id) {
+      const loadIconStyle = async () => {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/styles/${overlay.icon_style_id}`);
+          if (response.ok) {
+            const style = await response.json();
+            setIconStyleData(style);
+          }
+        } catch (error) {
+          console.error('Error loading icon style:', error);
+        }
+      };
+      loadIconStyle();
+    } else {
+      setIconStyleData(null);
+    }
+  }, [overlay.icon_style_id]);
 
   // Pozisyon stilleri artık OverlayManager'da yönetiliyor
   const getPositionStyles = () => {
@@ -174,6 +197,41 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
     }
   };
 
+  const getIconStyles = () => {
+    const baseIconStyles: React.CSSProperties = {
+      fontSize: '1.2em',
+      marginRight: '0.5em',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    };
+    
+    if (!iconStyleData) return baseIconStyles;
+    
+    try {
+      const customIconStyles = JSON.parse(iconStyleData.style_json);
+      
+      // Icon için özel stil işleme
+      const processedIconStyles = { ...customIconStyles };
+      
+      // Icon color opacity
+      if (customIconStyles.color && customIconStyles.colorOpacity) {
+        const opacity = parseInt(customIconStyles.colorOpacity) / 100;
+        const color = customIconStyles.color;
+        processedIconStyles.color = color.startsWith('rgba') 
+          ? color.replace(/[\d.]+\)$/, `${opacity})`)
+          : color.startsWith('rgb')
+          ? color.replace('rgb', 'rgba').replace(')', `, ${opacity})`)
+          : hexToRgba(color, opacity);
+      }
+      
+      return { ...baseIconStyles, ...processedIconStyles };
+    } catch (error) {
+      console.error('Error parsing icon style:', error);
+      return baseIconStyles;
+    }
+  };
+
   const hexToRgba = (hex: string, opacity: number): string => {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
@@ -254,9 +312,14 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
     const renderWithIcon = (content: React.ReactNode) => {
       if (!IconComponent) return content;
       
+      const iconStyles = getIconStyles();
+      
       return (
         <div className="flex items-center space-x-2">
-          <IconComponent className="w-4 h-4 flex-shrink-0" />
+          <IconComponent 
+            className="flex-shrink-0" 
+            style={iconStyles}
+          />
           <span>{content}</span>
         </div>
       );

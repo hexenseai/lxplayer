@@ -118,7 +118,7 @@ export default async function HomePage() {
                     </Link>
                     <Link 
                       className="btn btn-primary btn-sm flex-1" 
-                      href={`/player/${ct.access_code}`}
+                      href={`/player/${ct.access_code}?userId=${ct?.id || ''}`}
                     >
                       Oynat
                     </Link>

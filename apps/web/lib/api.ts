@@ -13,6 +13,42 @@ export const Asset = z.object({
 });
 export type Asset = z.infer<typeof Asset>;
 
+export const FrameConfig = z.object({
+  id: z.string(),
+  training_section_id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  object_position_x: z.number(),
+  object_position_y: z.number(),
+  scale: z.number(),
+  transform_origin_x: z.number(),
+  transform_origin_y: z.number(),
+  transition_duration: z.number(),
+  transition_easing: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  is_default: z.boolean(),
+  global_config_id: z.string().nullable(),
+});
+export type FrameConfig = z.infer<typeof FrameConfig>;
+
+export const GlobalFrameConfig = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  object_position_x: z.number(),
+  object_position_y: z.number(),
+  scale: z.number(),
+  transform_origin_x: z.number(),
+  transform_origin_y: z.number(),
+  transition_duration: z.number(),
+  transition_easing: z.string(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type GlobalFrameConfig = z.infer<typeof GlobalFrameConfig>;
+
 export const Overlay = z.object({
   id: z.string(),
   training_id: z.string(),
@@ -28,6 +64,7 @@ export const Overlay = z.object({
   position: z.string().nullable().optional(),
   icon: z.string().nullable().optional(),
   pause_on_show: z.boolean().nullable().optional(),
+  frame_config_id: z.string().nullable().optional(),
   content_asset: Asset.nullable().optional()
 });
 export type Overlay = z.infer<typeof Overlay>;
@@ -159,6 +196,15 @@ export const api = {
   deleteCompanyTraining: (orgId: string, trainingId: string) =>
     request(`/organizations/${orgId}/trainings/${trainingId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
+  // user trainings
+  createUserTraining: (userId: string, input: { training_id: string; expectations?: string }) =>
+    request(`/users/${userId}/trainings`, CompanyTraining, { method: 'POST', body: JSON.stringify(input) }),
+  listUserTrainings: (userId: string) => request(`/users/${userId}/trainings`, z.array(CompanyTraining)),
+  updateUserTraining: (userId: string, trainingId: string, input: { training_id: string; expectations?: string }) =>
+    request(`/users/${userId}/trainings/${trainingId}`, CompanyTraining, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteUserTraining: (userId: string, trainingId: string) =>
+    request(`/users/${userId}/trainings/${trainingId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
+
   // assets
   listAssets: () => request('/assets', z.array(Asset)),
   getAsset: (id: string) => request(`/assets/${id}`, Asset),
@@ -183,12 +229,24 @@ export const api = {
     request(`/trainings/${trainingId}/sections/${sectionId}`, TrainingSection, { method: 'PUT', body: JSON.stringify(input) }),
   deleteTrainingSection: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
+  // transcript generation
+  generateTranscript: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}/transcript`, z.object({ 
+    transcript: z.string(),
+    srt: z.string(),
+    segments: z.array(z.object({
+      id: z.number(),
+      start: z.number(),
+      end: z.number(),
+      text: z.string()
+    }))
+  }), { method: 'POST' }),
+
   // section overlays
   listSectionOverlays: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}/overlays`, z.array(Overlay)),
   getSectionOverlay: (trainingId: string, sectionId: string, overlayId: string) => request(`/trainings/${trainingId}/sections/${sectionId}/overlays/${overlayId}`, Overlay),
-  createSectionOverlay: (trainingId: string, sectionId: string, input: { time_stamp: number; type: string; caption?: string; content_id?: string; style_id?: string; frame?: string; animation?: string; position?: string; icon?: string; pause_on_show?: boolean }) =>
+  createSectionOverlay: (trainingId: string, sectionId: string, input: { time_stamp: number; type: string; caption?: string; content_id?: string; style_id?: string; frame?: string; animation?: string; position?: string; icon?: string; pause_on_show?: boolean; frame_config_id?: string }) =>
     request(`/trainings/${trainingId}/sections/${sectionId}/overlays`, Overlay, { method: 'POST', body: JSON.stringify({ ...input, training_section_id: sectionId }) }),
-  updateSectionOverlay: (trainingId: string, sectionId: string, overlayId: string, input: { time_stamp: number; type: string; caption?: string; content_id?: string; style_id?: string; frame?: string; animation?: string; position?: string; icon?: string; pause_on_show?: boolean }) =>
+  updateSectionOverlay: (trainingId: string, sectionId: string, overlayId: string, input: { time_stamp: number; type: string; caption?: string; content_id?: string; style_id?: string; frame?: string; animation?: string; position?: string; icon?: string; pause_on_show?: boolean; frame_config_id?: string }) =>
     request(`/trainings/${trainingId}/sections/${sectionId}/overlays/${overlayId}`, Overlay, { method: 'PUT', body: JSON.stringify({ ...input, training_section_id: sectionId }) }),
   deleteSectionOverlay: (trainingId: string, sectionId: string, overlayId: string) => request(`/trainings/${trainingId}/sections/${sectionId}/overlays/${overlayId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
@@ -201,4 +259,24 @@ export const api = {
     request(`/styles/${id}`, Style, { method: 'PUT', body: JSON.stringify(input) }),
   deleteStyle: (id: string) => request(`/styles/${id}`, z.object({ message: z.string() }), { method: 'DELETE' }),
   seedDefaultStyles: () => request('/styles/seed-defaults', z.object({ message: z.string() }), { method: 'POST' }),
+
+  // frame configurations
+  listSectionFrameConfigs: (sectionId: string) => request(`/frame-configs/sections/${sectionId}`, z.array(FrameConfig)),
+  getFrameConfig: (frameConfigId: string) => request(`/frame-configs/${frameConfigId}`, FrameConfig),
+  createFrameConfig: (sectionId: string, input: { name: string; description?: string; object_position_x?: number; object_position_y?: number; scale?: number; transform_origin_x?: number; transform_origin_y?: number; transition_duration?: number; transition_easing?: string; is_default?: boolean }) =>
+    request(`/frame-configs/sections/${sectionId}`, FrameConfig, { method: 'POST', body: JSON.stringify(input) }),
+  updateFrameConfig: (frameConfigId: string, input: { name?: string; description?: string; object_position_x?: number; object_position_y?: number; scale?: number; transform_origin_x?: number; transform_origin_y?: number; transition_duration?: number; transition_easing?: string; is_default?: boolean }) =>
+    request(`/frame-configs/${frameConfigId}`, FrameConfig, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteFrameConfig: (frameConfigId: string) => request(`/frame-configs/${frameConfigId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
+  copyFrameConfigFromGlobal: (sectionId: string, globalConfigId: string) =>
+    request(`/frame-configs/sections/${sectionId}/copy-from-global/${globalConfigId}`, FrameConfig, { method: 'POST' }),
+
+  // global frame configurations
+  listGlobalFrameConfigs: () => request(`/frame-configs/global`, z.array(GlobalFrameConfig)),
+  getGlobalFrameConfig: (globalConfigId: string) => request(`/frame-configs/global/${globalConfigId}`, GlobalFrameConfig),
+  createGlobalFrameConfig: (input: { name: string; description?: string; object_position_x?: number; object_position_y?: number; scale?: number; transform_origin_x?: number; transform_origin_y?: number; transition_duration?: number; transition_easing?: string; is_active?: boolean }) =>
+    request(`/frame-configs/global`, GlobalFrameConfig, { method: 'POST', body: JSON.stringify(input) }),
+  updateGlobalFrameConfig: (globalConfigId: string, input: { name?: string; description?: string; object_position_x?: number; object_position_y?: number; scale?: number; transform_origin_x?: number; transform_origin_y?: number; transition_duration?: number; transition_easing?: string; is_active?: boolean }) =>
+    request(`/frame-configs/global/${globalConfigId}`, GlobalFrameConfig, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteGlobalFrameConfig: (globalConfigId: string) => request(`/frame-configs/global/${globalConfigId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 };

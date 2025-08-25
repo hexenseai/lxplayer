@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api, Overlay } from '@/lib/api';
+import { formatTime } from '@/lib/utils';
 import OverlayModal from './forms/OverlayModal';
 
 interface OverlaysListProps {
@@ -61,11 +62,7 @@ export default function OverlaysList({ trainingId, sectionId, onChanged }: Overl
     loadOverlays();
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+
 
   if (loading) {
     return <div className="text-center py-4">Yükleniyor...</div>;

@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { Training as TrainingT } from '@/lib/api';
+import { useState, useEffect } from 'react';
+import { Training as TrainingT, CompanyTraining } from '@/lib/api';
 import { TrainingForm } from './forms/TrainingForm';
 import { TrainingSectionsList } from './TrainingSectionsList';
 import { DeleteTrainingButton } from './DeleteTrainingButton';
 import { Drawer } from './Drawer';
+import FlowButton from './flow/FlowButton';
+import { api } from '@/lib/api';
 
 interface TrainingDetailsProps {
   training: TrainingT;
@@ -13,6 +15,28 @@ interface TrainingDetailsProps {
 
 export default function TrainingDetails({ training }: TrainingDetailsProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [accessCodes, setAccessCodes] = useState<CompanyTraining[]>([]);
+  const [loadingAccessCodes, setLoadingAccessCodes] = useState(false);
+
+  useEffect(() => {
+    const fetchAccessCodes = async () => {
+      setLoadingAccessCodes(true);
+      try {
+        // Bu eğitime ait tüm access code'ları al
+        const allCompanyTrainings = await api.listCompanyTrainings();
+        const trainingAccessCodes = allCompanyTrainings.filter(ct => ct.training_id === training.id);
+        setAccessCodes(trainingAccessCodes);
+      } catch (error) {
+        console.error('Error fetching access codes:', error);
+      } finally {
+        setLoadingAccessCodes(false);
+      }
+    };
+
+    if (isExpanded) {
+      fetchAccessCodes();
+    }
+  }, [isExpanded, training.id]);
 
   return (
     <div>
@@ -57,6 +81,7 @@ export default function TrainingDetails({ training }: TrainingDetailsProps) {
             <Drawer buttonLabel="Eğitimi Düzenle" title="Eğitimi Düzenle">
               <TrainingForm initialTraining={training as any} />
             </Drawer>
+            <FlowButton trainingId={training.id} />
             <DeleteTrainingButton trainingId={training.id} trainingTitle={training.title} />
           </div>
         </div>
@@ -64,7 +89,52 @@ export default function TrainingDetails({ training }: TrainingDetailsProps) {
 
       {/* Expanded Details */}
       {isExpanded && (
-        <div className="p-6">
+        <div className="p-6 space-y-6">
+          {/* Access Codes Section */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-blue-900">Access Code'lar</h3>
+            </div>
+            
+            {loadingAccessCodes ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+              </div>
+            ) : accessCodes.length > 0 ? (
+              <div className="space-y-2">
+                {accessCodes.map((ct) => (
+                  <div key={ct.id} className="flex items-center justify-between bg-white border border-blue-200 rounded-lg p-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          {ct.organization?.name || 'Bilinmeyen Firma'}
+                        </span>
+                        {ct.expectations && (
+                          <span className="text-xs text-gray-500">
+                            - {ct.expectations}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <code className="bg-blue-100 px-2 py-1 rounded text-sm font-mono text-blue-800 border border-blue-200">
+                      {ct.access_code}
+                    </code>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                Bu eğitim için henüz access code oluşturulmamış.
+              </div>
+            )}
+          </div>
+
+          {/* Training Sections */}
           <TrainingSectionsList trainingId={training.id} />
         </div>
       )}

@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
+import uuid
 from ..db import get_session
-from ..models import User
+from ..models import User, CompanyTraining, Organization
 from ..auth import hash_password
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -18,6 +19,11 @@ class UserIn(BaseModel):
     department: str | None = None
     password: str | None = None
     gpt_prefs: str | None = None
+
+
+class UserTrainingIn(BaseModel):
+    training_id: str
+    expectations: str | None = None
 
 
 def redact(u: User) -> dict:
@@ -88,4 +94,98 @@ def delete_user(user_id: str, session: Session = Depends(get_session)):
         raise HTTPException(404, "User not found")
     session.delete(user)
     session.commit()
+    return {"ok": True}
+
+
+# User Training Endpoints
+@router.post("/{user_id}/trainings")
+def create_user_training(user_id: str, body: UserTrainingIn, session: Session = Depends(get_session)):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    # Kullanıcının organizasyonunu al
+    if not user.organization_id:
+        raise HTTPException(400, "User must be associated with an organization")
+    
+    # Access code oluştur
+    access_code = str(uuid.uuid4())[:8].upper()
+    
+    # CompanyTraining oluştur
+    company_training = CompanyTraining(
+        organization_id=user.organization_id,
+        training_id=body.training_id,
+        expectations=body.expectations,
+        access_code=access_code
+    )
+    
+    session.add(company_training)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(409, "Training already assigned to user's organization")
+    
+    session.refresh(company_training)
+    return company_training
+
+
+@router.get("/{user_id}/trainings")
+def list_user_trainings(user_id: str, session: Session = Depends(get_session)):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    # Kullanıcının organizasyonuna ait eğitimleri al
+    if not user.organization_id:
+        return []
+    
+    company_trainings = session.exec(
+        select(CompanyTraining).where(CompanyTraining.organization_id == user.organization_id)
+    ).all()
+    
+    return company_trainings
+
+
+@router.put("/{user_id}/trainings/{training_id}")
+def update_user_training(user_id: str, training_id: str, body: UserTrainingIn, session: Session = Depends(get_session)):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    company_training = session.get(CompanyTraining, training_id)
+    if not company_training:
+        raise HTTPException(404, "Company training not found")
+    
+    # Kullanıcının organizasyonuna ait olduğunu kontrol et
+    if company_training.organization_id != user.organization_id:
+        raise HTTPException(403, "Access denied")
+    
+    company_training.training_id = body.training_id
+    company_training.expectations = body.expectations
+    
+    session.add(company_training)
+    session.commit()
+    session.refresh(company_training)
+    
+    return company_training
+
+
+@router.delete("/{user_id}/trainings/{training_id}")
+def delete_user_training(user_id: str, training_id: str, session: Session = Depends(get_session)):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    
+    company_training = session.get(CompanyTraining, training_id)
+    if not company_training:
+        raise HTTPException(404, "Company training not found")
+    
+    # Kullanıcının organizasyonuna ait olduğunu kontrol et
+    if company_training.organization_id != user.organization_id:
+        raise HTTPException(403, "Access denied")
+    
+    session.delete(company_training)
+    session.commit()
+    
     return {"ok": True}

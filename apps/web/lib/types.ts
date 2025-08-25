@@ -24,6 +24,7 @@ export interface Overlay {
   caption?: string;
   content_id?: string;
   style_id?: string;
+  icon_style_id?: string;
   frame?: 'wide' | 'face_left' | 'face_right' | 'face_middle' | 'face_close';
   animation?: 'fade_in' | 'slide_in_left' | 'slide_in_right' | 'scale_in';
   duration?: number;
@@ -37,6 +38,12 @@ export interface Overlay {
     uri: string;
     description?: string;
     html_content?: string | null;
+  };
+  style?: {
+    id: string;
+    name: string;
+    description?: string;
+    style_json: string;
   };
 }
 
@@ -88,6 +95,15 @@ export interface VideoFrameProps {
   currentTime: number;
   isPlaying: boolean;
   frame?: string;
+  frameConfig?: {
+    object_position_x: number;
+    object_position_y: number;
+    scale: number;
+    transform_origin_x: number;
+    transform_origin_y: number;
+    transition_duration: number;
+    transition_easing: string;
+  };
   onTimeUpdate: (time: number) => void;
   onPlay: () => void;
   onPause: () => void;

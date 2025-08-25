@@ -2,8 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TrainingSectionModal } from './forms/TrainingSectionModal';
-import OverlaysList from './OverlaysList';
-import type { TrainingSection, Overlay } from '@/lib/api';
+import type { TrainingSection } from '@/lib/api';
 import { api } from '@/lib/api';
 
 interface TrainingSectionsListProps {
@@ -13,7 +12,6 @@ interface TrainingSectionsListProps {
 export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) {
   const router = useRouter();
   const [sections, setSections] = useState<TrainingSection[]>([]);
-  const [overlays, setOverlays] = useState<Record<string, Overlay[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<TrainingSection | undefined>();
@@ -29,19 +27,6 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
       // Section'ları order_index'e göre sırala
       const sortedSections = sectionsData.sort((a, b) => a.order_index - b.order_index);
       setSections(sortedSections);
-      
-      // Load overlays for each section
-      const overlaysData: Record<string, Overlay[]> = {};
-      for (const section of sectionsData) {
-        try {
-          const sectionOverlays = await api.listSectionOverlays(trainingId, section.id);
-          overlaysData[section.id] = sectionOverlays;
-        } catch (error) {
-          console.error(`Overlays for section ${section.id} yüklenirken hata:`, error);
-          overlaysData[section.id] = [];
-        }
-      }
-      setOverlays(overlaysData);
     } catch (error) {
       console.error('Bölümler yüklenirken hata:', error);
     } finally {
@@ -60,7 +45,7 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
   };
 
   const handleDeleteSection = async (sectionId: string) => {
-    if (!confirm('Bu bölümü ve tüm overlay\'lerini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
+    if (!confirm('Bu bölümü silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
       return;
     }
 
@@ -109,7 +94,7 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
             </div>
             <div>
               <h3 className="text-lg font-bold text-emerald-900">Eğitim Bölümleri</h3>
-              <p className="text-emerald-600 text-sm">Bölümler ve overlay yönetimi</p>
+              <p className="text-emerald-600 text-sm">Bölüm bilgileri ve yönetimi</p>
             </div>
           </div>
           <button
@@ -170,11 +155,18 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
                         Düzenle
                       </button>
                       <HeyGenButton trainingId={trainingId} section={section} onDone={loadSections} />
+                      <TranscriptButton trainingId={trainingId} section={section} onDone={loadSections} />
                       <a
                         href={`/admin/trainings/${trainingId}/sections/${section.id}/preview`}
                         className="px-3 py-1.5 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors border border-blue-200"
                       >
-                        Önizleme
+                        Eğitim Düzenle
+                      </a>
+                      <a
+                        href={`/admin/trainings/${trainingId}/sections/${section.id}/frame-configs`}
+                        className="px-3 py-1.5 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors border border-purple-200"
+                      >
+                        Frame Ayarları
                       </a>
                       <button
                         onClick={() => handleDeleteSection(section.id)}
@@ -204,25 +196,6 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
                       </p>
                     </div>
                   )}
-                  
-                  {/* Overlays Summary */}
-                  {overlays[section.id] && overlays[section.id].length > 0 && (
-                    <div className="mb-4 bg-emerald-50 rounded-lg p-3 border border-emerald-200">
-                      <span className="text-sm font-semibold text-emerald-700">Overlay'ler ({overlays[section.id].length}):</span>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {overlays[section.id].map((overlay) => (
-                          <div key={overlay.id} className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded border border-emerald-200">
-                            {overlay.type} ({overlay.time_stamp}s)
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Overlays Management */}
-                  <div className="pt-4 border-t border-emerald-200">
-                    <OverlaysList trainingId={trainingId} sectionId={section.id} />
-                  </div>
                 </div>
                 
                 {/* Sağ taraf - Video Preview */}
@@ -305,6 +278,116 @@ function HeyGenButton({ trainingId, section, onDone }: { trainingId: string; sec
       </button>
       {open && (
         <HeyGenModal trainingId={trainingId} section={section} onClose={() => setOpen(false)} onDone={onDone} />
+      )}
+    </>
+  );
+}
+
+function TranscriptButton({ trainingId, section, onDone }: { trainingId: string; section: TrainingSection; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerateTranscript = async () => {
+    if (!section.asset_id) {
+      alert('Bu bölüm için video bulunamadı.');
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+    
+    try {
+      const result = await api.generateTranscript(trainingId, section.id);
+      setTranscript(result.transcript);
+      setOpen(true);
+    } catch (error: any) {
+      console.error('Transcript generation error:', error);
+      setError(error.message || 'Transcript oluşturulurken bir hata oluştu.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleConfirmTranscript = async () => {
+    try {
+      await api.updateTrainingSection(trainingId, section.id, {
+        title: section.title,
+        description: section.description || undefined,
+        script: transcript,
+        duration: section.duration || undefined,
+        video_object: section.video_object || undefined,
+        asset_id: section.asset_id || undefined,
+        order_index: section.order_index,
+      });
+      
+      setOpen(false);
+      setTranscript('');
+      onDone();
+    } catch (error) {
+      console.error('Error updating section:', error);
+      alert('Konuşma metni güncellenirken bir hata oluştu.');
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={handleGenerateTranscript}
+        disabled={isGenerating || !section.asset_id}
+        className="px-3 py-1.5 text-sm bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors border border-orange-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+      >
+        {isGenerating ? (
+          <>
+            <div className="w-3 h-3 border border-orange-700 border-t-transparent rounded-full animate-spin"></div>
+            İşleniyor...
+          </>
+        ) : (
+          <>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+            Transcript
+          </>
+        )}
+      </button>
+      
+      {open && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="p-6 border-b">
+              <h3 className="text-lg font-semibold">Transcript Onayı</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Video sesinden çıkarılan transcript. Onaylarsanız konuşma metni alanı güncellenecektir.
+              </p>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-96">
+              <div className="bg-gray-50 rounded-lg p-4 border">
+                <p className="text-sm text-gray-800 whitespace-pre-wrap">{transcript}</p>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setTranscript('');
+                }}
+                className="px-4 py-2 text-sm border rounded hover:bg-gray-50"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleConfirmTranscript}
+                className="px-4 py-2 text-sm bg-orange-600 text-white rounded hover:bg-orange-700"
+              >
+                Onayla ve Güncelle
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
