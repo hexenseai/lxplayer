@@ -63,7 +63,7 @@ def create_admin(api_base):
     """Admin kullanıcısını oluştur"""
     try:
         # Önce admin var mı kontrol et
-        response = requests.get(f"{api_base}/api/users/", timeout=10)
+        response = requests.get(f"{api_base}/users/", timeout=10)
         log(f"Users endpoint response: {response.status_code}")
         
         if response.status_code == 200:
@@ -82,8 +82,8 @@ def create_admin(api_base):
             "is_active": True
         }
         
-        log(f"Admin oluşturuluyor: {api_base}/api/auth/register")
-        response = requests.post(f"{api_base}/api/auth/register", 
+        log(f"Admin oluşturuluyor: {api_base}/users/")
+        response = requests.post(f"{api_base}/users/", 
                                json=admin_data, timeout=10)
         
         log(f"Register response: {response.status_code}")
@@ -103,7 +103,7 @@ def create_company(api_base):
     """Default firmayı oluştur"""
     try:
         # Önce firma var mı kontrol et
-        response = requests.get(f"{api_base}/api/organizations/", timeout=10)
+        response = requests.get(f"{api_base}/organizations/", timeout=10)
         log(f"Organizations endpoint response: {response.status_code}")
         
         if response.status_code == 200:
@@ -120,8 +120,8 @@ def create_company(api_base):
             "is_active": True
         }
         
-        log(f"Firma oluşturuluyor: {api_base}/api/organizations/")
-        response = requests.post(f"{api_base}/api/organizations/", 
+        log(f"Firma oluşturuluyor: {api_base}/organizations/")
+        response = requests.post(f"{api_base}/organizations/", 
                                json=company_data, timeout=10)
         
         log(f"Organization response: {response.status_code}")
