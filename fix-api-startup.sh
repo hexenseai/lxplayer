@@ -1,41 +1,29 @@
 #!/bin/bash
 
-echo "🔧 API Startup Sorunu Çözümü Başlıyor..."
+echo "�� API Startup Sorunu Düzeltme..."
 echo ""
 
-echo "📊 Mevcut Durum:"
-docker compose ps api
-echo ""
-
-echo "🔄 API Container'ını Yeniden Başlatıyor..."
+echo "1. API Container'ı Yeniden Başlatma:"
 docker compose restart api
 echo ""
 
-echo "⏳ API'nin başlamasını bekliyor (30 saniye)..."
-sleep 30
+echo "2. API Başlama Bekleme (15 saniye):"
+sleep 15
+echo ""
 
-echo "📋 API Logları (son 20 satır):"
+echo "3. API Startup Logs Kontrolü:"
 docker compose logs --tail=20 api
 echo ""
 
-echo "🔍 API Health Check:"
-curl -s -o /dev/null -w "Status: %{http_code}\n" http://localhost:8000/docs
+echo "4. API Debug Endpoint Testi:"
+curl -s http://yodea.hexense.ai/api/debug
+echo ""
 echo ""
 
-echo "🔐 Login Endpoint Testi:"
-curl -s -X POST http://localhost:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@lxplayer.com","password":"admin123"}' \
-  -w "Status: %{http_code}\n" \
-  -o /dev/null
+echo "5. Frame Configs Global Testi:"
+curl -s http://yodea.hexense.ai/api/frame-configs/global
+echo ""
 echo ""
 
-echo "🌐 Public Domain Testi:"
-curl -s -X POST http://yodea.hexense.ai/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@lxplayer.com","password":"admin123"}' \
-  -w "Status: %{http_code}\n" \
-  -o /dev/null
-echo ""
+echo "✅ API startup düzeltmesi tamamlandı!"
 
-echo "✅ API startup kontrolü tamamlandı!"

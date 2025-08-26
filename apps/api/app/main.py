@@ -54,8 +54,10 @@ async def startup_event():
     """Initialize database on startup"""
     try:
         init_db()
+        print("Application startup complete")
     except Exception as e:
         print(f"Database initialization warning (this is normal if tables already exist): {e}")
+        print("Application startup complete")
 
 @app.get("/")
 def root():
