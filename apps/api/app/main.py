@@ -52,12 +52,14 @@ app.include_router(frame_configs.router)
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup"""
+    print("Starting application startup...")
     try:
         init_db()
-        print("Application startup complete")
+        print("Database initialization completed")
     except Exception as e:
         print(f"Database initialization warning (this is normal if tables already exist): {e}")
-        print("Application startup complete")
+    
+    print("Application startup complete")
 
 @app.get("/")
 def root():
@@ -74,6 +76,9 @@ def test_cors_options():
 @app.get("/debug")
 def debug_info():
     """Debug endpoint to check API status"""
+    # Get actual routes from the app
+    frame_routes = [r.path for r in app.routes if hasattr(r, 'path') and 'frame' in r.path.lower()]
+    
     return {
         "status": "ok",
         "message": "API is running",
@@ -87,5 +92,7 @@ def debug_info():
             "/assets",
             "/styles",
             "/frame-configs"
-        ]
+        ],
+        "frame_routes": frame_routes,
+        "total_routes": len(app.routes)
     }
