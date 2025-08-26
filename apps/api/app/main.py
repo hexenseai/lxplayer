@@ -50,6 +50,7 @@ app.include_router(frame_configs.router)
 #print([ (r.path, r.name) for r in app.routes if "/trainings" in getattr(r, "path", "") ])
 
 # Initialize database on module import
+print("Starting database initialization...")
 try:
     init_db()
     print("Database initialization completed")
@@ -57,6 +58,13 @@ except Exception as e:
     print(f"Database initialization warning (this is normal if tables already exist): {e}")
 
 print("Application startup complete")
+
+# Force startup event
+@app.on_event("startup")
+async def startup_event():
+    """Force startup event"""
+    print("Startup event triggered")
+    print("Application startup complete from event")
 
 @app.get("/")
 def root():
