@@ -21,6 +21,9 @@ app.add_middleware(
         # Explicitly allow the rare trailing-dot localhost form some browsers may emit
         "http://localhost.:3000",
         "http://localhost.:3001",
+        # Production domains
+        "https://yodea.hexense.ai",
+        "http://yodea.hexense.ai",
     ],
     # Also allow any localhost/127.0.0.1 with optional trailing dot and any dev port
     allow_origin_regex=r"^https?://(localhost\.?|127\.0\.0\.1)(:\d{1,5})$",
@@ -65,3 +68,21 @@ def test_cors():
 @app.options("/test-cors")
 def test_cors_options():
     return {"message": "CORS preflight successful"}
+
+@app.get("/debug")
+def debug_info():
+    """Debug endpoint to check API status"""
+    return {
+        "status": "ok",
+        "message": "API is running",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "endpoints": [
+            "/",
+            "/docs",
+            "/trainings",
+            "/users",
+            "/organizations",
+            "/assets",
+            "/styles"
+        ]
+    }
