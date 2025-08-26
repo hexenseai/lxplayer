@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { CompanyUserSection } from '@/components/CompanyUserSection';
+import { ScormDownloadButton } from '@/components/admin/ScormDownloadButton';
 
 export default async function LibraryPage() {
   const trainings = await api
@@ -61,15 +62,18 @@ export default async function LibraryPage() {
                 </div>
                 
                 <div className="card-footer">
-                  <Link 
-                    className="btn btn-primary w-full" 
-                    href={`/trainings/${t.id}`}
-                  >
-                    Detayları Görüntüle
-                    <svg className="h-4 w-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Link>
+                  <div className="flex gap-2">
+                    <Link 
+                      className="btn btn-primary flex-1" 
+                      href={`/trainings/${t.id}`}
+                    >
+                      Detayları Görüntüle
+                      <svg className="h-4 w-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Link>
+                    <ScormDownloadButton trainingId={t.id} trainingTitle={t.title} />
+                  </div>
                 </div>
               </div>
             ))}

@@ -279,4 +279,19 @@ export const api = {
   updateGlobalFrameConfig: (globalConfigId: string, input: { name?: string; description?: string; object_position_x?: number; object_position_y?: number; scale?: number; transform_origin_x?: number; transform_origin_y?: number; transition_duration?: number; transition_easing?: string; is_active?: boolean }) =>
     request(`/frame-configs/global/${globalConfigId}`, GlobalFrameConfig, { method: 'PUT', body: JSON.stringify(input) }),
   deleteGlobalFrameConfig: (globalConfigId: string) => request(`/frame-configs/global/${globalConfigId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
+
+  // SCORM package download
+  downloadScormPackage: (trainingId: string) => {
+    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+    const url = `${base}/trainings/${trainingId}/scorm-package`;
+    return fetch(url, {
+      method: 'GET',
+      headers: { 'content-type': 'application/json' },
+    }).then(response => {
+      if (!response.ok) {
+        throw new Error(`API ${response.status}: ${response.statusText}`);
+      }
+      return response.blob();
+    });
+  },
 };

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
 from pydantic import BaseModel
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
@@ -7,6 +7,10 @@ import os
 import subprocess
 import tempfile
 import requests
+import zipfile
+import json
+import xml.etree.ElementTree as ET
+from datetime import datetime
 from ..db import get_session
 from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining
 from ..auth import hash_password
@@ -546,3 +550,576 @@ def generate_transcript(training_id: str, section_id: str, session: Session = De
         raise HTTPException(500, f"Error downloading video or calling OpenAI API: {str(e)}")
     except Exception as e:
         raise HTTPException(500, f"Unexpected error: {str(e)}")
+
+
+def create_scorm_manifest(training, sections, overlays):
+    """SCORM 2004 manifest dosyası oluşturur"""
+    # SCORM manifest template
+    manifest_template = '''<?xml version="1.0" encoding="UTF-8"?>
+<manifest identifier="MANIFEST-{training_id}" version="1.3" 
+         xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" 
+         xmlns:adlcp="http://www.adlnet.org/xsd/adlcp_rootv1p2" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+         xsi:schemaLocation="http://www.imsproject.org/xsd/imscp_rootv1p1p2 imscp_rootv1p1p2.xsd 
+                             http://www.imsglobal.org/xsd/imsmd_rootv1p2p1 imsmd_rootv1p2p1.xsd 
+                             http://www.adlnet.org/xsd/adlcp_rootv1p2 adlcp_rootv1p2.xsd">
+    <metadata>
+        <schema>ADL SCORM</schema>
+        <schemaversion>1.3</schemaversion>
+    </metadata>
+    <organizations default="TOC1">
+        <organization identifier="TOC1">
+            <title>{training_title}</title>
+            <item identifier="ITEM1" identifierref="RESOURCE1">
+                <title>{training_title}</title>
+                <adlcp:completionThreshold>1</adlcp:completionThreshold>
+            </item>
+        </organization>
+    </organizations>
+    <resources>
+        <resource identifier="RESOURCE1" type="webcontent" adlcp:scormtype="sco" href="index.html">
+            <file href="index.html"/>
+            <file href="player.js"/>
+            <file href="styles.css"/>
+            <file href="training-data.json"/>
+            {asset_files}
+        </resource>
+    </resources>
+</manifest>'''
+    
+    # Asset dosyalarını ekle
+    asset_files = ""
+    for section in sections:
+        if section.asset:
+            # Dosya uzantısını belirle
+            file_extension = section.asset.kind.split('/')[-1]
+            if file_extension == 'jpeg':
+                file_extension = 'jpg'
+            elif file_extension == 'mpeg':
+                file_extension = 'mp4'
+            
+            asset_files += f'<file href="assets/{section.asset.id}.{file_extension}"/>\n            '
+    
+    return manifest_template.format(
+        training_id=training.id,
+        training_title=training.title,
+        asset_files=asset_files
+    )
+
+
+def create_scorm_html(training, sections, overlays):
+    """SCORM uyumlu HTML dosyası oluşturur"""
+    html_template = '''<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{training_title}</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://pixijs.download/release/pixi.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+    <div id="app">
+        <div id="player-container">
+            <video id="video-player" controls>
+                <source src="" type="video/mp4">
+                Tarayıcınız video oynatmayı desteklemiyor.
+            </video>
+            <div id="overlay-container"></div>
+        </div>
+        <div id="controls">
+            <button id="prev-section">Önceki Bölüm</button>
+            <button id="next-section">Sonraki Bölüm</button>
+            <button id="complete-training">Eğitimi Tamamla</button>
+        </div>
+    </div>
+    <script src="player.js"></script>
+</body>
+</html>'''
+    
+    return html_template.format(training_title=training.title)
+
+
+def create_scorm_css():
+    """SCORM için CSS dosyası oluşturur"""
+    return '''body {
+    margin: 0;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    background-color: #f5f5f5;
+}
+
+#app {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+#player-container {
+    position: relative;
+    width: 100%;
+    background: #000;
+}
+
+#video-player {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+#overlay-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.overlay {
+    position: absolute;
+    pointer-events: auto;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 10px;
+    border-radius: 4px;
+    max-width: 300px;
+    word-wrap: break-word;
+}
+
+#controls {
+    padding: 20px;
+    text-align: center;
+    background: #f8f9fa;
+}
+
+button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    margin: 0 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+button:hover {
+    background: #0056b3;
+}
+
+button:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+}'''
+
+
+def create_scorm_js(training, sections, overlays):
+    """SCORM uyumlu JavaScript dosyası oluşturur"""
+    js_template = '''// SCORM API Wrapper
+let scorm = {{
+    version: "1.2",
+    api: null,
+    data: {{
+        lessonStatus: "not attempted",
+        lessonLocation: "",
+        score: {{
+            raw: 0,
+            min: 0,
+            max: 100,
+            scaled: 0
+        }},
+        time: {{
+            session: "0000:00:00",
+            total: "0000:00:00"
+        }}
+    }},
+    
+    init: function() {{
+        // SCORM API'yi bul
+        this.api = this.findAPI();
+        if (this.api) {{
+            this.api.LMSInitialize("");
+            console.log("SCORM API initialized");
+        }}
+    }},
+    
+    findAPI: function() {{
+        // SCORM API'yi farklı frame'lerde ara
+        let api = null;
+        let findAttempts = 0;
+        const findAPITries = 500;
+        
+        while ((api == null) && (findAttempts < findAPITries)) {{
+            findAttempts++;
+            api = this.getAPI();
+            if (api == null) {{
+                setTimeout(() => {{}}, 100);
+            }}
+        }}
+        return api;
+    }},
+    
+    getAPI: function() {{
+        // Farklı frame'lerde SCORM API'yi ara
+        let api = null;
+        if (window.parent && window.parent != window) {{
+            api = window.parent.API;
+        }}
+        if (api == null && window.top) {{
+            api = window.top.API;
+        }}
+        return api;
+    }},
+    
+    setLessonStatus: function(status) {{
+        this.data.lessonStatus = status;
+        if (this.api) {{
+            this.api.LMSSetValue("cmi.core.lesson_status", status);
+        }}
+    }},
+    
+    setScore: function(score) {{
+        this.data.score.raw = score;
+        this.data.score.scaled = score / 100;
+        if (this.api) {{
+            this.api.LMSSetValue("cmi.core.score.raw", score);
+            this.api.LMSSetValue("cmi.core.score.scaled", this.data.score.scaled);
+        }}
+    }},
+    
+    commit: function() {{
+        if (this.api) {{
+            this.api.LMSCommit("");
+        }}
+    }},
+    
+    terminate: function() {{
+        if (this.api) {{
+            this.api.LMSFinish("");
+        }}
+    }}
+}};
+
+// Training Data
+const trainingData = {training_data};
+
+// Player State
+let currentSectionIndex = 0;
+let currentVideo = null;
+let overlays = [];
+let isPlaying = false;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {{
+    scorm.init();
+    loadSection(currentSectionIndex);
+    setupEventListeners();
+}});
+
+function loadSection(sectionIndex) {{
+    if (sectionIndex < 0 || sectionIndex >= trainingData.sections.length) {{
+        return;
+    }}
+    
+    const section = trainingData.sections[sectionIndex];
+    const videoPlayer = document.getElementById('video-player');
+    
+    // Video source'u ayarla
+    if (section.asset && section.asset.uri) {{
+        videoPlayer.src = section.asset.uri;
+        currentVideo = section.asset.uri;
+    }}
+    
+    // Overlay'leri yükle
+    overlays = section.overlays || [];
+    
+    // Section başlığını güncelle
+    document.title = `${{trainingData.title}} - ${{section.title}}`;
+    
+    // SCORM lesson location'ı güncelle
+    scorm.data.lessonLocation = sectionIndex.toString();
+    if (scorm.api) {{
+        scorm.api.LMSSetValue("cmi.core.lesson_location", sectionIndex.toString());
+    }}
+    
+    updateControls();
+}});
+
+function setupEventListeners() {{
+    const videoPlayer = document.getElementById('video-player');
+    const prevBtn = document.getElementById('prev-section');
+    const nextBtn = document.getElementById('next-section');
+    const completeBtn = document.getElementById('complete-training');
+    
+    videoPlayer.addEventListener('loadedmetadata', function() {{
+        scorm.setLessonStatus("incomplete");
+    }});
+    
+    videoPlayer.addEventListener('ended', function() {{
+        if (currentSectionIndex < trainingData.sections.length - 1) {{
+            currentSectionIndex++;
+            loadSection(currentSectionIndex);
+        }} else {{
+            scorm.setLessonStatus("completed");
+            scorm.setScore(100);
+            scorm.commit();
+        }}
+    }});
+    
+    prevBtn.addEventListener('click', function() {{
+        if (currentSectionIndex > 0) {{
+            currentSectionIndex--;
+            loadSection(currentSectionIndex);
+        }}
+    }});
+    
+    nextBtn.addEventListener('click', function() {{
+        if (currentSectionIndex < trainingData.sections.length - 1) {{
+            currentSectionIndex++;
+            loadSection(currentSectionIndex);
+        }}
+    }});
+    
+    completeBtn.addEventListener('click', function() {{
+        scorm.setLessonStatus("completed");
+        scorm.setScore(100);
+        scorm.commit();
+        scorm.terminate();
+        alert("Eğitim tamamlandı!");
+    }});
+    
+    // Overlay'leri göster
+    videoPlayer.addEventListener('timeupdate', function() {{
+        const currentTime = videoPlayer.currentTime;
+        showOverlaysAtTime(currentTime);
+    }});
+}});
+
+function showOverlaysAtTime(currentTime) {{
+    const overlayContainer = document.getElementById('overlay-container');
+    overlayContainer.innerHTML = '';
+    
+    overlays.forEach(overlay => {{
+        if (currentTime >= overlay.time_stamp && 
+            currentTime <= overlay.time_stamp + (overlay.duration || 5)) {{
+            
+            const overlayElement = document.createElement('div');
+            overlayElement.className = 'overlay';
+            overlayElement.style.left = '10px';
+            overlayElement.style.top = '10px';
+            overlayElement.textContent = overlay.caption || 'Overlay';
+            
+            overlayContainer.appendChild(overlayElement);
+        }}
+    }});
+}}
+
+function updateControls() {{
+    const prevBtn = document.getElementById('prev-section');
+    const nextBtn = document.getElementById('next-section');
+    
+    prevBtn.disabled = currentSectionIndex === 0;
+    nextBtn.disabled = currentSectionIndex === trainingData.sections.length - 1;
+}};'''
+    
+    # Training data'yı JSON formatında hazırla
+    training_data = {
+        "id": training.id,
+        "title": training.title,
+        "description": training.description,
+        "sections": []
+    }
+    
+    for section in sections:
+        section_data = {
+            "id": section.id,
+            "title": section.title,
+            "description": section.description,
+            "duration": section.duration,
+            "asset": None,
+            "overlays": []
+        }
+        
+        # Asset bilgilerini ekle
+        if section.asset:
+            # Dosya uzantısını belirle
+            file_extension = section.asset.kind.split('/')[-1]
+            if file_extension == 'jpeg':
+                file_extension = 'jpg'
+            elif file_extension == 'mpeg':
+                file_extension = 'mp4'
+            
+            section_data["asset"] = {
+                "id": section.asset.id,
+                "uri": f"assets/{section.asset.id}.{file_extension}",
+                "kind": section.asset.kind
+            }
+        
+        # Section'a ait overlay'leri ekle
+        section_overlays = [o for o in overlays if o.training_section_id == section.id]
+        for overlay in section_overlays:
+            overlay_data = {
+                "id": overlay.id,
+                "time_stamp": overlay.time_stamp,
+                "type": overlay.type,
+                "caption": overlay.caption,
+                "duration": overlay.duration,
+                "position": overlay.position
+            }
+            section_data["overlays"].append(overlay_data)
+        
+        training_data["sections"].append(section_data)
+    
+    return js_template.format(training_data=json.dumps(training_data, ensure_ascii=False))
+
+
+@router.get("/{training_id}/scorm-package", operation_id="download_scorm_package")
+def download_scorm_package(training_id: str, session: Session = Depends(get_session)):
+    """Eğitimi SCORM 2004 formatında paket olarak indir"""
+    try:
+        # Eğitimi al
+        training = session.get(Training, training_id)
+        if not training:
+            raise HTTPException(404, "Training not found")
+        
+        # Eğitim bölümlerini al
+        sections = session.exec(select(TrainingSection).where(TrainingSection.training_id == training_id).order_by(TrainingSection.order_index)).all()
+        
+        # Tüm overlay'leri al
+        overlays = session.exec(select(Overlay).where(Overlay.training_id == training_id)).all()
+        
+        # Geçici ZIP dosyası oluştur
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_zip:
+            with zipfile.ZipFile(temp_zip, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                # SCORM manifest dosyası
+                manifest_content = create_scorm_manifest(training, sections, overlays)
+                zip_file.writestr('imsmanifest.xml', manifest_content)
+                
+                # HTML dosyası
+                html_content = create_scorm_html(training, sections, overlays)
+                zip_file.writestr('index.html', html_content)
+                
+                # CSS dosyası
+                css_content = create_scorm_css()
+                zip_file.writestr('styles.css', css_content)
+                
+                # JavaScript dosyası
+                js_content = create_scorm_js(training, sections, overlays)
+                zip_file.writestr('player.js', js_content)
+                
+                # Training data JSON dosyası
+                training_data = {
+                    "id": training.id,
+                    "title": training.title,
+                    "description": training.description,
+                    "sections": []
+                }
+                
+                for section in sections:
+                    section_data = {
+                        "id": section.id,
+                        "title": section.title,
+                        "description": section.description,
+                        "duration": section.duration,
+                        "asset": None,
+                        "overlays": []
+                    }
+                    
+                    # Asset bilgilerini ekle
+                    if section.asset:
+                        # Dosya uzantısını belirle
+                        file_extension = section.asset.kind.split('/')[-1]
+                        if file_extension == 'jpeg':
+                            file_extension = 'jpg'
+                        elif file_extension == 'mpeg':
+                            file_extension = 'mp4'
+                        
+                        section_data["asset"] = {
+                            "id": section.asset.id,
+                            "uri": f"assets/{section.asset.id}.{file_extension}",
+                            "kind": section.asset.kind
+                        }
+                    
+                    # Section'a ait overlay'leri ekle
+                    section_overlays = [o for o in overlays if o.training_section_id == section.id]
+                    for overlay in section_overlays:
+                        overlay_data = {
+                            "id": overlay.id,
+                            "time_stamp": overlay.time_stamp,
+                            "type": overlay.type,
+                            "caption": overlay.caption,
+                            "duration": overlay.duration,
+                            "position": overlay.position
+                        }
+                        section_data["overlays"].append(overlay_data)
+                    
+                    training_data["sections"].append(section_data)
+                
+                zip_file.writestr('training-data.json', json.dumps(training_data, ensure_ascii=False, indent=2))
+                
+                # Asset dosyalarını ekle
+                assets_dir = "assets"
+                for section in sections:
+                    if section.asset:
+                        try:
+                            # Asset'i CDN'den indir
+                            asset_url = section.asset.uri
+                            if not asset_url.startswith('http'):
+                                cdn_url = os.getenv('CDN_URL', 'http://localhost:9000/lxplayer')
+                                asset_url = f"{cdn_url}/{asset_url}"
+                            
+                            response = requests.get(asset_url, stream=True)
+                            response.raise_for_status()
+                            
+                            # Dosya uzantısını belirle
+                            file_extension = section.asset.kind.split('/')[-1]
+                            if file_extension == 'jpeg':
+                                file_extension = 'jpg'
+                            elif file_extension == 'mpeg':
+                                file_extension = 'mp4'
+                            
+                            asset_filename = f"{assets_dir}/{section.asset.id}.{file_extension}"
+                            zip_file.writestr(asset_filename, response.content)
+                            
+                            # Manifest'e asset dosyasını ekle
+                            print(f"Added asset: {asset_filename}")
+                            
+                        except Exception as e:
+                            print(f"Warning: Could not download asset {section.asset.id}: {e}")
+                            # Asset indirilemezse, boş bir dosya oluştur
+                            file_extension = section.asset.kind.split('/')[-1]
+                            if file_extension == 'jpeg':
+                                file_extension = 'jpg'
+                            elif file_extension == 'mpeg':
+                                file_extension = 'mp4'
+                            
+                            asset_filename = f"{assets_dir}/{section.asset.id}.{file_extension}"
+                            zip_file.writestr(asset_filename, b'')
+                            print(f"Created empty asset file: {asset_filename}")
+                            continue
+            
+            # ZIP dosyasını oku
+            with open(temp_zip.name, 'rb') as f:
+                zip_content = f.read()
+        
+        # Geçici dosyayı sil
+        os.unlink(temp_zip.name)
+        
+        # Response olarak ZIP dosyasını döndür
+        filename = f"scorm-{training.title.replace(' ', '-').lower()}-{datetime.now().strftime('%Y%m%d')}.zip"
+        
+        return Response(
+            content=zip_content,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(500, f"Error creating SCORM package: {str(e)}")

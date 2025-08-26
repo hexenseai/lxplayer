@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { CompanyUserSection } from '@/components/CompanyUserSection';
+import { ScormDownloadButton } from '@/components/admin/ScormDownloadButton';
 
 export default async function HomePage() {
   const companyTrainings = await api.listCompanyTrainings().catch(() => []);
@@ -122,6 +123,7 @@ export default async function HomePage() {
                     >
                       Oynat
                     </Link>
+                    <ScormDownloadButton trainingId={ct.training_id} trainingTitle={ct.training?.title || 'Eğitim'} />
                   </div>
                 </div>
               </div>

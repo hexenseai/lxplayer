@@ -7,6 +7,7 @@ import { TrainingSectionsList } from './TrainingSectionsList';
 import { DeleteTrainingButton } from './DeleteTrainingButton';
 import { Drawer } from './Drawer';
 import FlowButton from './flow/FlowButton';
+import { ScormDownloadButton } from './ScormDownloadButton';
 import { api } from '@/lib/api';
 
 interface TrainingDetailsProps {
@@ -82,6 +83,7 @@ export default function TrainingDetails({ training }: TrainingDetailsProps) {
               <TrainingForm initialTraining={training as any} />
             </Drawer>
             <FlowButton trainingId={training.id} />
+            <ScormDownloadButton trainingId={training.id} trainingTitle={training.title} />
             <DeleteTrainingButton trainingId={training.id} trainingTitle={training.title} />
           </div>
         </div>

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { api, Training, CompanyTraining } from '@/lib/api';
 import { CompanyUserSection } from '@/components/CompanyUserSection';
+import { ScormDownloadButton } from '@/components/admin/ScormDownloadButton';
 
 interface TrainingDetailProps {
   params: { 
@@ -67,6 +68,7 @@ export default async function TrainingDetail({ params, searchParams }: TrainingD
                 InteractivePlayer'ı Başlat
               </Link>
             )}
+            <ScormDownloadButton trainingId={training.id} trainingTitle={training.title} />
             <Link className="underline" href={`/trainings/${training.id}/embed`}>Embed</Link>
           </div>
         </div>
