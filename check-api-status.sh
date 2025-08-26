@@ -29,10 +29,10 @@ echo ""
 echo "🌐 Web container log'ları (son 10 satır):"
 docker compose logs --tail=10 web
 
-# 3. Port durumu
+# 3. Port durumu (ss kullan)
 echo ""
 echo "🔌 Port durumu:"
-netstat -tlnp | grep -E ':(8000|3000|80|443)'
+ss -tlnp | grep -E ':(8000|3000|80|443)' || echo "Port bilgisi alınamadı"
 
 # 4. Nginx durumu
 echo ""
@@ -64,6 +64,11 @@ curl -s http://yodea.hexense.ai/docs > /dev/null && echo "✅ API docs (domain /
 echo ""
 echo "🔧 Environment variables:"
 echo "NEXT_PUBLIC_API_URL: $(grep NEXT_PUBLIC_API_URL .env || echo 'Not found')"
+
+# 8. Database migration kontrolü
+echo ""
+echo "🗄️ Database migration kontrolü:"
+docker compose exec api alembic current || echo "❌ Alembic çalışmıyor"
 
 echo ""
 echo "✅ API Status Check tamamlandı!"
