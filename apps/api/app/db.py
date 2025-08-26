@@ -12,6 +12,11 @@ def get_session():
         yield session
 
 
+def get_db():
+    """Alias for get_session for backward compatibility"""
+    return get_session()
+
+
 def init_db() -> None:
     """Initialize database and run migrations"""
     # Create tables if they don't exist
