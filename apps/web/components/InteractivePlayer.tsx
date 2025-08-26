@@ -150,7 +150,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   useEffect(() => {
     const openSocket = () => {
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
         const wsUrl = apiBase.replace(/^http/i, 'ws') + '/chat/ws';
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
@@ -229,7 +229,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
               // Optional TTS when live mode is on
               try {
                 if (liveMode) {
-                  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                  const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
                   fetch(`${apiBase}/chat/tts`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -591,7 +591,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
                                 // Send to STT
                                 const form = new FormData();
                                 form.append('audio_file', blob, 'audio.webm');
-                                const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                                const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
                                 const resp = await fetch(`${apiBase}/chat/stt`, { method: 'POST', body: form });
                                 if (resp.ok) {
                                   const data = await resp.json();

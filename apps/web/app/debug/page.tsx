@@ -52,7 +52,7 @@ export default function DebugPage() {
             <button 
               onClick={async () => {
                 try {
-                  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/docs`);
+                  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/docs`);
                   alert(`API Test: ${response.status} ${response.statusText}`);
                 } catch (error) {
                   alert(`API Test Error: ${error instanceof Error ? error.message : String(error)}`);

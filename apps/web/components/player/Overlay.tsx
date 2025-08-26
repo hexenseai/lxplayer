@@ -60,7 +60,7 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
     } else if (overlay.style_id) {
       const loadStyle = async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/styles/${overlay.style_id}`);
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/styles/${overlay.style_id}`);
           if (response.ok) {
             const style = await response.json();
             setStyleData(style);
@@ -80,7 +80,7 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
     if (overlay.icon_style_id) {
       const loadIconStyle = async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/styles/${overlay.icon_style_id}`);
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/styles/${overlay.icon_style_id}`);
           if (response.ok) {
             const style = await response.json();
             setIconStyleData(style);
@@ -276,7 +276,7 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
 
     const rewriteHtmlAssetUrls = (html: string): string => {
       const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer').replace(/\/$/, '');
-      const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const api = process.env.NEXT_PUBLIC_API_URL || '';
       const cdnOrigin = cdn.split('/').slice(0, 3).join('/'); // http://host:port
       const cdnPathPrefix = cdn.replace(cdnOrigin, '').replace(/^\//, ''); // lxplayer
       return html.replace(/\s(src|href)=("|')([^"']+)(\2)/gi, (_m, attr, quote, url, endQuote) => {

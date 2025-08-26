@@ -9,7 +9,7 @@ class ChatSocket {
   private pendingInitContext: any = null;
 
   private getUrl() {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
     return apiBase.replace(/^http/i, 'ws') + '/chat/ws';
   }
 

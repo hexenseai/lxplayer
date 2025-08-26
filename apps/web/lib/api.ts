@@ -131,7 +131,7 @@ export const Style = z.object({
 export type Style = z.infer<typeof Style>;
 
 async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+  const base = process.env.NEXT_PUBLIC_API_URL ?? '';
   const url = `${base}${path}`;
   const res = await fetch(url, {
     ...init,
@@ -282,7 +282,7 @@ export const api = {
 
   // SCORM package download
   downloadScormPackage: (trainingId: string) => {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+    const base = process.env.NEXT_PUBLIC_API_URL ?? '';
     const url = `${base}/trainings/${trainingId}/scorm-package`;
     return fetch(url, {
       method: 'GET',
