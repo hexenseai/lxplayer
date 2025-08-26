@@ -83,6 +83,7 @@ def debug_info():
             "/users",
             "/organizations",
             "/assets",
-            "/styles"
+            "/styles",
+            "/frame-configs"
         ]
     }
