@@ -49,7 +49,10 @@ app.include_router(frame_configs.router)
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup"""
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        print(f"Database initialization warning (this is normal if tables already exist): {e}")
 
 @app.get("/")
 def root():
