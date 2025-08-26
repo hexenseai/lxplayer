@@ -65,19 +65,25 @@ EOF
 
 echo "✅ Environment dosyası güncellendi"
 
-# 4. Docker container'larını yeniden başlat
-echo "🐳 Docker container'ları yeniden başlatılıyor..."
-
+# 4. Docker container'larını durdur
+echo "🐳 Docker container'ları durduruluyor..."
 cd "$PROJECT_DIR"
 docker compose down
+
+# 5. Web container'ını yeniden build et (--no-cache ile)
+echo "🔨 Web container'ı yeniden build ediliyor..."
+docker compose build --no-cache web
+
+# 6. Tüm container'ları başlat
+echo "🚀 Container'lar başlatılıyor..."
 docker compose up -d
 
 echo "✅ Docker container'ları yeniden başlatıldı"
 
-# 5. Web container'ının environment variable'larını kontrol et
+# 7. Web container'ının environment variable'larını kontrol et
 echo "🔍 Web container environment variable'ları kontrol ediliyor..."
 
-sleep 10
+sleep 15
 
 WEB_CONTAINER=$(docker compose ps -q web)
 if [ -n "$WEB_CONTAINER" ]; then
@@ -87,7 +93,7 @@ else
     echo "❌ Web container bulunamadı!"
 fi
 
-# 6. Test endpoint'leri
+# 8. Test endpoint'leri
 echo "🧪 Test endpoint'leri kontrol ediliyor..."
 
 echo "Testing http://yodea.hexense.ai/api/docs..."
@@ -105,3 +111,4 @@ echo "   - API Docs: http://yodea.hexense.ai/api/docs"
 echo "   - Login: http://yodea.hexense.ai/login"
 echo ""
 echo "📝 Not: Web uygulaması artık doğru API URL'ini kullanacak!"
+echo "🔄 Web container'ı yeniden build edildi, environment variable'lar güncellendi!"
