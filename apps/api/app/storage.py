@@ -10,6 +10,9 @@ MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "lxplayer")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
+# Nginx proxy URL'i (browser'dan erişilebilir)
+NGINX_PROXY_URL = os.getenv("NGINX_PROXY_URL", "http://yodea.hexense.ai")
+
 
 def get_minio() -> Minio:
     if not MINIO_ACCESS_KEY or not MINIO_SECRET_KEY:
@@ -74,11 +77,21 @@ def ensure_bucket(client: Minio) -> None:
 
 
 def presign_put_url(client: Minio, object_name: str, content_type: str | None = None, expires: int = 10800) -> str:
-    """Presigned PUT URL oluştur (varsayılan 3 saat)"""
-    return client.presigned_put_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
+    """Presigned PUT URL oluştur (Nginx proxy üzerinden)"""
+    # MinIO'dan presign URL al
+    minio_url = client.presigned_put_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
+    
+    # MinIO URL'ini Nginx proxy URL'ine dönüştür
+    proxy_url = minio_url.replace(f"http://{MINIO_ENDPOINT}", NGINX_PROXY_URL)
+    return proxy_url
 
 
 def presign_get_url(client: Minio, object_name: str, expires: int = 10800) -> str:
-    """Presigned GET URL oluştur (varsayılan 3 saat)"""
-    return client.presigned_get_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
+    """Presigned GET URL oluştur (Nginx proxy üzerinden)"""
+    # MinIO'dan presign URL al
+    minio_url = client.presigned_get_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
+    
+    # MinIO URL'ini Nginx proxy URL'ine dönüştür
+    proxy_url = minio_url.replace(f"http://{MINIO_ENDPOINT}", NGINX_PROXY_URL)
+    return proxy_url
 
