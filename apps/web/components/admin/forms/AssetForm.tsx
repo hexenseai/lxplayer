@@ -245,20 +245,41 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       formData.append('title', fileNameWithoutExt);
       formData.append('description', watch('description') || '');
       
-      const uploadRes = await fetch(`${base}/uploads/upload-file`, {
-        method: 'POST',
-        body: formData
+      // XMLHttpRequest ile progress tracking
+      const xhr = new XMLHttpRequest();
+      
+      // Progress event
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 80) + 10; // 10-90 arası
+          setUploadProgress(progress);
+          setUploadMsg(`Yükleniyor... ${Math.round((event.loaded / event.total) * 100)}%`);
+        }
       });
       
-      console.log('📤 Upload response:', { status: uploadRes.status, ok: uploadRes.ok });
+      // Promise wrapper
+      const uploadPromise = new Promise((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response);
+            } catch (e) {
+              reject(new Error('Invalid JSON response'));
+            }
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.ontimeout = () => reject(new Error('Upload timeout'));
+      });
       
-      if (!uploadRes.ok) {
-        const errorText = await uploadRes.text();
-        console.error('❌ Upload hatası:', { status: uploadRes.status, error: errorText });
-        throw new Error(`Yükleme başarısız: ${uploadRes.status} - ${errorText}`);
-      }
+      xhr.open('POST', `${base}/uploads/upload-file`);
+      xhr.timeout = 1800000; // 30 dakika timeout
+      xhr.send(formData);
       
-      const uploadData = await uploadRes.json();
+      const uploadData = await uploadPromise as any;
       console.log('✅ Upload başarılı:', uploadData);
       
       setUploadProgress(100);
