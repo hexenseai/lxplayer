@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Input, Label } from '@lxplayer/ui';
 import { useRouter } from 'next/navigation';
 import type { Asset } from '@/lib/api';
-import React from 'react';
+import React, { useState } from 'react';
 import { HtmlEditorModal } from './HtmlEditorModal';
 import { CKEditorComponent } from './CKEditor';
 import { TinyMCEEditorComponent } from './TinyMCEEditor';
@@ -36,10 +36,11 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
     defaultValues 
   });
 
-  const [uploading, setUploading] = React.useState(false);
-  const [uploadMsg, setUploadMsg] = React.useState<string | null>(null);
-  const [fileUploaded, setFileUploaded] = React.useState(false);
-  const [uploadedAssetId, setUploadedAssetId] = React.useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
+  const [fileUploaded, setFileUploaded] = useState(false);
+  const [uploadedAssetId, setUploadedAssetId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [showHtmlEditor, setShowHtmlEditor] = React.useState(false);
   const [showTinyMCEModal, setShowTinyMCEModal] = React.useState(false);
 
@@ -190,13 +191,20 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
+    // Dosya boyutu kontrolü (500MB)
+    const maxSize = 500 * 1024 * 1024; // 500MB
+    if (file.size > maxSize) {
+      alert('Dosya boyutu 500MB\'dan büyük olamaz!');
+      return;
+    }
+
     // Dosya adını URL-safe hale getir
     const safeFileName = file.name
       .replace(/[^a-zA-Z0-9.-]/g, '_')
       .replace(/_{2,}/g, '_')
       .replace(/^_|_$/g, '');
-    
+
     // Dosya seçildiğinde hemen form alanlarını doldur
     const objectName = `assets/${(globalThis.crypto?.randomUUID?.() || Date.now().toString())}_${safeFileName}`;
     setValue('uri', objectName, { shouldValidate: true });
@@ -219,6 +227,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
     
     setFileUploaded(true);
     setUploadMsg('Dosya seçildi - Yükleniyor...');
+    setUploadProgress(0);
     
     // Dosya yükleme işlemini arka planda yap
     setUploading(true);
@@ -228,6 +237,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       
       // Presign URL al ve asset oluştur
       console.log('📡 Presign URL isteniyor...');
+      setUploadProgress(10);
       const presignRes = await fetch(`${base}/uploads/presign`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -253,30 +263,54 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       
       // Asset ID'yi kaydet
       setUploadedAssetId(asset_id);
+      setUploadProgress(20);
       
-      // Dosyayı yükle
+      // Dosyayı yükle (progress ile)
       console.log('📤 Dosya MinIO\'ya yükleniyor...');
-      const putRes = await fetch(put_url, { 
-        method: 'PUT', 
-        body: file, 
-        headers: file.type ? { 'Content-Type': file.type } : undefined 
+      setUploadMsg('Dosya yükleniyor...');
+      
+      const xhr = new XMLHttpRequest();
+      
+      // Progress event
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 80) + 20; // 20-100 arası
+          setUploadProgress(progress);
+          setUploadMsg(`Yükleniyor... ${Math.round((event.loaded / event.total) * 100)}%`);
+        }
       });
       
-      console.log('📤 PUT response:', { status: putRes.status, ok: putRes.ok });
+      // Promise wrapper
+      const uploadPromise = new Promise((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(xhr.response);
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.ontimeout = () => reject(new Error('Upload timeout'));
+      });
       
-      if (!putRes.ok) {
-        const errorText = await putRes.text();
-        console.error('❌ PUT hatası:', { status: putRes.status, error: errorText });
-        throw new Error(`Yükleme başarısız: ${putRes.status} - ${errorText}`);
+      xhr.open('PUT', put_url);
+      if (file.type) {
+        xhr.setRequestHeader('Content-Type', file.type);
       }
+      xhr.timeout = 1800000; // 30 dakika timeout
+      xhr.send(file);
+      
+      await uploadPromise;
       
       console.log('✅ Dosya başarıyla yüklendi! Asset ID:', asset_id);
+      setUploadProgress(100);
       setUploadMsg(`Dosya başarıyla yüklendi! Asset ID: ${asset_id}`);
       
     } catch (err: any) {
       console.error('❌ Dosya yükleme hatası:', err);
       setUploadMsg(`Yükleme hatası: ${err?.message || 'Bilinmeyen hata'}`);
       setUploadedAssetId(null);
+      setUploadProgress(0);
     } finally {
       setUploading(false);
     }
@@ -303,6 +337,14 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
           <Label htmlFor="file">Dosya</Label>
           <input id="file" type="file" onChange={onFileChange} className="mt-1 block w-full text-sm" />
           {uploadMsg && <p className={`text-xs mt-1 ${uploading ? 'text-gray-600' : 'text-green-700'}`}>{uploadMsg}</p>}
+          {uploading && (
+            <div className="mt-2 w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+              <div
+                className="bg-blue-600 h-2 rounded-full"
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
+          )}
         </div>
         <div>
           <Label htmlFor="title">Başlık</Label>
