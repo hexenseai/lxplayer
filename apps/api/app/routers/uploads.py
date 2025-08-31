@@ -20,7 +20,7 @@ class UploadRequest(BaseModel):
 
 @router.post("/upload-file")
 async def upload_file_direct(
-    file: UploadFile = File(...),
+    file: UploadFile = File(..., max_length=2 * 1024 * 1024 * 1024),  # 2GB limit
     title: str = None,
     description: str = None,
     session: Session = Depends(get_session)

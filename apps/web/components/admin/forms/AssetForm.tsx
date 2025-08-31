@@ -192,10 +192,10 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Dosya boyutu kontrolü (500MB)
-    const maxSize = 500 * 1024 * 1024; // 500MB
+    // Dosya boyutu kontrolü (1GB)
+    const maxSize = 1024 * 1024 * 1024; // 1GB
     if (file.size > maxSize) {
-      alert('Dosya boyutu 500MB\'dan büyük olamaz!');
+      alert('Dosya boyutu 1GB\'dan büyük olamaz!');
       return;
     }
 
