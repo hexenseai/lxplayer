@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import timedelta
 from minio import Minio
 from minio.error import S3Error
@@ -18,9 +19,58 @@ def get_minio() -> Minio:
 
 
 def ensure_bucket(client: Minio) -> None:
+    """Bucket'ı oluştur ve gerekli ayarları yap"""
     found = client.bucket_exists(MINIO_BUCKET)
     if not found:
         client.make_bucket(MINIO_BUCKET)
+        print(f"✅ Bucket '{MINIO_BUCKET}' oluşturuldu")
+        
+        # Bucket policy ayarla (public read access)
+        try:
+            bucket_policy = {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {"AWS": "*"},
+                        "Action": [
+                            "s3:GetBucketLocation",
+                            "s3:ListBucket"
+                        ],
+                        "Resource": f"arn:aws:s3:::{MINIO_BUCKET}"
+                    },
+                    {
+                        "Effect": "Allow",
+                        "Principal": {"AWS": "*"},
+                        "Action": [
+                            "s3:GetObject"
+                        ],
+                        "Resource": f"arn:aws:s3:::{MINIO_BUCKET}/*"
+                    }
+                ]
+            }
+            client.set_bucket_policy(MINIO_BUCKET, json.dumps(bucket_policy))
+            print("✅ Bucket policy ayarlandı (public read access)")
+        except S3Error as e:
+            print(f"⚠️  Bucket policy ayarlanamadı: {e}")
+        
+        # CORS ayarlarını yapılandır
+        try:
+            cors_rules = [
+                {
+                    "AllowedOrigins": ["*"],
+                    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+                    "AllowedHeaders": ["*"],
+                    "ExposeHeaders": ["ETag", "Content-Length"],
+                    "MaxAgeSeconds": 3600
+                }
+            ]
+            client.set_bucket_cors(MINIO_BUCKET, cors_rules)
+            print("✅ CORS ayarları yapılandırıldı")
+        except S3Error as e:
+            print(f"⚠️  CORS ayarları yapılandırılamadı: {e}")
+    else:
+        print(f"✅ Bucket '{MINIO_BUCKET}' zaten mevcut")
 
 
 def presign_put_url(client: Minio, object_name: str, content_type: str | None = None, expires: int = 3600) -> str:

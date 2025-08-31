@@ -17,6 +17,51 @@ class UploadRequest(BaseModel):
     description: str | None = None
 
 
+@router.get("/test-minio")
+def test_minio_connection():
+    """MinIO bağlantısını test et"""
+    try:
+        client = get_minio()
+        print(f"✅ MinIO client oluşturuldu")
+        
+        # Bucket'ı kontrol et ve oluştur
+        ensure_bucket(client)
+        
+        # Test dosyası yükle
+        test_object_name = "test-connection.txt"
+        test_content = "MinIO bağlantı testi başarılı!"
+        
+        from io import BytesIO
+        data = BytesIO(test_content.encode('utf-8'))
+        client.put_object(
+            'lxplayer',
+            test_object_name,
+            data,
+            len(test_content),
+            content_type="text/plain"
+        )
+        print(f"✅ Test dosyası yüklendi: {test_object_name}")
+        
+        # Presigned URL oluştur
+        get_url = presign_get_url(client, test_object_name)
+        print(f"✅ Presigned URL oluşturuldu: {get_url[:100]}...")
+        
+        # Test dosyasını sil
+        client.remove_object('lxplayer', test_object_name)
+        print(f"✅ Test dosyası silindi")
+        
+        return {
+            "status": "success",
+            "message": "MinIO bağlantısı başarılı",
+            "bucket": "lxplayer",
+            "test_url": get_url[:100] + "..."
+        }
+        
+    except Exception as e:
+        print(f"❌ MinIO test hatası: {e}")
+        raise HTTPException(500, f"MinIO test hatası: {e}")
+
+
 @router.post("/presign")
 def presign_upload(body: UploadRequest, session: Session = Depends(get_session)):
     print(f"🚀 Presign isteği alındı: {body.object_name}, content_type: {body.content_type}")

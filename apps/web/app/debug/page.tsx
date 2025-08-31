@@ -45,7 +45,7 @@ export default function DebugPage() {
           </div>
         </div>
         
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4 text-gray-700">API Test</h2>
           
           <div className="space-y-4">
@@ -65,6 +65,31 @@ export default function DebugPage() {
             
             <div className="text-sm text-gray-600">
               <p>Click the button above to test if the API is accessible from the browser.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4 text-gray-700">MinIO Storage Test</h2>
+          
+          <div className="space-y-4">
+            <button 
+              onClick={async () => {
+                try {
+                  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/uploads/test-minio`);
+                  const data = await response.json();
+                  alert(`MinIO Test: ${response.status} ${response.statusText}\n\n${JSON.stringify(data, null, 2)}`);
+                } catch (error) {
+                  alert(`MinIO Test Error: ${error instanceof Error ? error.message : String(error)}`);
+                }
+              }}
+              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+            >
+              Test MinIO Connection
+            </button>
+            
+            <div className="text-sm text-gray-600">
+              <p>Click the button above to test MinIO storage connection and bucket configuration.</p>
             </div>
           </div>
         </div>
