@@ -45,36 +45,11 @@ mc alias set myminio http://$MINIO_ENDPOINT $MINIO_ACCESS_KEY $MINIO_SECRET_KEY
 echo "📦 Bucket oluşturuluyor..."
 mc mb myminio/$MINIO_BUCKET --ignore-existing
 
-# Bucket policy ayarla (public read access)
+# Bucket policy ayarla (public read access) - Güncellenmiş komut
 echo "🔓 Bucket policy ayarlanıyor..."
-cat > /tmp/bucket-policy.json << EOF
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": {"AWS": "*"},
-            "Action": [
-                "s3:GetBucketLocation",
-                "s3:ListBucket"
-            ],
-            "Resource": "arn:aws:s3:::$MINIO_BUCKET"
-        },
-        {
-            "Effect": "Allow",
-            "Principal": {"AWS": "*"},
-            "Action": [
-                "s3:GetObject"
-            ],
-            "Resource": "arn:aws:s3:::$MINIO_BUCKET/*"
-        }
-    ]
-}
-EOF
+mc anonymous set download myminio/$MINIO_BUCKET
 
-mc policy set myminio/$MINIO_BUCKET /tmp/bucket-policy.json
-
-# CORS ayarlarını yapılandır
+# CORS ayarlarını yapılandır - Güncellenmiş yöntem
 echo "🌐 CORS ayarları yapılandırılıyor..."
 cat > /tmp/cors.json << EOF
 {
@@ -90,6 +65,7 @@ cat > /tmp/cors.json << EOF
 }
 EOF
 
+# CORS ayarlarını uygula
 mc admin config set myminio cors:mycors /tmp/cors.json
 mc admin service restart myminio
 

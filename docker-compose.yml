@@ -57,7 +57,7 @@ services:
       - ./.env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://postgres:postgres@postgres:5432/lxplayer}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-93.177.103.107:9000}
       MINIO_SECURE: ${MINIO_SECURE:-false}
     depends_on:
       - postgres

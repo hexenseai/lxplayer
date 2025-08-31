@@ -73,10 +73,12 @@ def ensure_bucket(client: Minio) -> None:
         print(f"✅ Bucket '{MINIO_BUCKET}' zaten mevcut")
 
 
-def presign_put_url(client: Minio, object_name: str, content_type: str | None = None, expires: int = 3600) -> str:
+def presign_put_url(client: Minio, object_name: str, content_type: str | None = None, expires: int = 10800) -> str:
+    """Presigned PUT URL oluştur (varsayılan 3 saat)"""
     return client.presigned_put_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
 
 
-def presign_get_url(client: Minio, object_name: str, expires: int = 3600) -> str:
+def presign_get_url(client: Minio, object_name: str, expires: int = 10800) -> str:
+    """Presigned GET URL oluştur (varsayılan 3 saat)"""
     return client.presigned_get_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
 
