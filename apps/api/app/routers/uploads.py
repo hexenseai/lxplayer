@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, Depends, HTTPException
+from fastapi import APIRouter, Query, Depends, HTTPException, UploadFile, File
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select
@@ -6,6 +6,7 @@ from ..storage import get_minio, ensure_bucket, presign_put_url, presign_get_url
 from ..db import get_session
 from ..models import Asset
 import uuid
+import io
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
@@ -15,6 +16,79 @@ class UploadRequest(BaseModel):
     content_type: str | None = None
     title: str | None = None
     description: str | None = None
+
+
+@router.post("/upload-file")
+async def upload_file_direct(
+    file: UploadFile = File(...),
+    title: str = None,
+    description: str = None,
+    session: Session = Depends(get_session)
+):
+    """Backend üzerinden dosya yükleme"""
+    try:
+        # Dosya adını güvenli hale getir
+        safe_filename = file.filename.replace(" ", "_").replace("/", "_")
+        object_name = f"assets/{uuid.uuid4()}_{safe_filename}"
+        
+        # Content type'ı belirle
+        content_type = file.content_type or "application/octet-stream"
+        
+        # MinIO client oluştur
+        client = get_minio()
+        ensure_bucket(client)
+        
+        # Dosyayı MinIO'ya yükle
+        file_content = await file.read()
+        data = io.BytesIO(file_content)
+        
+        client.put_object(
+            'lxplayer',
+            object_name,
+            data,
+            len(file_content),
+            content_type=content_type
+        )
+        
+        # Asset kaydı oluştur
+        kind = "doc"
+        if content_type.startswith("image/"):
+            kind = "image"
+        elif content_type.startswith("video/"):
+            kind = "video"
+        elif content_type.startswith("audio/"):
+            kind = "audio"
+        
+        asset = Asset(
+            title=title or file.filename,
+            kind=kind,
+            uri=object_name,
+            description=description
+        )
+        session.add(asset)
+        session.commit()
+        session.refresh(asset)
+        
+        # GET URL oluştur (domain üzerinden)
+        get_url = presign_get_url(client, object_name)
+        
+        return {
+            "status": "success",
+            "asset_id": asset.id,
+            "object_name": object_name,
+            "get_url": get_url,
+            "asset": {
+                "id": asset.id,
+                "title": asset.title,
+                "kind": asset.kind,
+                "uri": asset.uri,
+                "description": asset.description
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Direct upload hatası: {e}")
+        raise HTTPException(500, f"Upload hatası: {e}")
 
 
 @router.get("/test-minio")
@@ -70,8 +144,8 @@ def presign_upload(body: UploadRequest, session: Session = Depends(get_session))
         print(f"✅ MinIO client oluşturuldu")
         ensure_bucket(client)
         print(f"✅ Bucket kontrol edildi")
-        put_url = presign_put_url(client, body.object_name, content_type=body.content_type)
-        print(f"✅ PUT URL oluşturuldu: {put_url[:100]}...")
+        
+        # Sadece GET URL oluştur (domain üzerinden)
         get_url = presign_get_url(client, body.object_name)
         print(f"✅ GET URL oluşturuldu: {get_url[:100]}...")
         
@@ -97,11 +171,10 @@ def presign_upload(body: UploadRequest, session: Session = Depends(get_session))
         session.refresh(asset)
         
         result = {
-            "put_url": put_url, 
             "get_url": get_url, 
             "bucket": 'lxplayer', 
             "object": body.object_name,
-            "asset_id": asset.id,  # Unique ID for JSON operations
+            "asset_id": asset.id,
             "asset": {
                 "id": asset.id,
                 "title": asset.title,

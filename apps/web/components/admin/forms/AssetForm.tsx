@@ -53,7 +53,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       console.log('✅ Asset zaten yükleme sırasında oluşturuldu:', uploadedAssetId);
       reset();
       setFileUploaded(false);
-      setUploadMsg(null);
+      setUploadMsg('');
       setUploadedAssetId(null);
       setShowHtmlEditor(false);
       setShowTinyMCEModal(false);
@@ -235,76 +235,35 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       console.log('🚀 Dosya yükleme başlıyor:', { objectName, fileType: file.type, fileSize: file.size });
       
-      // Presign URL al ve asset oluştur
-      console.log('📡 Presign URL isteniyor...');
+      // Backend üzerinden dosya yükle
+      console.log('📤 Dosya backend üzerinden yükleniyor...');
       setUploadProgress(10);
-      const presignRes = await fetch(`${base}/uploads/presign`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ 
-          object_name: objectName, 
-          content_type: file.type || undefined,
-          title: fileNameWithoutExt,
-          description: watch('description')
-        }),
-      });
-      
-      console.log('📡 Presign response:', { status: presignRes.status, ok: presignRes.ok });
-      
-      if (!presignRes.ok) {
-        const errorText = await presignRes.text();
-        console.error('❌ Presign hatası:', { status: presignRes.status, error: errorText });
-        throw new Error(`Presign başarısız: ${presignRes.status} - ${errorText}`);
-      }
-      
-      const presignData = await presignRes.json();
-      console.log('✅ Presign başarılı:', presignData);
-      const { put_url, asset_id } = presignData;
-      
-      // Asset ID'yi kaydet
-      setUploadedAssetId(asset_id);
-      setUploadProgress(20);
-      
-      // Dosyayı yükle (progress ile)
-      console.log('📤 Dosya MinIO\'ya yükleniyor...');
       setUploadMsg('Dosya yükleniyor...');
       
-      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', fileNameWithoutExt);
+      formData.append('description', watch('description') || '');
       
-      // Progress event
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 80) + 20; // 20-100 arası
-          setUploadProgress(progress);
-          setUploadMsg(`Yükleniyor... ${Math.round((event.loaded / event.total) * 100)}%`);
-        }
+      const uploadRes = await fetch(`${base}/uploads/upload-file`, {
+        method: 'POST',
+        body: formData
       });
       
-      // Promise wrapper
-      const uploadPromise = new Promise((resolve, reject) => {
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(xhr.response);
-          } else {
-            reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
-          }
-        };
-        xhr.onerror = () => reject(new Error('Network error'));
-        xhr.ontimeout = () => reject(new Error('Upload timeout'));
-      });
+      console.log('📤 Upload response:', { status: uploadRes.status, ok: uploadRes.ok });
       
-      xhr.open('PUT', put_url);
-      if (file.type) {
-        xhr.setRequestHeader('Content-Type', file.type);
+      if (!uploadRes.ok) {
+        const errorText = await uploadRes.text();
+        console.error('❌ Upload hatası:', { status: uploadRes.status, error: errorText });
+        throw new Error(`Yükleme başarısız: ${uploadRes.status} - ${errorText}`);
       }
-      xhr.timeout = 1800000; // 30 dakika timeout
-      xhr.send(file);
       
-      await uploadPromise;
+      const uploadData = await uploadRes.json();
+      console.log('✅ Upload başarılı:', uploadData);
       
-      console.log('✅ Dosya başarıyla yüklendi! Asset ID:', asset_id);
       setUploadProgress(100);
-      setUploadMsg(`Dosya başarıyla yüklendi! Asset ID: ${asset_id}`);
+      setUploadMsg(`Dosya başarıyla yüklendi! Asset ID: ${uploadData.asset_id}`);
+      setUploadedAssetId(uploadData.asset_id);
       
     } catch (err: any) {
       console.error('❌ Dosya yükleme hatası:', err);

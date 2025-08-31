@@ -77,17 +77,12 @@ def ensure_bucket(client: Minio) -> None:
 
 
 def presign_put_url(client: Minio, object_name: str, content_type: str | None = None, expires: int = 10800) -> str:
-    """Presigned PUT URL oluştur (Nginx proxy üzerinden)"""
-    # MinIO'dan presign URL al
-    minio_url = client.presigned_put_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
-    
-    # MinIO URL'ini Nginx proxy URL'ine dönüştür
-    proxy_url = minio_url.replace(f"http://{MINIO_ENDPOINT}", NGINX_PROXY_URL)
-    return proxy_url
+    """Presigned PUT URL oluştur (sadece backend içi kullanım için)"""
+    return client.presigned_put_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
 
 
 def presign_get_url(client: Minio, object_name: str, expires: int = 10800) -> str:
-    """Presigned GET URL oluştur (Nginx proxy üzerinden)"""
+    """Presigned GET URL oluştur (Nginx proxy üzerinden - browser erişimi için)"""
     # MinIO'dan presign URL al
     minio_url = client.presigned_get_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
     
