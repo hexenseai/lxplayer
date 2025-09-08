@@ -12,7 +12,6 @@ RUN npm config set registry https://registry.npmjs.org/ && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-retries 5 && \
-    npm config set timeout 300000 && \
     npm config set maxsockets 1 && \
     npm ci --prefer-offline --no-audit --no-fund
 
@@ -44,7 +43,6 @@ RUN npm config set registry https://registry.npmjs.org/ && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000 && \
     npm config set fetch-retries 5 && \
-    npm config set timeout 300000 && \
     npm config set maxsockets 1 && \
     npm ci --omit=dev --workspace=@lxplayer/web --prefer-offline --no-audit --no-fund
 
