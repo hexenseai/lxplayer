@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const Training = z.object({ id: z.string(), title: z.string(), description: z.string().optional(), flow_id: z.string().nullable().optional(), ai_flow: z.string().nullable().optional() });
+export const Training = z.object({ id: z.string(), title: z.string(), description: z.string().optional(), flow_id: z.string().nullable().optional(), ai_flow: z.string().nullable().optional(), organization_id: z.string().nullable().optional() });
 export type Training = z.infer<typeof Training>;
 
 export const Asset = z.object({ 
@@ -9,9 +9,25 @@ export const Asset = z.object({
   description: z.string().nullable().optional(), 
   kind: z.string(), 
   uri: z.string(),
-  html_content: z.string().nullable().optional()
+  html_content: z.string().nullable().optional(),
+  company_id: z.string().nullable().optional()
 });
 export type Asset = z.infer<typeof Asset>;
+
+export const TrainingSection = z.object({ 
+  id: z.string(), 
+  title: z.string(), 
+  description: z.string().nullable().optional(), 
+  script: z.string().nullable().optional(),
+  duration: z.number().nullable().optional(),
+  video_object: z.string().nullable().optional(),
+  asset_id: z.string().nullable().optional(),
+  order_index: z.number(),
+  training_id: z.string(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional()
+});
+export type TrainingSection = z.infer<typeof TrainingSection>;
 
 export const FrameConfig = z.object({
   id: z.string(),
@@ -69,15 +85,26 @@ export const Overlay = z.object({
 });
 export type Overlay = z.infer<typeof Overlay>;
 
-export const Organization = z.object({ id: z.string(), name: z.string(), business_topic: z.string().nullable().optional() });
-export type Organization = z.infer<typeof Organization>;
+export const Company = z.object({ 
+  id: z.string(), 
+  name: z.string(), 
+  business_topic: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  website: z.string().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string()
+});
+export type Company = z.infer<typeof Company>;
 
 export const User = z.object({
   id: z.string(),
   email: z.string(),
   username: z.string().nullable().optional(),
   full_name: z.string().nullable().optional(),
-  organization_id: z.string().nullable().optional(),
+  company_id: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
   department: z.string().nullable().optional(),
   password: z.string().nullable().optional(),
@@ -85,23 +112,10 @@ export const User = z.object({
 });
 export type User = z.infer<typeof User>;
 
-export const TrainingSection = z.object({
-  id: z.string(),
-  training_id: z.string(),
-  title: z.string(),
-  description: z.string().nullable().optional(),
-  script: z.string().nullable().optional(),
-  duration: z.number().nullable().optional(),
-  video_object: z.string().nullable().optional(),
-  asset_id: z.string().nullable().optional(),
-  order_index: z.number(),
-  asset: Asset.nullable().optional()
-});
-export type TrainingSection = z.infer<typeof TrainingSection>;
 
 export const CompanyTraining = z.object({ 
   id: z.string(), 
-  organization_id: z.string(), 
+  company_id: z.string(), 
   training_id: z.string(), 
   expectations: z.string().nullable().optional(), 
   access_code: z.string(),
@@ -110,7 +124,7 @@ export const CompanyTraining = z.object({
     title: z.string(),
     description: z.string().nullable().optional()
   }).nullable().optional(),
-  organization: z.object({
+  company: z.object({
     id: z.string(),
     name: z.string(),
     business_topic: z.string().nullable().optional()
@@ -126,20 +140,71 @@ export const Style = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   created_by: z.string().nullable().optional(),
-  is_default: z.boolean()
+  is_default: z.boolean(),
+  company_id: z.string().nullable().optional()
 });
 export type Style = z.infer<typeof Style>;
 
 async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? '';
+  const base = 'http://localhost:8000'; // Reverted to 8000
   const url = `${base}${path}`;
+  console.log('🌐 API Request:', { path, url, method: init?.method || 'GET' });
+  
+  // Get token from localStorage
+  let token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  
+  // QUICK BYPASS: Auto-login as superadmin in development
+  if (!token && typeof window !== 'undefined' && (process.env.NODE_ENV === 'development' || process.env.BYPASS_AUTH === 'true')) {
+    try {
+      console.log('🔄 Auto-login as superadmin...');
+      const loginResponse = await fetch(`${base}/auth/login`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ 
+          email: 'superadmin@example.com', 
+          password: 'superadmin123' 
+        }),
+      });
+      
+      if (loginResponse.ok) {
+        const loginData = await loginResponse.json();
+        token = loginData.access_token;
+        if (token) {
+          localStorage.setItem('token', token);
+          localStorage.setItem('lx_user', JSON.stringify(loginData.user));
+          document.cookie = `lx_token=${token}; path=/; SameSite=Lax`;
+          console.log('✅ Auto-login successful');
+        }
+      } else {
+        console.log('❌ Auto-login failed, continuing without auth');
+      }
+    } catch (error) {
+      console.log('❌ Auto-login error:', error);
+    }
+  }
+  
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  
+  // Add authorization header if token exists
+  if (token) {
+    headers['authorization'] = `Bearer ${token}`;
+  }
+  
   const res = await fetch(url, {
     ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers || {}) },
+    headers: { ...headers, ...(init?.headers || {}) },
     cache: 'no-store',
   });
   const text = await res.text();
   if (!res.ok) {
+    // 401 Unauthorized - token geçersiz, login sayfasına yönlendir
+    if (res.status === 401) {
+      localStorage.removeItem('token');
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
+    
     try {
       const err = JSON.parse(text);
       const detail = err?.detail || err?.error || err?.message || text;
@@ -156,12 +221,15 @@ export const api = {
   // health check
   healthCheck: () => request('/', z.object({ status: z.string() })),
   
+  // current user
+  getCurrentUser: () => request('/auth/me', User),
+  
   // trainings
   listTrainings: () => request('/trainings', z.array(Training)),
   getTraining: (id: string) => request(`/trainings/${id}`, Training),
-  createTraining: (input: { title: string; description?: string; flow_id?: string | null }) =>
+  createTraining: (input: { title: string; description?: string; flow_id?: string | null; company_id?: string | null }) =>
     request('/trainings', Training, { method: 'POST', body: JSON.stringify(input) }),
-  updateTraining: (id: string, input: { title: string; description?: string; flow_id?: string | null; ai_flow?: string | null }) =>
+  updateTraining: (id: string, input: { title: string; description?: string; flow_id?: string | null; ai_flow?: string | null; company_id?: string | null }) =>
     request(`/trainings/${id}`, Training, { method: 'PUT', body: JSON.stringify(input) }),
   deleteTraining: (id: string) => request(`/trainings/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
@@ -170,31 +238,32 @@ export const api = {
   // users
   listUsers: () => request('/users', z.array(User)),
   getUser: (id: string) => request(`/users/${id}`, User),
-  createUser: (input: { email: string; username?: string; full_name?: string; organization_id?: string | null; role?: string | null; department?: string | null; password?: string | null; gpt_prefs?: string | null }) =>
+  createUser: (input: { email: string; username?: string; full_name?: string; company_id?: string | null; role?: string | null; department?: string | null; password?: string | null; gpt_prefs?: string | null }) =>
     request('/users', User, { method: 'POST', body: JSON.stringify(input) }),
-  updateUser: (id: string, input: { email: string; username?: string; full_name?: string; organization_id?: string | null; role?: string | null; department?: string | null; password?: string | null; gpt_prefs?: string | null }) =>
+  updateUser: (id: string, input: { email: string; username?: string; full_name?: string; company_id?: string | null; role?: string | null; department?: string | null; password?: string | null; gpt_prefs?: string | null }) =>
     request(`/users/${id}`, User, { method: 'PUT', body: JSON.stringify(input) }),
   deleteUser: (id: string) => request(`/users/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
-  // organizations
-  listOrganizations: () => request('/organizations', z.array(Organization)),
-  getOrganization: (id: string) => request(`/organizations/${id}`, Organization),
-  createOrganization: (input: { name: string; business_topic?: string }) =>
-    request('/organizations', Organization, { method: 'POST', body: JSON.stringify(input) }),
-  updateOrganization: (id: string, input: { name: string; business_topic?: string }) =>
-    request(`/organizations/${id}`, Organization, { method: 'PUT', body: JSON.stringify(input) }),
-  deleteOrganization: (id: string) => request(`/organizations/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
+  // companies
+  listCompanies: () => request('/companies', z.array(Company)),
+  getCompany: (id: string) => request(`/companies/${id}`, Company),
+  createCompany: (input: { name: string; business_topic?: string; description?: string; address?: string; phone?: string; email?: string; website?: string }) =>
+    request('/companies', Company, { method: 'POST', body: JSON.stringify(input) }),
+  updateCompany: (id: string, input: { name: string; business_topic?: string; description?: string; address?: string; phone?: string; email?: string; website?: string }) =>
+    request(`/companies/${id}`, Company, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteCompany: (id: string) =>
+    request(`/companies/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
   // company trainings
-  attachTrainingToOrg: (orgId: string, input: { training_id: string; expectations?: string }) =>
-    request(`/organizations/${orgId}/trainings`, CompanyTraining, { method: 'POST', body: JSON.stringify(input) }),
-  listOrgTrainings: (orgId: string) => request(`/organizations/${orgId}/trainings`, z.array(CompanyTraining)),
-  listCompanyTrainings: () => request('/company-trainings', z.array(CompanyTraining)),
+  attachTrainingToCompany: (companyId: string, input: { training_id: string; expectations?: string }) =>
+    request(`/companies/${companyId}/trainings`, CompanyTraining, { method: 'POST', body: JSON.stringify(input) }),
+  listCompanyTrainings: (companyId: string) => request(`/companies/${companyId}/trainings`, z.array(CompanyTraining)),
+  listAllCompanyTrainings: () => request('/company-trainings', z.array(CompanyTraining)),
   getCompanyTraining: (id: string) => request(`/company-trainings/${id}`, CompanyTraining),
-  updateCompanyTraining: (orgId: string, trainingId: string, input: { training_id: string; expectations?: string }) =>
-    request(`/organizations/${orgId}/trainings/${trainingId}`, CompanyTraining, { method: 'PUT', body: JSON.stringify(input) }),
-  deleteCompanyTraining: (orgId: string, trainingId: string) =>
-    request(`/organizations/${orgId}/trainings/${trainingId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
+  updateCompanyTraining: (companyId: string, trainingId: string, input: { training_id: string; expectations?: string }) =>
+    request(`/companies/${companyId}/trainings/${trainingId}`, CompanyTraining, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteCompanyTraining: (companyId: string, trainingId: string) =>
+    request(`/companies/${companyId}/trainings/${trainingId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
   // user trainings
   createUserTraining: (userId: string, input: { training_id: string; expectations?: string }) =>
@@ -208,9 +277,9 @@ export const api = {
   // assets
   listAssets: () => request('/assets', z.array(Asset)),
   getAsset: (id: string) => request(`/assets/${id}`, Asset),
-  createAsset: (input: { title: string; description?: string; kind: string; uri: string }) =>
+  createAsset: (input: { title: string; description?: string; kind: string; uri: string; company_id?: string | null }) =>
     request('/assets', Asset, { method: 'POST', body: JSON.stringify(input) }),
-  updateAsset: (id: string, input: { title: string; description?: string; kind: string; uri: string }) =>
+  updateAsset: (id: string, input: { title: string; description?: string; kind: string; uri: string; company_id?: string | null }) =>
     request(`/assets/${id}`, Asset, { method: 'PUT', body: JSON.stringify(input) }),
   deleteAsset: (id: string) => request(`/assets/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
@@ -253,9 +322,9 @@ export const api = {
   // styles
   listStyles: () => request('/styles', z.array(Style)),
   getStyle: (id: string) => request(`/styles/${id}`, Style),
-  createStyle: (input: { name: string; description?: string; style_json: string }) =>
+  createStyle: (input: { name: string; description?: string; style_json: string; company_id?: string | null }) =>
     request('/styles', Style, { method: 'POST', body: JSON.stringify(input) }),
-  updateStyle: (id: string, input: { name?: string; description?: string; style_json?: string }) =>
+  updateStyle: (id: string, input: { name?: string; description?: string; style_json?: string; company_id?: string | null }) =>
     request(`/styles/${id}`, Style, { method: 'PUT', body: JSON.stringify(input) }),
   deleteStyle: (id: string) => request(`/styles/${id}`, z.object({ message: z.string() }), { method: 'DELETE' }),
   seedDefaultStyles: () => request('/styles/seed-defaults', z.object({ message: z.string() }), { method: 'POST' }),
@@ -272,7 +341,10 @@ export const api = {
     request(`/frame-configs/sections/${sectionId}/copy-from-global/${globalConfigId}`, FrameConfig, { method: 'POST' }),
 
   // global frame configurations
-  listGlobalFrameConfigs: () => request(`/frame-configs/global`, z.array(GlobalFrameConfig)),
+  listGlobalFrameConfigs: () => {
+    console.log('🔍 Calling listGlobalFrameConfigs with path: /frame-configs/global');
+    return request(`/frame-configs/global`, z.array(GlobalFrameConfig));
+  },
   getGlobalFrameConfig: (globalConfigId: string) => request(`/frame-configs/global/${globalConfigId}`, GlobalFrameConfig),
   createGlobalFrameConfig: (input: { name: string; description?: string; object_position_x?: number; object_position_y?: number; scale?: number; transform_origin_x?: number; transform_origin_y?: number; transition_duration?: number; transition_easing?: string; is_active?: boolean }) =>
     request(`/frame-configs/global`, GlobalFrameConfig, { method: 'POST', body: JSON.stringify(input) }),
@@ -280,9 +352,18 @@ export const api = {
     request(`/frame-configs/global/${globalConfigId}`, GlobalFrameConfig, { method: 'PUT', body: JSON.stringify(input) }),
   deleteGlobalFrameConfig: (globalConfigId: string) => request(`/frame-configs/global/${globalConfigId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
+  // training sections
+  listTrainingSections: (trainingId: string) => request(`/trainings/${trainingId}/sections`, z.array(TrainingSection)),
+  getTrainingSection: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}`, TrainingSection),
+  createTrainingSection: (trainingId: string, input: { title: string; description?: string; order_index?: number }) =>
+    request(`/trainings/${trainingId}/sections`, TrainingSection, { method: 'POST', body: JSON.stringify(input) }),
+  updateTrainingSection: (trainingId: string, sectionId: string, input: { title?: string; description?: string; order_index?: number }) =>
+    request(`/trainings/${trainingId}/sections/${sectionId}`, TrainingSection, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteTrainingSection: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
+
   // SCORM package download
   downloadScormPackage: (trainingId: string) => {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? '';
+    const base = 'http://localhost:8000'; // Reverted to 8000
     const url = `${base}/trainings/${trainingId}/scorm-package`;
     return fetch(url, {
       method: 'GET',

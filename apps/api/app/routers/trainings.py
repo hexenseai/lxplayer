@@ -12,8 +12,8 @@ import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from ..db import get_session
-from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining
-from ..auth import hash_password
+from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User
+from ..auth import hash_password, get_current_user, is_super_admin, check_company_access
 
 router = APIRouter(prefix="/trainings", tags=["trainings"])
 
@@ -23,6 +23,7 @@ class TrainingIn(BaseModel):
     description: str | None = None
     flow_id: str | None = None
     ai_flow: str | None = None
+    company_id: str | None = None
 
 
 class TrainingSectionIn(BaseModel):
@@ -50,20 +51,56 @@ class OverlayIn(BaseModel):
 
 
 @router.get("", operation_id="list_trainings")
-def list_trainings(session: Session = Depends(get_session)):
-    return session.exec(select(Training)).all()
+def list_trainings(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    if is_super_admin(current_user):
+        # Süper admin tüm eğitimleri görebilir
+        return session.exec(select(Training)).all()
+    else:
+        # Diğer kullanıcılar sadece kendi şirketlerindeki eğitimleri görebilir
+        if not current_user.company_id:
+            return []
+        return session.exec(
+            select(Training).where(Training.company_id == current_user.company_id)
+        ).all()
 
 
 @router.get("/{training_id}", operation_id="get_training")
-def get_training(training_id: str, session: Session = Depends(get_session)):
+def get_training(
+    training_id: str, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     training = session.get(Training, training_id)
     if not training:
         raise HTTPException(status_code=404, detail="Training not found")
+    
+    # Yetki kontrolü
+    if not check_company_access(current_user, training.company_id):
+        raise HTTPException(403, "Access denied")
+    
     return training
 
 
 @router.post("", operation_id="create_training")
-def create_training(training: TrainingIn, session: Session = Depends(get_session)):
+def create_training(
+    training: TrainingIn, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    # Admin ve süper admin kullanıcılar eğitim oluşturabilir
+    if current_user.role not in ["Admin", "SuperAdmin"]:
+        raise HTTPException(403, "Only admins can create trainings")
+    
+    # Admin kullanıcı sadece kendi şirketine eğitim ekleyebilir
+    if current_user.role == "Admin" and not is_super_admin(current_user):
+        if training.company_id and training.company_id != current_user.company_id:
+            raise HTTPException(403, "Admin can only create trainings in their own company")
+        if not training.company_id:
+            training.company_id = current_user.company_id
+    
     obj = Training(**training.model_dump())
     session.add(obj)
     session.commit()
@@ -72,12 +109,28 @@ def create_training(training: TrainingIn, session: Session = Depends(get_session
 
 
 @router.put("/{training_id}", operation_id="update_training")
-def update_training(training_id: str, body: TrainingIn, session: Session = Depends(get_session)):
+def update_training(
+    training_id: str, 
+    body: TrainingIn, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     training = session.get(Training, training_id)
     if not training:
         raise HTTPException(404, "Training not found")
+    
+    # Yetki kontrolü
+    if not check_company_access(current_user, training.company_id):
+        raise HTTPException(403, "Access denied")
+    
+    # Admin kullanıcı sadece kendi şirketindeki eğitimleri güncelleyebilir
+    if current_user.role == "Admin" and not is_super_admin(current_user):
+        if body.company_id and body.company_id != current_user.company_id:
+            raise HTTPException(403, "Admin can only update trainings in their own company")
+    
     for k, v in body.model_dump().items():
         setattr(training, k, v)
+    
     session.add(training)
     session.commit()
     session.refresh(training)
@@ -85,10 +138,22 @@ def update_training(training_id: str, body: TrainingIn, session: Session = Depen
 
 
 @router.delete("/{training_id}", operation_id="delete_training")
-def delete_training(training_id: str, session: Session = Depends(get_session)):
+def delete_training(
+    training_id: str, 
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
     training = session.get(Training, training_id)
     if not training:
         raise HTTPException(404, "Training not found")
+    
+    # Yetki kontrolü
+    if not check_company_access(current_user, training.company_id):
+        raise HTTPException(403, "Access denied")
+    
+    # Sadece admin ve süper admin kullanıcılar eğitim silebilir
+    if current_user.role not in ["Admin", "SuperAdmin"]:
+        raise HTTPException(403, "Only admins can delete trainings")
     
     try:
         # Delete related data first (if cascade doesn't work)

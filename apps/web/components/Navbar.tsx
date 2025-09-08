@@ -7,8 +7,9 @@ export function Navbar() {
   const pathname = usePathname();
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/auth');
   const isPlayerPage = pathname.startsWith('/player');
+  const isAdminPage = pathname.startsWith('/admin');
 
-  if (isAuthPage || isPlayerPage) {
+  if (isAuthPage || isPlayerPage || isAdminPage) {
     return null;
   }
 
@@ -29,32 +30,7 @@ export function Navbar() {
             </span>
           </Link>
           
-          <nav className="hidden md:flex items-center space-x-6">
-            <Link 
-              href="/" 
-              className={`text-sm font-medium transition-colors hover:text-primary ${
-                pathname === '/' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              Ana Sayfa
-            </Link>
-            <Link 
-              href="/library" 
-              className={`text-sm font-medium transition-colors hover:text-primary ${
-                pathname === '/library' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              Kütüphane
-            </Link>
-            <Link 
-              href="/studio" 
-              className={`text-sm font-medium transition-colors hover:text-primary ${
-                pathname.startsWith('/studio') ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              Studio
-            </Link>
-          </nav>
+          {/* Navigation links removed */}
         </div>
         
         <UserBar />

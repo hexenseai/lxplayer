@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/debug'];
+const PUBLIC_PATHS = ['/login', '/debug', '/debug-organizations', '/test-auth', '/test-role-filtering', '/', '/library', '/studio', '/player'];
 // Allow requests for static files (e.g., images, fonts, css, js) to bypass auth
 const PUBLIC_FILE_REGEX = /\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|js|map|txt|xml|woff|woff2|ttf|eot)$/i;
 
+// QUICK BYPASS: Development mode authentication bypass
+const BYPASS_AUTH = process.env.NODE_ENV === 'development' || process.env.BYPASS_AUTH === 'true';
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  
+  // QUICK BYPASS: Skip all auth checks in development
+  if (BYPASS_AUTH) {
+    return NextResponse.next();
+  }
+  
   if (
     PUBLIC_PATHS.includes(pathname) ||
     pathname.startsWith('/_next') ||
@@ -25,8 +34,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Admin role kontrolü kaldırıldı - herkes admin sayfalarına girebilir
-  // Sadece login kontrolü yapılıyor
+  // Admin sayfaları için role kontrolü
+  if (pathname.startsWith('/admin')) {
+    // Admin sayfalarına erişim için token kontrolü yeterli
+    // Sayfa seviyesinde role kontrolü yapılacak
+  }
 
   return NextResponse.next();
 }

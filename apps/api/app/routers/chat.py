@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from ..db import get_session
 from ..storage import get_minio, presign_get_url
-from ..models import User, Organization, CompanyTraining, Training, TrainingSection, Overlay, Asset, Style
+from ..models import User, Company, CompanyTraining, Training, TrainingSection, Overlay, Asset, Style
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -254,7 +254,7 @@ async def websocket_chat(websocket: WebSocket):
                         # find company training
                         ct = db.exec(select(CompanyTraining).where(CompanyTraining.access_code == ctx["accessCode"])) .first()
                         if ct:
-                            org = db.get(Organization, ct.organization_id)
+                            company = db.get(Company, ct.company_id)
                             tr = db.get(Training, ct.training_id)
                             secs = db.exec(select(TrainingSection).where(TrainingSection.training_id == tr.id)).all() if tr else []
                             ovs = db.exec(select(Overlay).where(Overlay.training_id == tr.id)).all() if tr else []
@@ -265,7 +265,7 @@ async def websocket_chat(websocket: WebSocket):
                             # Get all styles for overlay styling
                             styles = db.exec(select(Style)).all()
                             styles_map = {s.id: s for s in styles}
-                            extra_context["organization"] = {"id": org.id, "name": org.name} if org else None
+                            extra_context["company"] = {"id": company.id, "name": company.name} if company else None
                             extra_context["company_training"] = {"id": ct.id, "expectations": ct.expectations}
                             if tr:
                                 extra_context["training_json"] = build_training_json(tr, secs, ovs, asset_map, styles_map)

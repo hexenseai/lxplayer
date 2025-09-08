@@ -20,7 +20,14 @@ export function OrganizationForm({ initialOrganization, onDone }: { initialOrgan
     const isUpdate = Boolean(initialOrganization?.id);
     const path = isUpdate ? `${base}/organizations/${initialOrganization!.id}` : `${base}/organizations`;
     const method = isUpdate ? 'PUT' : 'POST';
-    const res = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(values) });
+    // Get token from localStorage
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) {
+      headers['authorization'] = `Bearer ${token}`;
+    }
+    
+    const res = await fetch(path, { method, headers, body: JSON.stringify(values) });
     if (!res.ok) {
       setError('name', { type: 'manual', message: `Hata: ${res.status}` });
       return;

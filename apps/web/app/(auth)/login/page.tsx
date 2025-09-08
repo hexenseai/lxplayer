@@ -15,7 +15,7 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      const base = process.env.NEXT_PUBLIC_API_URL || '';
+      const base = 'http://localhost:8000'; // Reverted to 8000
       const res = await fetch(`${base}/auth/login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -30,6 +30,7 @@ export default function LoginPage() {
       const data = await res.json();
       document.cookie = `lx_token=${data.access_token}; path=/; SameSite=Lax`;
       localStorage.setItem('lx_user', JSON.stringify(data.user));
+      localStorage.setItem('token', data.access_token);
       router.push('/');
     } catch (err) {
       setError('Bağlantı hatası oluştu');

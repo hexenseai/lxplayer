@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 from ..storage import get_minio, ensure_bucket, presign_put_url, presign_get_url
 from ..db import get_session
-from ..models import Asset
+from ..models import Asset, User
+from ..auth import get_current_user
 import uuid
 import io
 
@@ -18,14 +19,20 @@ class UploadRequest(BaseModel):
     description: str | None = None
 
 
+@router.options("/upload-file")
+async def upload_file_options():
+    """CORS preflight for upload endpoint"""
+    return {"message": "CORS preflight successful"}
+
 @router.post("/upload-file")
 async def upload_file_direct(
-    file: UploadFile = File(..., max_length=2 * 1024 * 1024 * 1024),  # 2GB limit
+    file: UploadFile = File(...),  # File upload
     title: str = None,
     description: str = None,
     session: Session = Depends(get_session)
 ):
     """Backend üzerinden dosya yükleme"""
+    print(f"🚀 Upload endpoint çağrıldı: {file.filename}")
     try:
         # Dosya adını güvenli hale getir
         safe_filename = file.filename.replace(" ", "_").replace("/", "_")

@@ -3,42 +3,58 @@ from dotenv import load_dotenv, find_dotenv
 # Load environment variables before importing routers that may read them at import time
 load_dotenv(find_dotenv(usecwd=True))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
-from .routers import trainings, assets, sessions, tools, users, organizations, auth, uploads, company_trainings, styles, generate, chat, frame_configs
+from .routers import trainings, assets, sessions, tools, users, companies, auth, uploads, company_trainings, styles, generate, chat, frame_configs, imports
 from .db import init_db
 
 app = FastAPI(title="LXPlayer API")
 
+# CORS middleware'i geri ekle
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        # Explicitly allow the rare trailing-dot localhost form some browsers may emit
-        "http://localhost.:3000",
-        "http://localhost.:3001",
-        # Production domains
-        "https://yodea.hexense.ai",
-        "http://yodea.hexense.ai",
-    ],
-    # Also allow any localhost/127.0.0.1 with optional trailing dot and any dev port
-    allow_origin_regex=r"^https?://(localhost\.?|127\.0\.0\.1)(:\d{1,5})$",
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# Manual CORS headers ekle
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    print(f"🔍 Request: {request.method} {request.url}")
+    
+    # OPTIONS request için özel handling
+    if request.method == "OPTIONS":
+        print("🔍 OPTIONS request - returning CORS headers")
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Max-Age"] = "86400"
+        return response
+    
+    try:
+        response = await call_next(request)
+        print(f"🔍 Response: {response.status_code}")
+    except Exception as e:
+        print(f"🔍 Error in request: {e}")
+        response = Response(status_code=500, content=str(e))
+    
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    return response
 
 app.include_router(trainings.router)
 app.include_router(assets.router)
 app.include_router(sessions.router)
 app.include_router(tools.router)
 app.include_router(users.router)
-app.include_router(organizations.router)
+app.include_router(companies.router)
 app.include_router(auth.router)
 app.include_router(uploads.router)
 app.include_router(company_trainings.router)
@@ -46,6 +62,7 @@ app.include_router(styles.router)
 app.include_router(generate.router)
 app.include_router(chat.router)
 app.include_router(frame_configs.router)
+app.include_router(imports.router)
 
 #print([ (r.path, r.name) for r in app.routes if "/trainings" in getattr(r, "path", "") ])
 
@@ -68,7 +85,8 @@ async def startup_event():
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
+    print("🔍 ROOT endpoint çağrıldı!")
+    return {"status": "ok", "message": "Backend is running", "timestamp": "2024-01-01T00:00:00Z"}
 
 @app.get("/test-cors")
 def test_cors():
@@ -93,7 +111,7 @@ def debug_info():
             "/docs",
             "/trainings",
             "/users",
-            "/organizations",
+            "/companies",
             "/assets",
             "/styles",
             "/frame-configs"
@@ -101,3 +119,21 @@ def debug_info():
         "frame_routes": frame_routes,
         "total_routes": len(app.routes)
     }
+
+@app.get("/test-frame-configs")
+def test_frame_configs_direct():
+    """Direct test endpoint for frame configs - NO AUTH"""
+    from .db import get_session
+    from .models import GlobalFrameConfig
+    from sqlmodel import select
+    
+    print("🔍 DIRECT TEST: List global frame configs - NO AUTH")
+    
+    session = next(get_session())
+    configs = session.exec(select(GlobalFrameConfig).order_by(GlobalFrameConfig.name)).all()
+    
+    print(f"📋 DIRECT TEST: Found {len(configs)} global frame configs")
+    for config in configs:
+        print(f"  - {config.name} (ID: {config.id}, Company: {config.company_id})")
+    
+    return [{"name": config.name, "id": str(config.id), "company_id": str(config.company_id)} for config in configs]

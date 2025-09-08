@@ -12,6 +12,9 @@
       "@/lib/*": [
         "./lib/*"
       ],
+      "@/hooks/*": [
+        "./hooks/*"
+      ],
       "@lxplayer/ui": [
         "../../packages/ui/src/index.ts"
       ]

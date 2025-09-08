@@ -1,0 +1,49 @@
+# Cursor AI Rules for LXPlayer Project
+
+## Project Context
+- FastAPI backend (Python) + Next.js frontend (TypeScript)
+- PostgreSQL database with SQLModel ORM
+- Authentication with JWT tokens
+- Role-based access control (SuperAdmin, Admin, User)
+
+## Development Workflow
+- Always test API endpoints before frontend integration
+- Use debug prints for backend troubleshooting
+- Prefer step-by-step problem solving
+- Document all changes and their reasons
+- Test authentication flows thoroughly
+
+## Code Standards
+- Use TypeScript for frontend, Python for backend
+- Follow existing naming conventions
+- Add error handling with user-friendly messages
+- Use proper HTTP status codes
+- Include debug logging for troubleshooting
+
+## Common Patterns
+- API calls: Use try-catch with specific error messages
+- Database: Use SQLModel with proper foreign keys
+- Authentication: Check user roles before operations
+- Frontend: Handle loading states and errors gracefully
+
+## Debugging Approach
+1. Check backend logs first
+2. Test API endpoints directly with curl/PowerShell
+3. Add debug prints to identify issues
+4. Fix backend issues before frontend
+5. Test authentication tokens
+6. Verify database schema matches models
+
+## Error Resolution
+- CORS issues: Check backend CORS settings
+- 500 errors: Check backend logs and database schema
+- 401/403 errors: Verify authentication and permissions
+- 404 errors: Check endpoint URLs and routing
+- Database errors: Verify migrations and schema
+
+## Testing Strategy
+- Test API endpoints with authentication
+- Verify frontend-backend integration
+- Check role-based access control
+- Test CRUD operations thoroughly
+- Validate error handling

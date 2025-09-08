@@ -11,7 +11,7 @@ const Schema = z.object({
   username: z.string().optional(),
   full_name: z.string().optional(),
   organization_id: z.string().optional().or(z.literal('')),
-  role: z.enum(['Admin','User']).optional(),
+  role: z.enum(['SuperAdmin','Admin','User']).optional(),
   department: z.string().optional(),
   password: z.string().optional(),
   gpt_prefs: z.string().optional(),
@@ -29,7 +29,7 @@ export function UserForm({ orgs, initialUser, onDone }: { orgs: { id: string; na
         username: initialUser.username ?? undefined,
         full_name: initialUser.full_name ?? undefined,
         organization_id: initialUser.organization_id ?? '',
-        role: (initialUser.role as 'Admin' | 'User') ?? undefined,
+        role: (initialUser.role as 'SuperAdmin' | 'Admin' | 'User') ?? undefined,
         department: initialUser.department ?? undefined,
       }
     : {
@@ -56,9 +56,16 @@ export function UserForm({ orgs, initialUser, onDone }: { orgs: { id: string; na
     if (isUpdate && (!values.password || values.password.length === 0)) {
       delete payload.password;
     }
+    // Get token from localStorage
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const headers: Record<string, string> = { 'content-type': 'application/json' };
+    if (token) {
+      headers['authorization'] = `Bearer ${token}`;
+    }
+    
     const res = await fetch(path, {
       method,
-      headers: { 'content-type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     });
     if (res.status === 409) {
@@ -94,6 +101,7 @@ export function UserForm({ orgs, initialUser, onDone }: { orgs: { id: string; na
         <select id="role" {...register('role')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900">
           <option value="User">User</option>
           <option value="Admin">Admin</option>
+          <option value="SuperAdmin">SuperAdmin</option>
         </select>
       </div>
       <div>

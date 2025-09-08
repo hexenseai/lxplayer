@@ -68,16 +68,42 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       values.uri = objectName;
     }
 
-    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
 
     try {
       // Mevcut asset'i güncelleme durumu
       if (initialAsset?.id) {
         console.log('🔄 Mevcut asset güncelleniyor:', initialAsset.id);
+        console.log('📤 Gönderilen veriler:', values);
+        
+        // Company ID'yi ekle (SuperAdmin için)
+        const updateData = { ...values };
+        if (typeof window !== 'undefined') {
+          const user = JSON.parse(localStorage.getItem('lx_user') || '{}');
+          console.log('👤 User from localStorage (lx_user):', user);
+          if (user.role === 'SuperAdmin') {
+            // SuperAdmin için kendi company_id'sini gönder
+            updateData.company_id = user.company_id;
+            console.log('🏢 SuperAdmin - Using user company_id:', user.company_id);
+          } else {
+            updateData.company_id = user.company_id;
+            console.log('🏢 Admin - Using user company_id:', user.company_id);
+          }
+        }
+        
+        console.log('📤 Final update data:', updateData);
+        
+        // Authorization header'ını ekle
+        const headers: Record<string, string> = { 'content-type': 'application/json' };
+        const token = localStorage.getItem('token');
+        if (token) {
+          headers['authorization'] = `Bearer ${token}`;
+        }
+        
         const res = await fetch(`${base}/assets/${initialAsset.id}`, { 
           method: 'PUT', 
-          headers: { 'content-type': 'application/json' }, 
-          body: JSON.stringify(values) 
+          headers,
+          body: JSON.stringify(updateData) 
         });
         
         if (!res.ok) {
@@ -91,10 +117,31 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       } else {
         // Yeni asset oluşturma durumu
         console.log('🆕 Yeni asset oluşturuluyor:', values);
+        
+        // Company ID'yi ekle
+        const createData = { ...values };
+        if (typeof window !== 'undefined') {
+          const user = JSON.parse(localStorage.getItem('lx_user') || '{}');
+          if (user.role === 'SuperAdmin') {
+            // SuperAdmin için company_id opsiyonel
+            createData.company_id = createData.company_id || user.company_id;
+          } else {
+            // Admin için kendi company_id'si
+            createData.company_id = user.company_id;
+          }
+        }
+        
+        // Authorization header'ını ekle
+        const headers: Record<string, string> = { 'content-type': 'application/json' };
+        const token = localStorage.getItem('token');
+        if (token) {
+          headers['authorization'] = `Bearer ${token}`;
+        }
+        
         const res = await fetch(`${base}/assets`, { 
           method: 'POST', 
-          headers: { 'content-type': 'application/json' }, 
-          body: JSON.stringify(values) 
+          headers,
+          body: JSON.stringify(createData) 
         });
         
         if (!res.ok) {
@@ -128,7 +175,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
     if (!htmlContent) return;
 
     try {
-      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const base = 'http://localhost:8000'; // Reverted to 8000
       const objectName = `html/${(globalThis.crypto?.randomUUID?.() || Date.now().toString())}_${title.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
       
       // Presign URL al ve asset oluştur
@@ -232,7 +279,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
     // Dosya yükleme işlemini arka planda yap
     setUploading(true);
     try {
-      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const base = 'http://localhost:8000'; // Reverted to 8000
       console.log('🚀 Dosya yükleme başlıyor:', { objectName, fileType: file.type, fileSize: file.size });
       
       // Backend üzerinden dosya yükle
@@ -277,6 +324,20 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       
       xhr.open('POST', `${base}/uploads/upload-file`);
       xhr.timeout = 1800000; // 30 dakika timeout
+      
+      // Authentication header ekle
+      const token = localStorage.getItem('token');
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+      
+      console.log('📤 XMLHttpRequest gönderiliyor:', {
+        url: `${base}/uploads/upload-file`,
+        method: 'POST',
+        hasToken: !!token,
+        formDataKeys: Array.from(formData.keys())
+      });
+      
       xhr.send(formData);
       
       const uploadData = await uploadPromise as any;
@@ -297,13 +358,51 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Dosya Yükleme Bölümü */}
+      <div className="border-b pb-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">📁 Dosya Yükle</h3>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="file">Dosya Seç</Label>
+            <input 
+              id="file" 
+              type="file" 
+              onChange={onFileChange} 
+              className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+            />
+            {uploadMsg && (
+              <p className={`text-sm mt-2 ${uploading ? 'text-blue-600' : 'text-green-700'}`}>
+                {uploadMsg}
+              </p>
+            )}
+            {uploading && (
+              <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+            )}
+          </div>
+          <div className="text-sm text-gray-600">
+            <p>Desteklenen formatlar:</p>
+            <ul className="list-disc list-inside mt-1 space-y-1">
+              <li><strong>Video:</strong> MP4, AVI, MOV, MKV, WebM</li>
+              <li><strong>Resim:</strong> JPG, PNG, GIF, WebP, SVG</li>
+              <li><strong>Ses:</strong> MP3, WAV, OGG, AAC, FLAC</li>
+              <li><strong>Doküman:</strong> HTML, TXT, PDF</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {/* HTML İçerik Oluştur Butonu */}
-      <div className="border-b pb-4">
+      <div className="border-b pb-6">
         <button
           type="button"
           onClick={createHtmlAsset}
-          className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
+          className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors"
         >
           📝 Hızlı HTML İçerik Oluştur
         </button>
@@ -312,118 +411,126 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-3 max-w-md">
-        <div>
-          <Label htmlFor="file">Dosya</Label>
-          <input id="file" type="file" onChange={onFileChange} className="mt-1 block w-full text-sm" />
-          {uploadMsg && <p className={`text-xs mt-1 ${uploading ? 'text-gray-600' : 'text-green-700'}`}>{uploadMsg}</p>}
-          {uploading && (
-            <div className="mt-2 w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
-              <div
-                className="bg-blue-600 h-2 rounded-full"
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
+      {/* Manuel Form Alanları */}
+      <div className="border-b pb-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">📝 Manuel Bilgi Girişi</h3>
+        <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-4">
+          <div>
+            <Label htmlFor="title">Başlık *</Label>
+            <Input 
+              id="title" 
+              {...register('title')} 
+              placeholder="İçerik başlığı" 
+              className="w-full"
+            />
+            {errors.title && <p className="text-red-600 text-xs mt-1">{errors.title.message as any}</p>}
+          </div>
+          
+          <div>
+            <Label htmlFor="description">Açıklama</Label>
+            <textarea 
+              id="description" 
+              {...register('description')} 
+              placeholder="İçerik açıklaması (opsiyonel)" 
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900 min-h-[80px] resize-y"
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="kind">Tür *</Label>
+            <select 
+              id="kind" 
+              {...register('kind')} 
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900"
+            >
+              <option value="">Tür seçin</option>
+              <option value="video">🎥 Video</option>
+              <option value="image">🖼️ Resim</option>
+              <option value="audio">🎵 Ses</option>
+              <option value="doc">📄 Doküman</option>
+            </select>
+          </div>
+        
+          {/* Koşullu Alanlar */}
+          {watchedKind && (
+            <>
+              {/* URI alanı - doc tipi için gizle */}
+              {watchedKind !== 'doc' && (
+                <div>
+                  <Label htmlFor="uri">URI/URL *</Label>
+                  <Input 
+                    id="uri" 
+                    {...register('uri')} 
+                    placeholder="https://example.com/file.mp4 veya assets/uuid_filename.ext" 
+                    readOnly={fileUploaded || !!initialAsset}
+                    className={`w-full ${fileUploaded || !!initialAsset ? 'bg-gray-50' : ''}`}
+                  />
+                  {errors.uri && <p className="text-red-600 text-xs mt-1">{errors.uri.message as any}</p>}
+                  <p className="text-xs text-gray-500 mt-1">
+                    {fileUploaded 
+                      ? '✅ Dosya seçildi, URI otomatik olarak ayarlandı' 
+                      : initialAsset 
+                        ? '📁 Mevcut dosya URI\'si' 
+                        : '💡 Dosya seçin veya URI\'yi manuel olarak girin'
+                    }
+                  </p>
+                </div>
+              )}
+
+              {/* HTML İçerik - Sadece doc türü için göster */}
+              {watchedKind === 'doc' && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>HTML İçerik</Label>
+                    <button
+                      type="button"
+                      onClick={() => setShowTinyMCEModal(true)}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      🎨 TinyMCE ile Düzenle
+                    </button>
+                  </div>
+                  {watchedHtmlContent && (
+                    <div className="border rounded p-2 bg-gray-50 text-sm text-gray-600 mb-2">
+                      <div className="flex items-center justify-between">
+                        <span>HTML içerik mevcut ({watchedHtmlContent.length} karakter)</span>
+                        <button
+                          type="button"
+                          onClick={() => setValue('html_content', '')}
+                          className="text-red-600 hover:text-red-800 text-xs"
+                        >
+                          Temizle
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <textarea
+                    {...register('html_content')}
+                    placeholder="HTML içeriğinizi buraya yazın veya TinyMCE ile düzenleyin..."
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900 min-h-[120px] resize-y"
+                  />
+                </div>
+              )}
+            </>
+          )}
+          <div className="flex justify-end gap-3 pt-4">
+            <button 
+              disabled={isSubmitting || uploading} 
+              type="submit" 
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {uploading ? '📤 Yükleniyor...' : uploadedAssetId ? '✅ Kaydedildi!' : '💾 Kaydet'}
+            </button>
+          </div>
+          
+          {/* Hata mesajları */}
+          {errors.title?.type === 'manual' && (
+            <div className="text-red-600 text-sm p-3 bg-red-50 border border-red-200 rounded-md">
+              {errors.title.message}
             </div>
           )}
-        </div>
-        <div>
-          <Label htmlFor="title">Başlık</Label>
-          <Input id="title" {...register('title')} placeholder="başlık" />
-          {errors.title && <p className="text-red-600 text-xs mt-1">{errors.title.message as any}</p>}
-        </div>
-        <div>
-          <Label htmlFor="description">Açıklama</Label>
-          <textarea 
-            id="description" 
-            {...register('description')} 
-            placeholder="kısa açıklama" 
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900 min-h-[80px] resize-y"
-          />
-        </div>
-        <div>
-          <Label htmlFor="kind">Tür</Label>
-          <select id="kind" {...register('kind')} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900">
-            <option value="video">video</option>
-            <option value="image">image</option>
-            <option value="audio">audio</option>
-            <option value="doc">doc</option>
-          </select>
-        </div>
-        
-        {/* TinyMCE Modal - Sadece doc türü için göster */}
-        {watchedKind === 'doc' && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>HTML İçerik</Label>
-              <button
-                type="button"
-                onClick={() => setShowTinyMCEModal(true)}
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                🎨 TinyMCE ile Düzenle
-              </button>
-            </div>
-            {watchedHtmlContent && (
-              <div className="border rounded p-2 bg-gray-50 text-sm text-gray-600">
-                <div className="flex items-center justify-between">
-                  <span>HTML içerik mevcut ({watchedHtmlContent.length} karakter)</span>
-                  <button
-                    type="button"
-                    onClick={() => setValue('html_content', '')}
-                    className="text-red-600 hover:text-red-800 text-xs"
-                  >
-                    Temizle
-                  </button>
-                </div>
-              </div>
-            )}
-            <textarea
-              {...register('html_content')}
-              placeholder="HTML içeriğinizi buraya yazın veya TinyMCE ile düzenleyin..."
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900 min-h-[100px] resize-y"
-            />
-          </div>
-        )}
-        
-        {/* URI alanı - doc tipi için gizle */}
-        {watchedKind !== 'doc' && (
-          <div>
-            <Label htmlFor="uri">URI (object path) *</Label>
-            <Input 
-              id="uri" 
-              {...register('uri')} 
-              placeholder="assets/uuid_filename.ext" 
-              readOnly={fileUploaded || !!initialAsset}
-              className={fileUploaded || !!initialAsset ? 'bg-gray-50' : ''}
-            />
-            {errors.uri && <p className="text-red-600 text-xs mt-1">{errors.uri.message as any}</p>}
-            <p className="text-xs text-gray-500 mt-1">
-              {fileUploaded 
-                ? 'Dosya seçildi, URI otomatik olarak ayarlandı' 
-                : initialAsset 
-                  ? 'Mevcut dosya URI\'si' 
-                  : 'Dosya seçin veya URI\'yi manuel olarak girin'
-              }
-            </p>
-          </div>
-        )}
-        <div className="flex justify-end gap-2">
-          <button 
-            disabled={isSubmitting || uploading} 
-            type="submit" 
-            className="border rounded px-3 py-2 disabled:opacity-50"
-          >
-            {uploading ? 'Yükleniyor...' : uploadedAssetId ? 'Kaydedildi!' : 'Kaydet'}
-          </button>
-        </div>
-        
-        {/* Hata mesajları */}
-        {errors.title?.type === 'manual' && (
-          <div className="text-red-600 text-sm p-2 bg-red-50 border border-red-200 rounded">
-            {errors.title.message}
-          </div>
-        )}
-      </form>
+        </form>
+      </div>
 
       {/* HTML Editor Modal */}
       <HtmlEditorModal

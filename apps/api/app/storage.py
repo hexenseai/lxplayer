@@ -15,6 +15,14 @@ NGINX_PROXY_URL = os.getenv("NGINX_PROXY_URL", "http://yodea.hexense.ai")
 
 
 def get_minio() -> Minio:
+    print(f"🔍 MinIO Environment Variables:")
+    print(f"  MINIO_ENDPOINT: {MINIO_ENDPOINT}")
+    print(f"  MINIO_ACCESS_KEY: {'***' if MINIO_ACCESS_KEY else 'NOT SET'}")
+    print(f"  MINIO_SECRET_KEY: {'***' if MINIO_SECRET_KEY else 'NOT SET'}")
+    print(f"  MINIO_BUCKET: {MINIO_BUCKET}")
+    print(f"  MINIO_SECURE: {MINIO_SECURE}")
+    print(f"  NGINX_PROXY_URL: {NGINX_PROXY_URL}")
+    
     if not MINIO_ACCESS_KEY or not MINIO_SECRET_KEY:
         raise RuntimeError("MINIO_ACCESS_KEY and MINIO_SECRET_KEY must be set in environment")
     client = Minio(MINIO_ENDPOINT, access_key=MINIO_ACCESS_KEY, secret_key=MINIO_SECRET_KEY, secure=MINIO_SECURE)

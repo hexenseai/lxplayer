@@ -12,10 +12,18 @@ def gen_uuid() -> str:
 auto_now = datetime.utcnow
 
 
-class Organization(SQLModel, table=True):
+class Company(SQLModel, table=True):
     id: str = Field(default_factory=gen_uuid, primary_key=True)
     name: str
     business_topic: Optional[str] = None
+    description: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    is_system: bool = Field(default=False, description="Whether this is the system company for SuperAdmins")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class User(SQLModel, table=True):
@@ -23,11 +31,14 @@ class User(SQLModel, table=True):
     email: str = Field(index=True, unique=True)
     username: Optional[str] = None
     full_name: Optional[str] = None
-    organization_id: Optional[str] = Field(default=None, foreign_key="organization.id")
-    role: str = Field(default="User")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+    role: str = Field(default="User", description="SuperAdmin|Admin|User")
     department: Optional[str] = None
     password: Optional[str] = None
     gpt_prefs: Optional[str] = None
+    # is_active: bool = Field(default=True)  # Temporarily disabled due to DB schema mismatch
+    # created_at: datetime = Field(default_factory=datetime.utcnow)  # Temporarily disabled due to DB schema mismatch
+    # updated_at: datetime = Field(default_factory=datetime.utcnow)  # Temporarily disabled due to DB schema mismatch
 
 
 class Asset(SQLModel, table=True):
@@ -37,12 +48,14 @@ class Asset(SQLModel, table=True):
     uri: str = Field(description="Object storage url or key (e.g. minio)")
     description: Optional[str] = None
     html_content: Optional[str] = None
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
 
 
 class Flow(SQLModel, table=True):
     id: str = Field(default_factory=gen_uuid, primary_key=True)
     title: str
     graph_json: str = Field(default="{}")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
 
 
 class Training(SQLModel, table=True):
@@ -51,6 +64,7 @@ class Training(SQLModel, table=True):
     description: Optional[str] = None
     flow_id: Optional[str] = Field(default=None, foreign_key="flow.id")
     ai_flow: Optional[str] = Field(default=None, description="JSON string for AI flow configuration")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
 
 
 class TrainingSection(SQLModel, table=True):
@@ -67,7 +81,7 @@ class TrainingSection(SQLModel, table=True):
 
 class CompanyTraining(SQLModel, table=True):
     id: str = Field(default_factory=gen_uuid, primary_key=True)
-    organization_id: str = Field(foreign_key="organization.id")
+    company_id: str = Field(foreign_key="company.id")
     training_id: str = Field(foreign_key="training.id")
     expectations: Optional[str] = None
     access_code: str = Field(index=True, unique=True)
@@ -108,6 +122,7 @@ class FrameConfig(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     is_default: bool = Field(default=False, description="Whether this is a default frame configuration")
     global_config_id: Optional[str] = Field(default=None, foreign_key="globalframeconfig.id", description="Reference to global frame configuration if copied from one")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
 
 
 class GlobalFrameConfig(SQLModel, table=True):
@@ -124,6 +139,7 @@ class GlobalFrameConfig(SQLModel, table=True):
     is_active: bool = Field(default=True, description="Whether this global config is active")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
 
 
 class Style(SQLModel, table=True):
@@ -135,6 +151,7 @@ class Style(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: Optional[str] = Field(default=None, foreign_key="user.id")
     is_default: bool = Field(default=False, description="Whether this is a default system style")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
 
 
 class Session(SQLModel, table=True):

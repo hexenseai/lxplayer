@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from ..db import get_session
-from ..models import CompanyTraining, Training, Organization
+from ..models import CompanyTraining, Training, Company
 
 router = APIRouter(prefix="/company-trainings", tags=["company-trainings"])
 
@@ -15,11 +15,11 @@ def list_company_trainings(session: Session = Depends(get_session)):
     result = []
     for ct in company_trainings:
         training = session.get(Training, ct.training_id)
-        organization = session.get(Organization, ct.organization_id)
+        company = session.get(Company, ct.company_id)
         
         result.append({
             "id": ct.id,
-            "organization_id": ct.organization_id,
+            "company_id": ct.company_id,
             "training_id": ct.training_id,
             "expectations": ct.expectations,
             "access_code": ct.access_code,
@@ -28,11 +28,11 @@ def list_company_trainings(session: Session = Depends(get_session)):
                 "title": training.title,
                 "description": training.description
             } if training else None,
-            "organization": {
-                "id": organization.id,
-                "name": organization.name,
-                "business_topic": organization.business_topic
-            } if organization else None
+            "company": {
+                "id": company.id,
+                "name": company.name,
+                "description": company.description
+            } if company else None
         })
     
     return result
@@ -46,7 +46,7 @@ def get_company_training(company_training_id: str, session: Session = Depends(ge
         raise HTTPException(404, "Company training not found")
     
     training = session.get(Training, company_training.training_id)
-    organization = session.get(Organization, company_training.organization_id)
+    company = session.get(Company, company_training.company_id)
     
     return {
         "id": company_training.id,

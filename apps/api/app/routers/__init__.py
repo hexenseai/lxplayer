@@ -3,10 +3,11 @@ from . import assets  # noqa: F401
 from . import sessions  # noqa: F401
 from . import tools  # noqa: F401
 from . import users  # noqa: F401
-from . import organizations  # noqa: F401
+from . import companies  # noqa: F401
 from . import auth  # noqa: F401
 from . import uploads  # noqa: F401
 from . import company_trainings  # noqa: F401
 from . import styles  # noqa: F401
 from . import generate  # noqa: F401
 from . import chat  # noqa: F401
+from . import frame_configs  # noqa: F401

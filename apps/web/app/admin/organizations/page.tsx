@@ -1,26 +1,75 @@
+"use client";
+
 import { api, Organization as OrgT } from '@/lib/api';
 import { AdminNav } from '@/components/admin/AdminNav';
 import { OrganizationForm } from '@/components/admin/forms/OrganizationForm';
 import { Drawer } from '@/components/admin/Drawer';
-import { revalidatePath } from 'next/cache';
+import { useState, useEffect } from 'react';
 
-export default async function AdminOrganizationsPage() {
-  let orgs: OrgT[] = [];
-  let backendOnline = false;
-  
-  try {
-    // Önce backend'in çalışıp çalışmadığını kontrol et
-    await api.healthCheck();
-    backendOnline = true;
-    
-    orgs = await api.listOrganizations();
-  } catch (error) {
-    console.error('API Error:', error);
-    // Backend çalışmıyorsa boş array'ler kullan
-  }
+export default function AdminOrganizationsPage() {
+  const [orgs, setOrgs] = useState<OrgT[]>([]);
+  const [backendOnline, setBackendOnline] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Tek firma varsa onu al, yoksa ilk firmayı al
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        
+        // Önce backend'in çalışıp çalışmadığını kontrol et
+        await api.healthCheck();
+        setBackendOnline(true);
+        
+        // Kullanıcı bilgilerini al
+        try {
+          const user = await api.getCurrentUser();
+          setCurrentUser(user);
+          console.log('Current user:', user);
+        } catch (error) {
+          console.error('User info error:', error);
+        }
+        
+        // Kullanıcı rolüne göre organizasyonları al
+        if (currentUser?.role === 'SuperAdmin') {
+          // Süper admin tüm organizasyonları görebilir
+          console.log('Loading all organizations for SuperAdmin...');
+          const allOrgs = await api.listOrganizations();
+          console.log('All organizations:', allOrgs);
+          setOrgs(allOrgs);
+        } else {
+          // Admin ve User sadece kendi organizasyonlarını görebilir
+          if (currentUser?.organization_id) {
+            const userOrg = await api.getOrganization(currentUser.organization_id);
+            if (userOrg) {
+              setOrgs([userOrg]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('API Error:', error);
+        // Backend çalışmıyorsa boş array'ler kullan
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [currentUser?.role, currentUser?.organization_id]);
+
+  // İlk organizasyonu al
   const currentOrg = orgs.length > 0 ? orgs[0] : null;
+
+  if (loading) {
+    return (
+      <main className="p-0">
+        <AdminNav />
+        <div className="p-8">
+          <div className="text-center">Yükleniyor...</div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="p-0">
@@ -40,11 +89,11 @@ export default async function AdminOrganizationsPage() {
                 <p className="text-indigo-600 text-sm">Firma bilgilerini düzenleyin</p>
               </div>
             </div>
-            {!currentOrg && (
-              <Drawer buttonLabel="Firma Oluştur" title="Yeni Firma">
-                <OrganizationForm />
-              </Drawer>
-            )}
+                         {(currentUser?.role === 'SuperAdmin' || !currentOrg) && (
+               <Drawer buttonLabel="Firma Oluştur" title="Yeni Firma">
+                 <OrganizationForm />
+               </Drawer>
+             )}
           </div>
         </div>
 
@@ -71,61 +120,93 @@ export default async function AdminOrganizationsPage() {
           </div>
         )}
 
-        <div className="space-y-8">
-          {currentOrg ? (
-            <div className="bg-white border border-indigo-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              {/* Firma Başlığı - Blue Header */}
-              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-indigo-200 rounded-t-xl p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-indigo-900">{currentOrg.name}</h2>
-                      <p className="text-indigo-600 text-sm">{currentOrg.business_topic}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Drawer buttonLabel="Firmayı Düzenle" title="Firmayı Düzenle">
-                      <OrganizationForm initialOrganization={currentOrg as any} />
-                    </Drawer>
-                  </div>
-                </div>
-              </div>
+        {/* Debug Info */}
+        {currentUser && (
+          <div className="bg-gray-100 border border-gray-300 rounded-lg p-4 mb-4">
+            <h3 className="font-semibold mb-2">Debug Info:</h3>
+            <p>Role: {currentUser.role}</p>
+            <p>Organization ID: {currentUser.organization_id || 'None'}</p>
+            <p>Organizations loaded: {orgs.length}</p>
+          </div>
+        )}
 
-              {/* Firma Bilgileri */}
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="font-semibold text-gray-800 mb-2">Firma Adı</h3>
-                    <p className="text-gray-600">{currentOrg.name}</p>
+        <div className="space-y-8">
+          {orgs.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {orgs.map((org) => (
+                <div key={org.id} className="bg-white border border-indigo-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                  {/* Firma Başlığı - Blue Header */}
+                  <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-indigo-200 rounded-t-xl p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-indigo-900">{org.name}</h2>
+                          <p className="text-indigo-600 text-sm">{org.business_topic}</p>
+                        </div>
+                      </div>
+                                             <div className="flex items-center gap-2">
+                         <Drawer buttonLabel="Düzenle" title="Firmayı Düzenle">
+                           <OrganizationForm initialOrganization={org as any} />
+                         </Drawer>
+                         {currentUser?.role === 'SuperAdmin' && (
+                           <button
+                             onClick={async () => {
+                               if (confirm('Bu firmayı silmek istediğinizden emin misiniz?')) {
+                                 try {
+                                   await api.deleteOrganization(org.id);
+                                   // Reload data
+                                   window.location.reload();
+                                 } catch (error) {
+                                   console.error('Error deleting organization:', error);
+                                   alert('Firma silinirken hata oluştu');
+                                 }
+                               }
+                             }}
+                             className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                           >
+                             Sil
+                           </button>
+                         )}
+                       </div>
+                    </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h3 className="font-semibold text-gray-800 mb-2">İş Konusu</h3>
-                    <p className="text-gray-600">{currentOrg.business_topic || 'Belirtilmemiş'}</p>
+
+                  {/* Firma Bilgileri */}
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h3 className="font-semibold text-gray-800 mb-2">Firma Adı</h3>
+                        <p className="text-gray-600">{org.name}</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h3 className="font-semibold text-gray-800 mb-2">İş Konusu</h3>
+                        <p className="text-gray-600">{org.business_topic || 'Belirtilmemiş'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-blue-900 mb-1 text-sm">Portal Bilgisi</h4>
+                          <p className="text-blue-800 text-xs">
+                            Bu portal {org.name} firması için özel olarak kurulmuştur.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-blue-900 mb-1">Portal Bilgisi</h4>
-                      <p className="text-blue-800 text-sm">
-                        Bu portal {currentOrg.name} firması için özel olarak kurulmuştur. 
-                        Eklenen tüm kullanıcılar otomatik olarak bu firmaya bağlanacaktır.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           ) : (
             <div className="text-center py-12 bg-white border border-gray-200 rounded-xl">

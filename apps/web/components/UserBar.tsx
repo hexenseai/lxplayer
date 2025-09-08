@@ -20,18 +20,13 @@ export function UserBar() {
   const logout = () => {
     document.cookie = 'lx_token=; Max-Age=0; path=/';
     localStorage.removeItem('lx_user');
+    localStorage.removeItem('token');
     window.location.href = '/login';
   };
 
   return (
     <div className="flex items-center space-x-4">
       <div className="hidden md:flex items-center space-x-3">
-        <Link 
-          className="btn btn-outline btn-sm" 
-          href="/admin"
-        >
-          Yönetim
-        </Link>
         {name && (
           <div className="flex items-center space-x-2">
             <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
