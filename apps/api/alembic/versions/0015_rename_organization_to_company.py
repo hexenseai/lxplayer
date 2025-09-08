@@ -17,57 +17,130 @@ depends_on = None
 
 
 def upgrade():
-    # Rename organization table to company
-    op.rename_table('organization', 'company')
+    connection = op.get_bind()
     
-    # Add new columns to company table
-    op.add_column('company', sa.Column('description', sa.String(), nullable=True))
-    op.add_column('company', sa.Column('address', sa.String(), nullable=True))
-    op.add_column('company', sa.Column('phone', sa.String(), nullable=True))
-    op.add_column('company', sa.Column('email', sa.String(), nullable=True))
-    op.add_column('company', sa.Column('website', sa.String(), nullable=True))
-    op.add_column('company', sa.Column('created_at', sa.DateTime(), nullable=True))
-    op.add_column('company', sa.Column('updated_at', sa.DateTime(), nullable=True))
+    # Check if organization table exists and rename to company
+    result = connection.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'organization'
+        );
+    """)).scalar()
     
-    # Add new columns to user table
-    op.add_column('user', sa.Column('is_active', sa.Boolean(), nullable=True))
-    op.add_column('user', sa.Column('created_at', sa.DateTime(), nullable=True))
-    op.add_column('user', sa.Column('updated_at', sa.DateTime(), nullable=True))
+    if result:
+        # Organization table exists, rename it to company
+        op.rename_table('organization', 'company')
     
-    # Rename organization_id columns to company_id
-    op.alter_column('user', 'organization_id', new_column_name='company_id')
-    op.alter_column('asset', 'organization_id', new_column_name='company_id')
-    op.alter_column('flow', 'organization_id', new_column_name='company_id')
-    op.alter_column('training', 'organization_id', new_column_name='company_id')
-    op.alter_column('companytraining', 'organization_id', new_column_name='company_id')
-    op.alter_column('frameconfig', 'organization_id', new_column_name='company_id')
-    op.alter_column('globalframeconfig', 'organization_id', new_column_name='company_id')
-    op.alter_column('style', 'organization_id', new_column_name='company_id')
+    # Add missing columns to company table if they don't exist
+    columns_to_add = [
+        ('description', sa.String()),
+        ('address', sa.String()),
+        ('phone', sa.String()),
+        ('email', sa.String()),
+        ('website', sa.String()),
+        ('created_at', sa.DateTime()),
+        ('updated_at', sa.DateTime())
+    ]
     
-    # Update foreign key constraints
-    op.drop_constraint('user_organization_id_fkey', 'user', type_='foreignkey')
-    op.create_foreign_key('user_company_id_fkey', 'user', 'company', ['company_id'], ['id'])
+    for column_name, column_type in columns_to_add:
+        result = connection.execute(sa.text(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'company' 
+                AND column_name = '{column_name}'
+            );
+        """)).scalar()
+        
+        if not result:
+            op.add_column('company', sa.Column(column_name, column_type, nullable=True))
     
-    op.drop_constraint('asset_organization_id_fkey', 'asset', type_='foreignkey')
-    op.create_foreign_key('asset_company_id_fkey', 'asset', 'company', ['company_id'], ['id'])
+    # Add missing columns to user table if they don't exist
+    user_columns_to_add = [
+        ('is_active', sa.Boolean()),
+        ('created_at', sa.DateTime()),
+        ('updated_at', sa.DateTime())
+    ]
     
-    op.drop_constraint('flow_organization_id_fkey', 'flow', type_='foreignkey')
-    op.create_foreign_key('flow_company_id_fkey', 'flow', 'company', ['company_id'], ['id'])
+    for column_name, column_type in user_columns_to_add:
+        result = connection.execute(sa.text(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'user' 
+                AND column_name = '{column_name}'
+            );
+        """)).scalar()
+        
+        if not result:
+            op.add_column('user', sa.Column(column_name, column_type, nullable=True))
     
-    op.drop_constraint('training_organization_id_fkey', 'training', type_='foreignkey')
-    op.create_foreign_key('training_company_id_fkey', 'training', 'company', ['company_id'], ['id'])
+    # Rename organization_id columns to company_id if they exist
+    tables_to_rename = ['user', 'asset', 'flow', 'training', 'companytraining', 'frameconfig', 'globalframeconfig', 'style']
     
-    op.drop_constraint('companytraining_organization_id_fkey', 'companytraining', type_='foreignkey')
-    op.create_foreign_key('companytraining_company_id_fkey', 'companytraining', 'company', ['company_id'], ['id'])
+    for table_name in tables_to_rename:
+        # Check if organization_id column exists and company_id doesn't
+        result = connection.execute(sa.text(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = '{table_name}' 
+                AND column_name = 'organization_id'
+            );
+        """)).scalar()
+        
+        if result:
+            result2 = connection.execute(sa.text(f"""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns 
+                    WHERE table_schema = 'public' 
+                    AND table_name = '{table_name}' 
+                    AND column_name = 'company_id'
+                );
+            """)).scalar()
+            
+            if not result2:
+                op.alter_column(table_name, 'organization_id', new_column_name='company_id')
     
-    op.drop_constraint('frameconfig_organization_id_fkey', 'frameconfig', type_='foreignkey')
-    op.create_foreign_key('frameconfig_company_id_fkey', 'frameconfig', 'company', ['company_id'], ['id'])
+    # Update foreign key constraints safely
+    fk_mappings = [
+        ('user', 'user_organization_id_fkey', 'user_company_id_fkey'),
+        ('asset', 'asset_organization_id_fkey', 'asset_company_id_fkey'),
+        ('flow', 'flow_organization_id_fkey', 'flow_company_id_fkey'),
+        ('training', 'training_organization_id_fkey', 'training_company_id_fkey'),
+        ('companytraining', 'companytraining_organization_id_fkey', 'companytraining_company_id_fkey'),
+        ('frameconfig', 'frameconfig_organization_id_fkey', 'frameconfig_company_id_fkey'),
+        ('globalframeconfig', 'globalframeconfig_organization_id_fkey', 'globalframeconfig_company_id_fkey'),
+        ('style', 'style_organization_id_fkey', 'style_company_id_fkey')
+    ]
     
-    op.drop_constraint('globalframeconfig_organization_id_fkey', 'globalframeconfig', type_='foreignkey')
-    op.create_foreign_key('globalframeconfig_company_id_fkey', 'globalframeconfig', 'company', ['company_id'], ['id'])
-    
-    op.drop_constraint('style_organization_id_fkey', 'style', type_='foreignkey')
-    op.create_foreign_key('style_company_id_fkey', 'style', 'company', ['company_id'], ['id'])
+    for table_name, old_fk_name, new_fk_name in fk_mappings:
+        # Check if old foreign key constraint exists
+        result = connection.execute(sa.text(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.table_constraints 
+                WHERE table_schema = 'public' 
+                AND table_name = '{table_name}' 
+                AND constraint_name = '{old_fk_name}'
+            );
+        """)).scalar()
+        
+        if result:
+            op.drop_constraint(old_fk_name, table_name, type_='foreignkey')
+        
+        # Check if new foreign key constraint doesn't exist
+        result2 = connection.execute(sa.text(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.table_constraints 
+                WHERE table_schema = 'public' 
+                AND table_name = '{table_name}' 
+                AND constraint_name = '{new_fk_name}'
+            );
+        """)).scalar()
+        
+        if not result2:
+            op.create_foreign_key(new_fk_name, table_name, 'company', ['company_id'], ['id'])
 
 
 def downgrade():
