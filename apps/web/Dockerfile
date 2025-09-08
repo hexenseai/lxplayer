@@ -7,7 +7,14 @@ COPY package.json package-lock.json ./
 # Include workspace manifests so npm can resolve workspaces
 COPY apps/web/package.json apps/web/package.json
 COPY packages/ui/package.json packages/ui/package.json
-RUN npm ci
+# Configure npm for better network reliability and install dependencies
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-retries 5 && \
+    npm config set timeout 300000 && \
+    npm config set maxsockets 1 && \
+    npm ci --prefer-offline --no-audit --no-fund
 
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -33,7 +40,13 @@ ENV NODE_ENV=production \
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/ui/package.json packages/ui/package.json
-RUN npm ci --omit=dev --workspace=@lxplayer/web
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-retries 5 && \
+    npm config set timeout 300000 && \
+    npm config set maxsockets 1 && \
+    npm ci --omit=dev --workspace=@lxplayer/web --prefer-offline --no-audit --no-fund
 
 WORKDIR /app/apps/web
 # App runtime artifacts
