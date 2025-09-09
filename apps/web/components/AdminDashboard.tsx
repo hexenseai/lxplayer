@@ -6,9 +6,13 @@ import { useUser } from '@/hooks/useUser';
 import { AdminLeftNavbar } from '@/components/AdminLeftNavbar';
 import { DashboardContent } from '@/components/DashboardContent';
 
-export function AdminDashboard() {
+interface AdminDashboardProps {
+  initialTab?: string | null;
+}
+
+export function AdminDashboard({ initialTab }: AdminDashboardProps) {
   const { user, isSuperAdmin, isAdmin } = useUser();
-  const [activePage, setActivePage] = useState('dashboard');
+  const [activePage, setActivePage] = useState(initialTab || 'dashboard');
 
   const logout = () => {
     document.cookie = 'lx_token=; Max-Age=0; path=/';

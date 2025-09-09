@@ -4,9 +4,12 @@ import { useUser } from '@/hooks/useUser';
 import { AdminDashboard } from '@/components/AdminDashboard';
 import { redirect } from 'next/navigation';
 import { useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 export default function HomePage() {
   const { user, loading, isSuperAdmin, isAdmin } = useUser();
+  const searchParams = useSearchParams();
+  const tab = searchParams.get('tab');
 
   useEffect(() => {
     if (!loading && !isSuperAdmin && !isAdmin) {
@@ -26,5 +29,5 @@ export default function HomePage() {
     return null;
   }
 
-  return <AdminDashboard />;
+  return <AdminDashboard initialTab={tab} />;
 }

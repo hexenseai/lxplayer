@@ -49,6 +49,10 @@ class Asset(SQLModel, table=True):
     description: Optional[str] = None
     html_content: Optional[str] = None
     company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+    
+    # Audio-specific fields for dubbing/translation
+    language: Optional[str] = Field(default=None, description="Language code for audio assets")
+    original_asset_id: Optional[str] = Field(default=None, foreign_key="asset.id", description="Reference to original video asset for audio dubbing")
 
 
 class Flow(SQLModel, table=True):
@@ -77,6 +81,11 @@ class TrainingSection(SQLModel, table=True):
     video_object: Optional[str] = Field(default=None, description="MinIO object key or full video URL for this section")
     asset_id: Optional[str] = Field(default=None, foreign_key="asset.id")
     order_index: int = Field(default=0, description="order of sections within training")
+    
+    # New fields for language and target audience
+    language: Optional[str] = Field(default="TR", description="Language code: TR, EN, DE, FR, ES, etc.")
+    target_audience: Optional[str] = Field(default="Genel", description="Target audience category based on education science")
+    audio_asset_id: Optional[str] = Field(default=None, foreign_key="asset.id", description="Audio asset for dubbing/translation")
 
 
 class CompanyTraining(SQLModel, table=True):

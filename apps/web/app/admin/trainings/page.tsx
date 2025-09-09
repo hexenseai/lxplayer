@@ -12,6 +12,9 @@ export default function AdminTrainingsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingTraining, setEditingTraining] = useState<TrainingT | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [systemTrainings, setSystemTrainings] = useState<TrainingT[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
 
   // Router redirect removed - now rendered within dashboard
 
@@ -82,6 +85,36 @@ export default function AdminTrainingsPage() {
     }
   };
 
+  const loadSystemTrainings = async () => {
+    try {
+      setImportLoading(true);
+      const data = await api.listSystemTrainings();
+      setSystemTrainings(data);
+    } catch (error) {
+      console.error('Error loading system trainings:', error);
+      alert(`Sistem eğitimleri yüklenirken hata oluştu: ${error?.message || error}`);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleImportTraining = async (sourceTrainingId: string) => {
+    try {
+      setImportLoading(true);
+      const result = await api.copyTraining(sourceTrainingId);
+      
+      alert(`Eğitim başarıyla kopyalandı! ${result.sections_copied} bölüm, ${result.overlays_copied} overlay, ${result.assets_copied} asset ve ${result.styles_copied} stil kopyalandı.`);
+      
+      setShowImportModal(false);
+      loadTrainings();
+    } catch (error) {
+      console.error('Error importing training:', error);
+      alert('Eğitim kopyalanırken hata oluştu!');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   if (userLoading || loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -112,12 +145,23 @@ export default function AdminTrainingsPage() {
               }
             </p>
           </div>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            Yeni Eğitim Ekle
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setShowImportModal(true);
+                loadSystemTrainings();
+              }}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              İçeri Aktar
+            </button>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              Yeni Eğitim Ekle
+            </button>
+          </div>
         </div>
       </div>
 
@@ -240,6 +284,66 @@ export default function AdminTrainingsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import Training Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold mb-4">LXPlayer Eğitimlerini İçeri Aktar</h2>
+            <p className="text-gray-600 mb-6">
+              LXPlayer sistem eğitimlerinden birini seçerek firmanıza kopyalayabilirsiniz. 
+              Eğitim, tüm bölümleri ve overlay'leri ile birlikte kopyalanacaktır.
+            </p>
+            
+            {importLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span className="ml-2 text-gray-600">Eğitimler yükleniyor...</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                {systemTrainings.map((training) => (
+                  <div key={training.id} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 mb-2">{training.title}</h3>
+                        {training.description && (
+                          <p className="text-sm text-gray-600 line-clamp-3 mb-3">{training.description}</p>
+                        )}
+                        <div className="text-xs text-gray-500">
+                          <span className="font-medium">Flow ID:</span> {training.flow_id || 'Yok'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleImportTraining(training.id)}
+                        disabled={importLoading}
+                        className="ml-4 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {importLoading ? 'Kopyalanıyor...' : 'Kopyala'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {systemTrainings.length === 0 && !importLoading && (
+              <div className="text-center py-8 text-gray-500">
+                Kopyalanabilir sistem eğitimi bulunamadı.
+              </div>
+            )}
+            
+            <div className="flex justify-end pt-6">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Kapat
+              </button>
+            </div>
           </div>
         </div>
       )}

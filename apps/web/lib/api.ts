@@ -10,13 +10,15 @@ export const Asset = z.object({
   kind: z.string(), 
   uri: z.string(),
   html_content: z.string().nullable().optional(),
-  company_id: z.string().nullable().optional()
+  company_id: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  original_asset_id: z.string().nullable().optional()
 });
 export type Asset = z.infer<typeof Asset>;
 
-export const TrainingSection = z.object({ 
-  id: z.string(), 
-  title: z.string(), 
+export const TrainingSection = z.object({
+  id: z.string(),
+  title: z.string(),
   description: z.string().nullable().optional(), 
   script: z.string().nullable().optional(),
   duration: z.number().nullable().optional(),
@@ -24,6 +26,9 @@ export const TrainingSection = z.object({
   asset_id: z.string().nullable().optional(),
   order_index: z.number(),
   training_id: z.string(),
+  language: z.string().nullable().optional(),
+  target_audience: z.string().nullable().optional(),
+  audio_asset_id: z.string().nullable().optional(),
   created_at: z.string().optional(),
   updated_at: z.string().optional()
 });
@@ -232,8 +237,17 @@ export const api = {
   updateTraining: (id: string, input: { title: string; description?: string; flow_id?: string | null; ai_flow?: string | null; company_id?: string | null }) =>
     request(`/trainings/${id}`, Training, { method: 'PUT', body: JSON.stringify(input) }),
   deleteTraining: (id: string) => request(`/trainings/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
-
-
+  
+  // system trainings
+  listSystemTrainings: () => request('/trainings/system', z.array(Training)),
+  copyTraining: (sourceTrainingId: string) => request(`/trainings/${sourceTrainingId}/copy`, z.object({
+    message: z.string(),
+    new_training_id: z.string(),
+    sections_copied: z.number(),
+    overlays_copied: z.number(),
+    assets_copied: z.number(),
+    styles_copied: z.number()
+  }), { method: 'POST' }),
 
   // users
   listUsers: () => request('/users', z.array(User)),
@@ -292,9 +306,9 @@ export const api = {
   // training sections
   listTrainingSections: (trainingId: string) => request(`/trainings/${trainingId}/sections`, z.array(TrainingSection)),
   getTrainingSection: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}`, TrainingSection),
-  createTrainingSection: (trainingId: string, input: { title: string; description?: string; script?: string; duration?: number; video_object?: string; asset_id?: string; order_index?: number }) =>
+  createTrainingSection: (trainingId: string, input: { title: string; description?: string; script?: string; duration?: number; video_object?: string; asset_id?: string; order_index?: number; language?: string; target_audience?: string; audio_asset_id?: string }) =>
     request(`/trainings/${trainingId}/sections`, TrainingSection, { method: 'POST', body: JSON.stringify(input) }),
-  updateTrainingSection: (trainingId: string, sectionId: string, input: { title: string; description?: string; script?: string; duration?: number; video_object?: string; asset_id?: string; order_index?: number }) =>
+  updateTrainingSection: (trainingId: string, sectionId: string, input: { title: string; description?: string; script?: string; duration?: number; video_object?: string; asset_id?: string; order_index?: number; language?: string; target_audience?: string; audio_asset_id?: string }) =>
     request(`/trainings/${trainingId}/sections/${sectionId}`, TrainingSection, { method: 'PUT', body: JSON.stringify(input) }),
   deleteTrainingSection: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
@@ -308,6 +322,21 @@ export const api = {
       end: z.number(),
       text: z.string()
     }))
+  }), { method: 'POST' }),
+
+  // description generation
+  generateDescription: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}/description`, z.object({ 
+    description: z.string()
+  }), { method: 'POST' }),
+
+  // audio dubbing
+  dubAudio: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}/dub-audio`, z.object({
+    audio_asset_id: z.string(),
+    transcript: z.string(),
+    audio_url: z.string(),
+    segments_count: z.number(),
+    total_duration: z.number(),
+    is_srt_format: z.boolean()
   }), { method: 'POST' }),
 
   // section overlays

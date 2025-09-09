@@ -6,8 +6,9 @@ import { api, FrameConfig, GlobalFrameConfig } from '@/lib/api';
 import FrameConfigModal from '@/components/admin/forms/FrameConfigModal';
 
 export default function FrameConfigsPage() {
-  const params = useParams() as { trainingId: string; sectionId: string };
+  const params = useParams() as { id: string };
   const router = useRouter();
+  const sectionId = params.id;
   const [frameConfigs, setFrameConfigs] = useState<FrameConfig[]>([]);
   const [globalFrameConfigs, setGlobalFrameConfigs] = useState<GlobalFrameConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +20,7 @@ export default function FrameConfigsPage() {
     try {
       setLoading(true);
       const [configs, globalConfigs] = await Promise.all([
-        api.listSectionFrameConfigs(params.sectionId),
+        api.listSectionFrameConfigs(sectionId),
         api.listGlobalFrameConfigs()
       ]);
       setFrameConfigs(configs);
@@ -33,7 +34,7 @@ export default function FrameConfigsPage() {
 
   useEffect(() => {
     loadFrameConfigs();
-  }, [params.sectionId]);
+  }, [sectionId]);
 
   const handleCreateNew = () => {
     setEditingFrameConfigId(undefined);
@@ -61,7 +62,7 @@ export default function FrameConfigsPage() {
 
   const handleCopyFromGlobal = async (globalConfigId: string) => {
     try {
-      await api.copyFrameConfigFromGlobal(params.sectionId, globalConfigId);
+      await api.copyFrameConfigFromGlobal(sectionId, globalConfigId);
       await loadFrameConfigs();
       alert('Global frame konfigürasyonu başarıyla kopyalandı!');
     } catch (error) {
@@ -80,7 +81,7 @@ export default function FrameConfigsPage() {
       const activeGlobalConfigs = globalFrameConfigs.filter(config => config.is_active);
       
       for (const globalConfig of activeGlobalConfigs) {
-        await api.copyFrameConfigFromGlobal(params.sectionId, globalConfig.id);
+        await api.copyFrameConfigFromGlobal(sectionId, globalConfig.id);
       }
       
       await loadFrameConfigs();
@@ -99,13 +100,11 @@ export default function FrameConfigsPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-20 bg-gray-200 rounded"></div>
-            ))}
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Yükleniyor...</p>
           </div>
         </div>
       </div>
@@ -116,7 +115,7 @@ export default function FrameConfigsPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <button
-          onClick={() => router.push(`/studio/sections/${params.sectionId}`)}
+          onClick={() => router.push(`/studio/sections/${sectionId}`)}
           className="text-primary hover:text-primary/80 text-sm font-medium mb-4"
         >
           ← Bölüm Düzenleme Formuna Dön
@@ -228,7 +227,7 @@ export default function FrameConfigsPage() {
           </p>
           <button
             onClick={handleCreateNew}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
           >
             İlk Frame Konfigürasyonunu Oluştur
           </button>
@@ -299,7 +298,7 @@ export default function FrameConfigsPage() {
       )}
 
       <FrameConfigModal
-        sectionId={params.sectionId}
+        sectionId={sectionId}
         frameConfigId={editingFrameConfigId}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

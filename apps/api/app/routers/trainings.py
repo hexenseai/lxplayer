@@ -12,8 +12,9 @@ import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from ..db import get_session
-from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User
-from ..auth import hash_password, get_current_user, is_super_admin, check_company_access
+from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style
+from ..auth import hash_password, get_current_user, is_super_admin, is_admin, check_company_access
+from ..storage import get_minio
 
 router = APIRouter(prefix="/trainings", tags=["trainings"])
 
@@ -34,6 +35,9 @@ class TrainingSectionIn(BaseModel):
     video_object: str | None = None
     asset_id: str | None = None
     order_index: int = 0
+    language: str | None = "TR"
+    target_audience: str | None = "Genel"
+    audio_asset_id: str | None = None
 
 
 class OverlayIn(BaseModel):
@@ -65,6 +69,226 @@ def list_trainings(
         return session.exec(
             select(Training).where(Training.company_id == current_user.company_id)
         ).all()
+
+
+@router.get("/system", operation_id="list_system_trainings")
+def list_system_trainings(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """LXPlayer sistem eğitimlerini listele (sadece admin'ler için)"""
+    print(f"DEBUG: list_system_trainings called by user: {current_user.email}")
+    print(f"DEBUG: is_admin: {is_admin(current_user)}, is_super_admin: {is_super_admin(current_user)}")
+    
+    if not is_admin(current_user) and not is_super_admin(current_user):
+        print("DEBUG: Access denied - user is not admin or super admin")
+        raise HTTPException(403, "Access denied")
+    
+    # Sistem eğitimlerini al (company_id null olanlar)
+    try:
+        trainings = session.exec(
+            select(Training).where(Training.company_id.is_(None))
+        ).all()
+        print(f"DEBUG: Found {len(trainings)} system trainings")
+        return trainings
+    except Exception as e:
+        print(f"DEBUG: Error querying system trainings: {e}")
+        raise HTTPException(500, f"Database error: {str(e)}")
+
+
+@router.post("/{source_training_id}/copy", operation_id="copy_training")
+def copy_training(
+    source_training_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Sistem eğitimini mevcut firmaya kopyala (sadece admin'ler için)"""
+    if not is_admin(current_user) and not is_super_admin(current_user):
+        raise HTTPException(403, "Access denied")
+    
+    if not current_user.company_id:
+        raise HTTPException(400, "User must belong to a company")
+    
+    # Kaynak eğitimi bul
+    source_training = session.get(Training, source_training_id)
+    if not source_training:
+        raise HTTPException(404, "Source training not found")
+    
+    # Yeni eğitim oluştur
+    new_training = Training(
+        title=f"{source_training.title} (Kopya)",
+        description=source_training.description,
+        flow_id=source_training.flow_id,
+        ai_flow=source_training.ai_flow,
+        company_id=current_user.company_id
+    )
+    session.add(new_training)
+    session.commit()
+    session.refresh(new_training)
+    
+    # Asset ve stil mapping'leri
+    asset_mapping = {}  # source_asset_id -> new_asset_id
+    style_mapping = {}  # source_style_id -> new_style_id
+    
+    # Kaynak eğitimin bölümlerini al
+    source_sections = session.exec(
+        select(TrainingSection).where(TrainingSection.training_id == source_training_id)
+    ).all()
+    
+    # Bölümleri kopyala
+    for source_section in source_sections:
+        # Asset'leri kopyala
+        new_asset_id = None
+        if source_section.asset_id:
+            if source_section.asset_id not in asset_mapping:
+                source_asset = session.get(Asset, source_section.asset_id)
+                if source_asset:
+                    new_asset = Asset(
+                        title=f"{source_asset.title} (Kopya)",
+                        kind=source_asset.kind,
+                        uri=source_asset.uri,
+                        description=source_asset.description,
+                        language=source_asset.language,
+                        original_asset_id=source_asset.id,
+                        company_id=current_user.company_id
+                    )
+                    session.add(new_asset)
+                    session.commit()
+                    session.refresh(new_asset)
+                    asset_mapping[source_section.asset_id] = new_asset.id
+            new_asset_id = asset_mapping.get(source_section.asset_id)
+        
+        # Audio asset'ini kopyala
+        new_audio_asset_id = None
+        if source_section.audio_asset_id:
+            if source_section.audio_asset_id not in asset_mapping:
+                source_audio_asset = session.get(Asset, source_section.audio_asset_id)
+                if source_audio_asset:
+                    new_audio_asset = Asset(
+                        title=f"{source_audio_asset.title} (Kopya)",
+                        kind=source_audio_asset.kind,
+                        uri=source_audio_asset.uri,
+                        description=source_audio_asset.description,
+                        language=source_audio_asset.language,
+                        original_asset_id=source_audio_asset.id,
+                        company_id=current_user.company_id
+                    )
+                    session.add(new_audio_asset)
+                    session.commit()
+                    session.refresh(new_audio_asset)
+                    asset_mapping[source_section.audio_asset_id] = new_audio_asset.id
+            new_audio_asset_id = asset_mapping.get(source_section.audio_asset_id)
+        
+        new_section = TrainingSection(
+            title=source_section.title,
+            description=source_section.description,
+            script=source_section.script,
+            duration=source_section.duration,
+            video_object=source_section.video_object,
+            asset_id=new_asset_id,
+            order_index=source_section.order_index,
+            language=source_section.language,
+            target_audience=source_section.target_audience,
+            audio_asset_id=new_audio_asset_id,
+            training_id=new_training.id
+        )
+        session.add(new_section)
+        session.commit()
+        session.refresh(new_section)
+        
+        # Kaynak bölümün overlay'lerini al
+        source_overlays = session.exec(
+            select(Overlay).where(Overlay.training_section_id == source_section.id)
+        ).all()
+        
+        # Overlay'leri kopyala
+        for source_overlay in source_overlays:
+            # Content asset'ini kopyala
+            new_content_id = None
+            if source_overlay.content_id:
+                if source_overlay.content_id not in asset_mapping:
+                    source_content_asset = session.get(Asset, source_overlay.content_id)
+                    if source_content_asset:
+                        new_content_asset = Asset(
+                            title=f"{source_content_asset.title} (Kopya)",
+                            kind=source_content_asset.kind,
+                            uri=source_content_asset.uri,
+                            description=source_content_asset.description,
+                            language=source_content_asset.language,
+                            original_asset_id=source_content_asset.id,
+                            company_id=current_user.company_id
+                        )
+                        session.add(new_content_asset)
+                        session.commit()
+                        session.refresh(new_content_asset)
+                        asset_mapping[source_overlay.content_id] = new_content_asset.id
+                new_content_id = asset_mapping.get(source_overlay.content_id)
+            
+            # Style'ları kopyala
+            new_style_id = None
+            if source_overlay.style_id:
+                if source_overlay.style_id not in style_mapping:
+                    source_style = session.get(Style, source_overlay.style_id)
+                    if source_style:
+                        new_style = Style(
+                            name=f"{source_style.name} (Kopya)",
+                            description=source_style.description,
+                            style_json=source_style.style_json,
+                            company_id=current_user.company_id
+                        )
+                        session.add(new_style)
+                        session.commit()
+                        session.refresh(new_style)
+                        style_mapping[source_overlay.style_id] = new_style.id
+                new_style_id = style_mapping.get(source_overlay.style_id)
+            
+            # Icon style'ını kopyala
+            new_icon_style_id = None
+            if source_overlay.icon_style_id:
+                if source_overlay.icon_style_id not in style_mapping:
+                    source_icon_style = session.get(Style, source_overlay.icon_style_id)
+                    if source_icon_style:
+                        new_icon_style = Style(
+                            name=f"{source_icon_style.name} (Kopya)",
+                            description=source_icon_style.description,
+                            style_json=source_icon_style.style_json,
+                            company_id=current_user.company_id
+                        )
+                        session.add(new_icon_style)
+                        session.commit()
+                        session.refresh(new_icon_style)
+                        style_mapping[source_overlay.icon_style_id] = new_icon_style.id
+                new_icon_style_id = style_mapping.get(source_overlay.icon_style_id)
+            
+            new_overlay = Overlay(
+                training_id=new_training.id,
+                training_section_id=new_section.id,
+                time_stamp=source_overlay.time_stamp,
+                type=source_overlay.type,
+                caption=source_overlay.caption,
+                content_id=new_content_id,
+                frame=source_overlay.frame,
+                animation=source_overlay.animation,
+                duration=source_overlay.duration,
+                position=source_overlay.position,
+                style_id=new_style_id,
+                icon_style_id=new_icon_style_id,
+                icon=source_overlay.icon,
+                pause_on_show=source_overlay.pause_on_show,
+                frame_config_id=source_overlay.frame_config_id
+            )
+            session.add(new_overlay)
+    
+    session.commit()
+    
+    return {
+        "message": "Training copied successfully",
+        "new_training_id": new_training.id,
+        "sections_copied": len(source_sections),
+        "overlays_copied": sum(len(session.exec(select(Overlay).where(Overlay.training_section_id == s.id)).all()) for s in source_sections),
+        "assets_copied": len(asset_mapping),
+        "styles_copied": len(style_mapping)
+    }
 
 
 @router.get("/{training_id}", operation_id="get_training")
@@ -241,6 +465,12 @@ def create_training_section(training_id: str, section: TrainingSectionIn, sessio
         if not asset:
             raise HTTPException(404, "Asset not found")
     
+    # Verify audio asset exists if provided
+    if section.audio_asset_id:
+        audio_asset = session.get(Asset, section.audio_asset_id)
+        if not audio_asset:
+            raise HTTPException(404, "Audio asset not found")
+    
     # Eğer order_index belirtilmemişse, en son sıra numarasını bul ve +1 yap
     if section.order_index == 0:
         last_section = session.exec(
@@ -253,7 +483,12 @@ def create_training_section(training_id: str, section: TrainingSectionIn, sessio
         else:
             section.order_index = 1
     
+    # Convert empty strings to None for optional fields
     section_data = section.model_dump()
+    for key in ['asset_id', 'audio_asset_id', 'description', 'script', 'video_object']:
+        if key in section_data and section_data[key] == '':
+            section_data[key] = None
+    
     section_data["training_id"] = training_id
     
     obj = TrainingSection(**section_data)
@@ -280,7 +515,19 @@ def update_training_section(training_id: str, section_id: str, section: Training
         if not asset:
             raise HTTPException(404, "Asset not found")
     
-    for k, v in section.model_dump().items():
+    # Verify audio asset exists if provided
+    if section.audio_asset_id:
+        audio_asset = session.get(Asset, section.audio_asset_id)
+        if not audio_asset:
+            raise HTTPException(404, "Audio asset not found")
+    
+    # Convert empty strings to None for optional fields
+    section_data = section.model_dump()
+    for key in ['asset_id', 'audio_asset_id', 'description', 'script', 'video_object']:
+        if key in section_data and section_data[key] == '':
+            section_data[key] = None
+    
+    for k, v in section_data.items():
         setattr(existing_section, k, v)
     
     session.add(existing_section)
@@ -313,6 +560,87 @@ def delete_training_section(training_id: str, section_id: str, session: Session 
     except Exception as e:
         session.rollback()
         raise HTTPException(500, f"Error deleting training section: {str(e)}")
+
+
+# Description generation endpoint
+@router.post("/{training_id}/sections/{section_id}/description", operation_id="generate_section_description")
+def generate_description(training_id: str, section_id: str, session: Session = Depends(get_session)):
+    section = session.get(TrainingSection, section_id)
+    if not section or section.training_id != training_id:
+        raise HTTPException(404, "Training section not found")
+    
+    # Get the training
+    training = session.get(Training, training_id)
+    if not training:
+        raise HTTPException(404, "Training not found")
+    
+    try:
+        # Prepare context for description generation
+        context_parts = []
+        
+        # Add training description if available
+        if training.description:
+            context_parts.append(f"Eğitim Açıklaması: {training.description}")
+        
+        # Add section title
+        if section.title:
+            context_parts.append(f"Bölüm Başlığı: {section.title}")
+        
+        # Add section script if available
+        if section.script:
+            context_parts.append(f"Bölüm İçeriği: {section.script}")
+        
+        if not context_parts:
+            raise HTTPException(400, "Bölüm için yeterli içerik bulunamadı. En azından bölüm başlığı veya script gerekli.")
+        
+        context = "\n\n".join(context_parts)
+        
+        # Generate description using OpenAI
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise HTTPException(500, "OpenAI API key not configured")
+        
+        prompt = f"""Aşağıdaki eğitim bölümü bilgilerini kullanarak, bu bölüm için kısa ve öz bir açıklama oluştur. Açıklama:
+
+1. Bölümün ne hakkında olduğunu açıklasın
+2. Öğrencilerin ne öğreneceğini belirtsin  
+3. 2-3 cümle uzunluğunda olsun
+4. Türkçe olsun
+5. Profesyonel ve eğitici bir ton kullansın
+
+Eğitim Bilgileri:
+{context}
+
+Açıklama:"""
+
+        response = requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {openai_api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': 'gpt-3.5-turbo',
+                'messages': [
+                    {'role': 'user', 'content': prompt}
+                ],
+                'max_tokens': 150,
+                'temperature': 0.7
+            }
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        description = result['choices'][0]['message']['content'].strip()
+        
+        return {
+            "description": description
+        }
+        
+    except requests.RequestException as e:
+        raise HTTPException(500, f"Error calling OpenAI API: {str(e)}")
+    except Exception as e:
+        raise HTTPException(500, f"Unexpected error: {str(e)}")
 
 
 # Training Section Overlays endpoints
@@ -491,7 +819,7 @@ def delete_section_overlay(training_id: str, section_id: str, overlay_id: str, s
 
 
 # Transcript generation endpoint
-@router.post("/{training_id}/sections/{section_id}/transcript")
+@router.post("/{training_id}/sections/{section_id}/transcript", operation_id="generate_section_transcript")
 def generate_transcript(training_id: str, section_id: str, session: Session = Depends(get_session)):
     section = session.get(TrainingSection, section_id)
     if not section or section.training_id != training_id:
@@ -615,6 +943,261 @@ def generate_transcript(training_id: str, section_id: str, session: Session = De
         raise HTTPException(500, f"Error downloading video or calling OpenAI API: {str(e)}")
     except Exception as e:
         raise HTTPException(500, f"Unexpected error: {str(e)}")
+
+
+# Audio dubbing endpoint
+@router.post("/{training_id}/sections/{section_id}/dub-audio", operation_id="dub_section_audio")
+def parse_srt_content(srt_content: str):
+    """SRT formatındaki içeriği parse eder ve segment listesi döndürür"""
+    segments = []
+    lines = srt_content.strip().split('\n')
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # Segment numarası
+        if line.isdigit():
+            segment_num = int(line)
+            i += 1
+            
+            # Zaman damgası satırı
+            if i < len(lines):
+                time_line = lines[i].strip()
+                if '-->' in time_line:
+                    start_time, end_time = time_line.split(' --> ')
+                    start_seconds = srt_time_to_seconds(start_time)
+                    end_seconds = srt_time_to_seconds(end_time)
+                    i += 1
+                    
+                    # Metin satırları
+                    text_lines = []
+                    while i < len(lines) and lines[i].strip():
+                        text_lines.append(lines[i].strip())
+                        i += 1
+                    
+                    if text_lines:
+                        text = ' '.join(text_lines)
+                        segments.append({
+                            'number': segment_num,
+                            'start_time': start_seconds,
+                            'end_time': end_seconds,
+                            'duration': end_seconds - start_seconds,
+                            'text': text
+                        })
+        i += 1
+    
+    return segments
+
+def srt_time_to_seconds(srt_time: str) -> float:
+    """SRT zaman formatını (HH:MM:SS,mmm) saniyeye çevirir"""
+    time_part, ms_part = srt_time.split(',')
+    h, m, s = map(int, time_part.split(':'))
+    ms = int(ms_part)
+    return h * 3600 + m * 60 + s + ms / 1000.0
+
+def seconds_to_srt_time(seconds: float) -> str:
+    """Saniyeyi SRT zaman formatına çevirir"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    ms = int((seconds % 1) * 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+def dub_audio(training_id: str, section_id: str, session: Session = Depends(get_session)):
+    section = session.get(TrainingSection, section_id)
+    if not section or section.training_id != training_id:
+        raise HTTPException(404, "Training section not found")
+    
+    # Check if script exists
+    if not section.script or not section.script.strip():
+        raise HTTPException(400, "Script alanı boş. Lütfen seslendirilecek metni script alanına yazın.")
+    
+    try:
+        script_content = section.script.strip()
+        
+        # Check if it's SRT format
+        is_srt = '-->' in script_content and any(line.strip().isdigit() for line in script_content.split('\n'))
+        
+        if is_srt:
+            # Parse SRT content
+            segments = parse_srt_content(script_content)
+            if not segments:
+                raise HTTPException(400, "SRT formatı geçersiz veya boş segment bulunamadı.")
+        else:
+            # Plain text - get video duration and create single segment
+            video_duration = 10.0  # Default duration
+            
+            # Try to get video duration from asset
+            if section.asset_id:
+                asset = session.get(Asset, section.asset_id)
+                if asset and asset.kind == 'video':
+                    # Try to get duration from video metadata
+                    try:
+                        # Download video to get duration
+                        video_url = asset.uri
+                        if not video_url.startswith('http'):
+                            cdn_url = os.getenv('CDN_URL', 'http://localhost:9000/lxplayer')
+                            video_url = f"{cdn_url}/{video_url}"
+                        
+                        # Use ffprobe to get duration
+                        ffprobe_cmd = [
+                            'ffprobe', '-v', 'quiet', '-show_entries', 
+                            'format=duration', '-of', 'csv=p=0', video_url
+                        ]
+                        
+                        result = subprocess.run(ffprobe_cmd, capture_output=True, text=True, timeout=30)
+                        if result.returncode == 0:
+                            video_duration = float(result.stdout.strip())
+                            print(f"Video duration: {video_duration} seconds")
+                        else:
+                            print(f"Could not get video duration, using default: {video_duration}")
+                    except Exception as e:
+                        print(f"Error getting video duration: {e}, using default: {video_duration}")
+            
+            segments = [{
+                'number': 1,
+                'start_time': 0.0,
+                'end_time': video_duration,
+                'duration': video_duration,
+                'text': script_content
+            }]
+        
+        # Use ElevenLabs to generate new audio in target language
+        eleven_api_key = os.getenv("ELEVENLABS_API_KEY")
+        if not eleven_api_key:
+            raise HTTPException(500, "ELEVENLABS_API_KEY is not set")
+        
+        # For now, we'll use the same voice but you can make this configurable
+        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+        model_id = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
+        
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        headers = {"xi-api-key": eleven_api_key, "Content-Type": "application/json"}
+        
+        # Generate audio for each segment
+        segment_audio_files = []
+        total_duration = 0
+        
+        for segment in segments:
+            payload = {
+                "text": segment['text'],
+                "model_id": model_id,
+                "voice_settings": {"stability": 0.5, "similarity_boost": 0.7},
+            }
+            
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            segment_audio_bytes = response.content
+            
+            # Save segment audio
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_segment_audio:
+                temp_segment_audio.write(segment_audio_bytes)
+                segment_audio_files.append({
+                    'file_path': temp_segment_audio.name,
+                    'start_time': segment['start_time'],
+                    'duration': segment['duration'],
+                    'text': segment['text']
+                })
+            
+            total_duration = max(total_duration, segment['end_time'])
+        
+        # Combine all segments into one audio file using FFmpeg
+        if len(segment_audio_files) > 1:
+            # Create a filter complex to combine segments with proper timing
+            filter_parts = []
+            input_parts = []
+            
+            for i, seg in enumerate(segment_audio_files):
+                input_parts.extend(['-i', seg['file_path']])
+                # Add silence before this segment if needed
+                if seg['start_time'] > 0:
+                    filter_parts.append(f"[{i}]adelay={int(seg['start_time'] * 1000)}|{int(seg['start_time'] * 1000)}[delayed{i}]")
+                else:
+                    filter_parts.append(f"[{i}]acopy[delayed{i}]")
+            
+            # Mix all delayed segments
+            mix_inputs = ''.join([f"[delayed{i}]" for i in range(len(segment_audio_files))])
+            filter_parts.append(f"{mix_inputs}amix=inputs={len(segment_audio_files)}:duration=longest[out]")
+            
+            filter_complex = ';'.join(filter_parts)
+            
+            # Create final combined audio
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_combined_audio:
+                combined_audio_path = temp_combined_audio.name
+            
+            # Run FFmpeg to combine segments
+            ffmpeg_cmd = [
+                'ffmpeg', '-y',
+                *input_parts,
+                '-filter_complex', filter_complex,
+                '-map', '[out]',
+                '-c:a', 'mp3',
+                '-b:a', '128k',
+                combined_audio_path
+            ]
+            
+            try:
+                subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
+                new_audio_path = combined_audio_path
+            except subprocess.CalledProcessError as e:
+                print(f"FFmpeg error: {e}")
+                # Fallback: use first segment
+                new_audio_path = segment_audio_files[0]['file_path']
+        else:
+            # Single segment
+            new_audio_path = segment_audio_files[0]['file_path']
+        
+        # Upload to MinIO
+        object_name = f"audio/{uuid.uuid4()}.mp3"
+        cdn_url = os.getenv('CDN_URL', 'http://localhost:9000/lxplayer')
+        minio_client = get_minio()
+        
+        with open(new_audio_path, 'rb') as audio_file:
+            minio_client.put_object(
+                bucket_name='lxplayer',
+                object_name=object_name,
+                data=audio_file,
+                length=len(audio_bytes),
+                content_type='audio/mpeg'
+            )
+        
+        # Create asset for the new audio
+        audio_asset = Asset(
+            title=f"{section.title} - Dubbed Audio",
+            kind='audio',
+            uri=object_name
+        )
+        session.add(audio_asset)
+        session.commit()
+        session.refresh(audio_asset)
+        
+        # Update section with audio_asset_id
+        section.audio_asset_id = audio_asset.id
+        session.add(section)
+        session.commit()
+        
+        # Clean up temporary files
+        os.unlink(new_audio_path)
+        for seg in segment_audio_files:
+            if os.path.exists(seg['file_path']):
+                os.unlink(seg['file_path'])
+        
+        return {
+            "audio_asset_id": audio_asset.id,
+            "transcript": script_content,
+            "audio_url": f"{cdn_url}/{object_name}",
+            "segments_count": len(segments),
+            "total_duration": total_duration,
+            "is_srt_format": is_srt
+        }
+        
+    except requests.RequestException as e:
+        raise HTTPException(500, f"Error calling ElevenLabs API: {str(e)}")
+    except Exception as e:
+        raise HTTPException(500, f"Unexpected error: {str(e)}")
+
+
 
 
 def create_scorm_manifest(training, sections, overlays):

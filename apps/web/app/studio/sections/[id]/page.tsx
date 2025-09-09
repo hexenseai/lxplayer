@@ -4,7 +4,13 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@lxplayer/ui';
 import { Button } from '@lxplayer/ui';
-import { api, TrainingSection } from '@/lib/api';
+import { api, TrainingSection, Asset } from '@/lib/api';
+import { AssetSelector } from '@/components/admin/AssetSelector';
+import { VideoPreview } from '@/components/admin/VideoPreview';
+import { TranscriptModal } from '@/components/admin/TranscriptModal';
+import { DescriptionModal } from '@/components/admin/DescriptionModal';
+import { HeyGenModal } from '@/components/admin/HeyGenModal';
+import { LANGUAGES, TARGET_AUDIENCES } from '@/lib/constants';
 
 export default function SectionEditPage() {
   const router = useRouter();
@@ -14,6 +20,19 @@ export default function SectionEditPage() {
   const [section, setSection] = useState<TrainingSection | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showTranscriptModal, setShowTranscriptModal] = useState(false);
+  const [transcriptLoading, setTranscriptLoading] = useState(false);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
+  const [generatedTranscript, setGeneratedTranscript] = useState('');
+  const [generatedSrt, setGeneratedSrt] = useState('');
+  const [generatedSegments, setGeneratedSegments] = useState<any[]>([]);
+  const [showDescriptionModal, setShowDescriptionModal] = useState(false);
+  const [descriptionLoading, setDescriptionLoading] = useState(false);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
+  const [generatedDescription, setGeneratedDescription] = useState('');
+  const [showHeyGenModal, setShowHeyGenModal] = useState(false);
+  const [dubbingLoading, setDubbingLoading] = useState(false);
+  const [dubbingError, setDubbingError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -21,7 +40,10 @@ export default function SectionEditPage() {
     duration: 0,
     video_object: '',
     asset_id: '',
-    order_index: 0
+    order_index: 0,
+    language: 'TR',
+    target_audience: 'Genel',
+    audio_asset_id: ''
   });
 
   useEffect(() => {
@@ -61,8 +83,12 @@ export default function SectionEditPage() {
           duration: foundSection.duration || 0,
           video_object: foundSection.video_object || '',
           asset_id: foundSection.asset_id || '',
-          order_index: foundSection.order_index
+          order_index: foundSection.order_index,
+          language: foundSection.language || 'TR',
+          target_audience: foundSection.target_audience || 'Genel',
+          audio_asset_id: foundSection.audio_asset_id || ''
         });
+        
       }
     } catch (error) {
       console.error('Error loading section:', error);
@@ -136,6 +162,143 @@ export default function SectionEditPage() {
     }
   };
 
+  const handleGenerateTranscript = async () => {
+    if (!section || !formData.asset_id) {
+      alert('Transcript oluşturmak için önce bir video içerik seçmelisiniz.');
+      return;
+    }
+
+    try {
+      setTranscriptLoading(true);
+      setTranscriptError(null);
+      setShowTranscriptModal(true);
+      
+      // Training ID'yi bul
+      const trainings = await api.listTrainings();
+      let trainingId = null;
+      
+      for (const training of trainings) {
+        try {
+          const sections = await api.listTrainingSections(training.id);
+          const foundSection = sections.find(s => s.id === sectionId);
+          if (foundSection) {
+            trainingId = training.id;
+            break;
+          }
+        } catch (error) {
+          // Devam et
+        }
+      }
+
+      if (trainingId) {
+        const result = await api.generateTranscript(trainingId, sectionId);
+        console.log('API Response:', result);
+        console.log('Transcript:', result.transcript);
+        setGeneratedTranscript(result.transcript);
+        setGeneratedSrt(result.srt || '');
+        setGeneratedSegments(result.segments || []);
+      } else {
+        throw new Error('Training bulunamadı');
+      }
+    } catch (error: any) {
+      console.error('Error generating transcript:', error);
+      setTranscriptError(error?.message || 'Transcript oluşturulurken hata oluştu');
+    } finally {
+      setTranscriptLoading(false);
+    }
+  };
+
+  const handleApproveTranscript = (transcript: string) => {
+    setFormData({...formData, script: transcript});
+    setGeneratedTranscript('');
+    setGeneratedSrt('');
+    setGeneratedSegments([]);
+    setTranscriptError(null);
+  };
+
+  const handleGenerateDescription = async () => {
+    if (!section) {
+      alert('Bölüm bilgileri yüklenemedi.');
+      return;
+    }
+
+    try {
+      setDescriptionLoading(true);
+      setDescriptionError(null);
+      setShowDescriptionModal(true);
+      
+      // Training ID'yi bul
+      const trainings = await api.listTrainings();
+      let trainingId = null;
+      
+      for (const training of trainings) {
+        try {
+          const sections = await api.listTrainingSections(training.id);
+          const foundSection = sections.find(s => s.id === sectionId);
+          if (foundSection) {
+            trainingId = training.id;
+            break;
+          }
+        } catch (error) {
+          // Devam et
+        }
+      }
+
+      if (trainingId) {
+        const result = await api.generateDescription(trainingId, sectionId);
+        console.log('Description API Response:', result);
+        console.log('Description:', result.description);
+        setGeneratedDescription(result.description);
+      } else {
+        throw new Error('Training bulunamadı');
+      }
+    } catch (error: any) {
+      console.error('Error generating description:', error);
+      setDescriptionError(error?.message || 'Açıklama oluşturulurken hata oluştu');
+    } finally {
+      setDescriptionLoading(false);
+    }
+  };
+
+  const handleApproveDescription = (description: string) => {
+    setFormData({...formData, description: description});
+    setGeneratedDescription('');
+    setDescriptionError(null);
+  };
+
+  const handleHeyGenSuccess = (assetId: string) => {
+    setFormData(prev => ({ ...prev, asset_id: assetId }));
+    // Section'ı yeniden yükle
+    loadSection();
+  };
+
+  const handleDubAudio = async () => {
+    if (!section) return;
+    
+    setDubbingLoading(true);
+    setDubbingError(null);
+    
+    try {
+      const result = await api.dubAudio(section.training_id, section.id);
+      console.log('Dubbing result:', result);
+      
+      // Section'ı yeniden yükle
+      await loadSection();
+      
+      const message = result.is_srt_format 
+        ? `Seslendirme başarıyla oluşturuldu! ${result.segments_count} segment işlendi, toplam süre: ${result.total_duration.toFixed(1)} saniye.`
+        : 'Seslendirme başarıyla oluşturuldu ve bölüme eklendi!';
+      
+      alert(message);
+      
+    } catch (error: any) {
+      console.error('Dubbing error:', error);
+      setDubbingError(error?.message || 'Seslendirme oluşturma hatası');
+    } finally {
+      setDubbingLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -164,10 +327,10 @@ export default function SectionEditPage() {
       <div className="mb-6">
         <Button 
           variant="outline" 
-          onClick={() => router.back()}
+          onClick={() => router.push(`/studio?trainingId=${section?.training_id}`)}
           className="mb-4"
         >
-          ← Geri Dön
+          ← Eğitime Dön
         </Button>
         <h1 className="text-3xl font-bold mb-2">Bölüm Düzenle</h1>
         <p className="text-gray-600">"{section.title}" bölümünü düzenleyin</p>
@@ -249,21 +412,78 @@ export default function SectionEditPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Dil</label>
+                  <select
+                    value={formData.language}
+                    onChange={(e) => setFormData({...formData, language: e.target.value})}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    {LANGUAGES.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.flag} {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Hedef Kitle</label>
+                  <select
+                    value={formData.target_audience}
+                    onChange={(e) => setFormData({...formData, target_audience: e.target.value})}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    {TARGET_AUDIENCES.map((audience) => (
+                      <option key={audience.id} value={audience.name}>
+                        {audience.icon} {audience.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm font-medium mb-2">Asset ID</label>
-                <input
-                  type="text"
-                  value={formData.asset_id}
-                  onChange={(e) => setFormData({...formData, asset_id: e.target.value})}
-                  className="w-full p-2 border rounded-md"
-                  placeholder="Asset ID"
+                <label className="block text-sm font-medium mb-2">Video İçerik</label>
+                <AssetSelector
+                  selectedAssetId={formData.asset_id}
+                  onAssetSelect={(asset: Asset | null) => {
+                    setFormData({...formData, asset_id: asset?.id || ''});
+                  }}
+                  assetKind="video"
+                  placeholder="Video içerik seçin"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Sadece video içerikler gösterilir. Seçilen video bölümün içeriği olarak kullanılacak.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Ses Dosyası (Dublaj/Çeviri)</label>
+                <AssetSelector
+                  selectedAssetId={formData.audio_asset_id}
+                  onAssetSelect={(asset: Asset | null) => {
+                    setFormData({...formData, audio_asset_id: asset?.id || ''});
+                  }}
+                  assetKind="audio"
+                  placeholder="Ses dosyası seçin (opsiyonel)"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Video için farklı dilde seslendirme veya dublaj dosyası. Video sesini kapatıp bu ses dosyası ile oynatabilirsiniz.
+                </p>
               </div>
             </CardContent>
           </Card>
         </div>
 
         <div className="space-y-4">
+          {/* Video Preview */}
+          <VideoPreview 
+            assetId={formData.asset_id} 
+            className="mb-4"
+          />
+          
           <Card>
             <CardHeader>
               <CardTitle>İşlemler</CardTitle>
@@ -275,6 +495,42 @@ export default function SectionEditPage() {
                 className="w-full"
               >
                 {saving ? 'Kaydediliyor...' : 'Kaydet'}
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={handleGenerateTranscript}
+                disabled={!formData.asset_id || transcriptLoading}
+                className="w-full"
+              >
+                {transcriptLoading ? 'Transcript Oluşturuluyor...' : 'Transcript Oluştur'}
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={handleGenerateDescription}
+                disabled={descriptionLoading || !formData.title.trim()}
+                className="w-full"
+              >
+                {descriptionLoading ? 'Açıklama Oluşturuluyor...' : 'Açıklama Oluştur'}
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={() => setShowHeyGenModal(true)}
+                disabled={!formData.script.trim()}
+                className="w-full bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+              >
+                Script'ten Video Oluştur
+              </Button>
+              
+              <Button 
+                variant="outline"
+                onClick={handleDubAudio}
+                disabled={!formData.script.trim() || dubbingLoading}
+                className="w-full bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+              >
+                {dubbingLoading ? 'Seslendirme Oluşturuluyor...' : 'Farklı Bir Dilde Seslendir'}
               </Button>
               
               <Button 
@@ -292,6 +548,12 @@ export default function SectionEditPage() {
               >
                 Frame Config'leri
               </Button>
+              
+              {dubbingError && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                  {dubbingError}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -311,6 +573,50 @@ export default function SectionEditPage() {
           </Card>
         </div>
       </div>
+
+      {/* Transcript Modal */}
+      <TranscriptModal
+        isOpen={showTranscriptModal}
+        onClose={() => {
+          setShowTranscriptModal(false);
+          setGeneratedTranscript('');
+          setGeneratedSrt('');
+          setGeneratedSegments([]);
+          setTranscriptError(null);
+        }}
+        onApprove={handleApproveTranscript}
+        transcript={generatedTranscript}
+        srt={generatedSrt}
+        segments={generatedSegments}
+        loading={transcriptLoading}
+        error={transcriptError}
+      />
+
+      {/* Description Modal */}
+      <DescriptionModal
+        isOpen={showDescriptionModal}
+        onClose={() => {
+          setShowDescriptionModal(false);
+          setGeneratedDescription('');
+          setDescriptionError(null);
+        }}
+        onApprove={handleApproveDescription}
+        description={generatedDescription}
+        loading={descriptionLoading}
+        error={descriptionError}
+      />
+
+      {/* HeyGen Modal */}
+      {showHeyGenModal && section && (
+        <HeyGenModal
+          trainingId={section.training_id}
+          sectionId={section.id}
+          script={formData.script}
+          title={formData.title}
+          onClose={() => setShowHeyGenModal(false)}
+          onSuccess={handleHeyGenSuccess}
+        />
+      )}
     </div>
   );
 }
