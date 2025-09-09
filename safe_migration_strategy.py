@@ -15,7 +15,7 @@ def get_db_connection():
     """Database bağlantısı kur"""
     try:
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'localhost'),
+            host=os.getenv('DB_HOST', 'postgres'),
             port=os.getenv('DB_PORT', '5432'),
             database=os.getenv('DB_NAME', 'lxplayer'),
             user=os.getenv('DB_USER', 'lxplayer'),
