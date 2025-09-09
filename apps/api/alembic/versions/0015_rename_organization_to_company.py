@@ -77,7 +77,21 @@ def upgrade():
             op.add_column('user', sa.Column(column_name, column_type, nullable=True))
     
     # Rename organization_id columns to company_id if they exist
-    tables_to_rename = ['user', 'asset', 'flow', 'training', 'companytraining', 'frameconfig', 'globalframeconfig', 'style']
+    tables_to_rename = ['user', 'asset', 'flow', 'training', 'frameconfig', 'globalframeconfig', 'style']
+    
+    # Handle companytraining table separately - it might not have organization_id column
+    result = connection.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = 'companytraining' 
+            AND column_name = 'company_id'
+        );
+    """)).scalar()
+    
+    if not result:
+        # Add company_id column to companytraining table if it doesn't exist
+        op.add_column('companytraining', sa.Column('company_id', sa.String(), nullable=True))
     
     for table_name in tables_to_rename:
         # Check if organization_id column exists and company_id doesn't
