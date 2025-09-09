@@ -175,7 +175,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
     if (!htmlContent) return;
 
     try {
-      const base = 'http://localhost:8000'; // Reverted to 8000
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const objectName = `html/${(globalThis.crypto?.randomUUID?.() || Date.now().toString())}_${title.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
       
       // Presign URL al ve asset oluştur
@@ -279,7 +279,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
     // Dosya yükleme işlemini arka planda yap
     setUploading(true);
     try {
-      const base = 'http://localhost:8000'; // Reverted to 8000
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       console.log('🚀 Dosya yükleme başlıyor:', { objectName, fileType: file.type, fileSize: file.size });
       
       // Backend üzerinden dosya yükle
