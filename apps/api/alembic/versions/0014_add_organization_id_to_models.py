@@ -17,34 +17,42 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add organization_id column to user table (will be renamed to company_id in next migration)
-    op.add_column('user', sa.Column('organization_id', sa.String(), nullable=True))
+    connection = op.get_bind()
     
-    # Add organization_id column to assets table
-    op.add_column('asset', sa.Column('organization_id', sa.String(), nullable=True))
+    # Add organization_id columns to tables if they don't exist
+    tables_to_add_org_id = ['user', 'asset', 'flow', 'training', 'style', 'frameconfig', 'globalframeconfig']
     
-    # Add organization_id column to flow table
-    op.add_column('flow', sa.Column('organization_id', sa.String(), nullable=True))
-    
-    # Add organization_id column to training table
-    op.add_column('training', sa.Column('organization_id', sa.String(), nullable=True))
-    
-    # Add organization_id column to style table
-    op.add_column('style', sa.Column('organization_id', sa.String(), nullable=True))
-    
-    # Add organization_id column to frameconfig table
-    op.add_column('frameconfig', sa.Column('organization_id', sa.String(), nullable=True))
-    
-    # Add organization_id column to globalframeconfig table
-    op.add_column('globalframeconfig', sa.Column('organization_id', sa.String(), nullable=True))
+    for table_name in tables_to_add_org_id:
+        # Check if organization_id column exists
+        result = connection.execute(sa.text(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = '{table_name}' 
+                AND column_name = 'organization_id'
+            );
+        """)).scalar()
+        
+        if not result:
+            op.add_column(table_name, sa.Column('organization_id', sa.String(), nullable=True))
 
 
 def downgrade() -> None:
-    # Remove organization_id columns
-    op.drop_column('user', 'organization_id')
-    op.drop_column('asset', 'organization_id')
-    op.drop_column('flow', 'organization_id')
-    op.drop_column('training', 'organization_id')
-    op.drop_column('style', 'organization_id')
-    op.drop_column('frameconfig', 'organization_id')
-    op.drop_column('globalframeconfig', 'organization_id')
+    connection = op.get_bind()
+    
+    # Remove organization_id columns if they exist
+    tables_to_remove_org_id = ['user', 'asset', 'flow', 'training', 'style', 'frameconfig', 'globalframeconfig']
+    
+    for table_name in tables_to_remove_org_id:
+        # Check if organization_id column exists
+        result = connection.execute(sa.text(f"""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = '{table_name}' 
+                AND column_name = 'organization_id'
+            );
+        """)).scalar()
+        
+        if result:
+            op.drop_column(table_name, 'organization_id')
