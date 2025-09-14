@@ -8,8 +8,8 @@ import type { Asset } from '@/lib/api';
 import React, { useState } from 'react';
 import { HtmlEditorModal } from './HtmlEditorModal';
 import { CKEditorComponent } from './CKEditor';
-import { TinyMCEEditorComponent } from './TinyMCEEditor';
-import { TinyMCEModal } from './TinyMCEModal';
+import { CKEditor5Component } from './CKEditor5';
+import { CKEditor5Modal } from './CKEditor5Modal';
 
 const Schema = z.object({ 
   title: z.string().min(1), 
@@ -42,7 +42,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
   const [uploadedAssetId, setUploadedAssetId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showHtmlEditor, setShowHtmlEditor] = React.useState(false);
-  const [showTinyMCEModal, setShowTinyMCEModal] = React.useState(false);
+  const [showCKEditor5Modal, setShowCKEditor5Modal] = React.useState(false);
 
   const watchedKind = watch('kind');
   const watchedHtmlContent = watch('html_content');
@@ -56,7 +56,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       setUploadMsg('');
       setUploadedAssetId(null);
       setShowHtmlEditor(false);
-      setShowTinyMCEModal(false);
+      setShowCKEditor5Modal(false);
       router.refresh();
       onDone?.();
       return;
@@ -157,7 +157,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
       
       reset();
       setShowHtmlEditor(false);
-      setShowTinyMCEModal(false);
+      setShowCKEditor5Modal(false);
       router.refresh();
       onDone?.();
       
@@ -167,73 +167,6 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
     }
   };
 
-  const createHtmlAsset = async () => {
-    const title = prompt('HTML içeriği için başlık girin:');
-    if (!title) return;
-
-    const htmlContent = prompt('HTML içeriğini girin (basit HTML etiketleri kullanabilirsiniz):');
-    if (!htmlContent) return;
-
-    try {
-      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const objectName = `html/${(globalThis.crypto?.randomUUID?.() || Date.now().toString())}_${title.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
-      
-      // Presign URL al ve asset oluştur
-      const presignRes = await fetch(`${base}/uploads/presign`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ 
-          object_name: objectName, 
-          content_type: 'text/html',
-          title: title,
-          description: 'HTML içerik'
-        }),
-      });
-      
-      if (!presignRes.ok) {
-        throw new Error(`Presign başarısız: ${presignRes.status}`);
-      }
-      
-      const presignData = await presignRes.json();
-      const { put_url, asset_id } = presignData;
-      
-      // HTML içeriğini yükle
-      const putRes = await fetch(put_url, { 
-        method: 'PUT', 
-        body: htmlContent, 
-        headers: { 'Content-Type': 'text/html' } 
-      });
-      
-      if (!putRes.ok) {
-        throw new Error(`Yükleme başarısız: ${putRes.status}`);
-      }
-
-      // Asset'i güncelle (HTML içeriği ekle)
-      const updateRes = await fetch(`${base}/assets/${asset_id}`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          title: title,
-          kind: 'doc',
-          uri: objectName,
-          description: 'HTML içerik',
-          html_content: htmlContent
-        })
-      });
-
-      if (!updateRes.ok) {
-        throw new Error(`Güncelleme başarısız: ${updateRes.status}`);
-      }
-
-      alert('HTML içerik başarıyla oluşturuldu!');
-      router.refresh();
-      onDone?.();
-      
-    } catch (err: any) {
-      console.error('❌ HTML içerik oluşturma hatası:', err);
-      alert(`HTML içerik oluşturma hatası: ${err?.message || 'Bilinmeyen hata'}`);
-    }
-  };
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -397,19 +330,6 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
         </div>
       </div>
 
-      {/* HTML İçerik Oluştur Butonu */}
-      <div className="border-b pb-6">
-        <button
-          type="button"
-          onClick={createHtmlAsset}
-          className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors"
-        >
-          📝 Hızlı HTML İçerik Oluştur
-        </button>
-        <p className="text-xs text-gray-500 mt-1 text-center">
-          Basit HTML içerik oluşturmak için bu butonu kullanın
-        </p>
-      </div>
 
       {/* Manuel Form Alanları */}
       <div className="border-b pb-6">
@@ -484,10 +404,10 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
                     <Label>HTML İçerik</Label>
                     <button
                       type="button"
-                      onClick={() => setShowTinyMCEModal(true)}
+                      onClick={() => setShowCKEditor5Modal(true)}
                       className="text-sm text-blue-600 hover:text-blue-800"
                     >
-                      🎨 TinyMCE ile Düzenle
+                      🎨 CKEditor ile Düzenle
                     </button>
                   </div>
                   {watchedHtmlContent && (
@@ -506,7 +426,7 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
                   )}
                   <textarea
                     {...register('html_content')}
-                    placeholder="HTML içeriğinizi buraya yazın veya TinyMCE ile düzenleyin..."
+                    placeholder="HTML içeriğinizi buraya yazın veya CKEditor ile düzenleyin..."
                     className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-gray-900 focus:ring-gray-900 min-h-[120px] resize-y"
                   />
                 </div>
@@ -541,13 +461,13 @@ export function AssetForm({ initialAsset, onDone }: { initialAsset?: Asset; onDo
         title="HTML İçerik Editörü"
       />
 
-      {/* TinyMCE Modal */}
-      <TinyMCEModal
-        isOpen={showTinyMCEModal}
-        onClose={() => setShowTinyMCEModal(false)}
+      {/* CKEditor5 Modal */}
+      <CKEditor5Modal
+        isOpen={showCKEditor5Modal}
+        onClose={() => setShowCKEditor5Modal(false)}
         value={watchedHtmlContent || ''}
         onChange={(value) => setValue('html_content', value)}
-        title="TinyMCE HTML İçerik Editörü"
+        title="CKEditor HTML İçerik Editörü"
       />
 
     </div>

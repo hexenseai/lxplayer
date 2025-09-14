@@ -36,16 +36,7 @@ services:
       timeout: 20s
       retries: 3
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - '6333:6333'
-      - '6334:6334'
-    volumes:
-      - qdrantdata:/qdrant/storage
-
 volumes:
   pgdata:
   redisdata:
   miniodata:
-  qdrantdata:

@@ -1,5 +1,6 @@
 'use client';
 import { InteractivePlayer } from '@/components/InteractivePlayer';
+import { memo } from 'react';
 
 interface PlayerPageProps {
   params: {
@@ -10,7 +11,7 @@ interface PlayerPageProps {
   };
 }
 
-export default function PlayerPage({ params, searchParams }: PlayerPageProps) {
+const PlayerPage = memo(function PlayerPage({ params, searchParams }: PlayerPageProps) {
   console.log('PlayerPage params:', params);
   console.log('Access Code from params:', params.accessCode);
   if (searchParams?.userId) {
@@ -18,4 +19,6 @@ export default function PlayerPage({ params, searchParams }: PlayerPageProps) {
   }
   
   return <InteractivePlayer accessCode={params.accessCode} userId={searchParams?.userId} />;
-}
+});
+
+export default PlayerPage;

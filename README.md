@@ -5,7 +5,7 @@ AI destekli interaktif eğitim oynatıcı (monorepo)
 - apps/web: Next.js (App Router, TS, Tailwind)
 - apps/api: FastAPI, SQLModel, Alembic
 - packages/ui: Paylaşılan UI
-- infra/docker: Postgres, Redis, MinIO, Qdrant
+- infra/docker: Postgres, Redis, MinIO
 
 ## Özellikler
 
@@ -37,7 +37,7 @@ py -m pip install -r apps/api/requirements.txt
 
 ```sh
 cd infra/docker
-docker compose up -d postgres redis minio qdrant
+docker compose up -d postgres redis minio
 ```
 
 3. Migrasyon + Seed

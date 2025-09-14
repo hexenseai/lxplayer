@@ -6,7 +6,7 @@ load_dotenv(find_dotenv(usecwd=True))
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
-from .routers import trainings, assets, sessions, tools, users, companies, auth, uploads, company_trainings, styles, generate, chat, frame_configs, imports
+from .routers import trainings, assets, sessions, tools, users, companies, auth, uploads, company_trainings, styles, generate, chat, frame_configs, imports, avatars, interactions
 from .db import init_db
 
 app = FastAPI(title="LXPlayer API")
@@ -60,9 +60,11 @@ app.include_router(uploads.router)
 app.include_router(company_trainings.router)
 app.include_router(styles.router)
 app.include_router(generate.router)
-app.include_router(chat.router)
+app.include_router(chat.router, prefix="/chat")
 app.include_router(frame_configs.router)
 app.include_router(imports.router)
+app.include_router(avatars.router)
+app.include_router(interactions.router, prefix="/interactions")
 
 #print([ (r.path, r.name) for r in app.routes if "/trainings" in getattr(r, "path", "") ])
 
@@ -99,26 +101,59 @@ def test_cors_options():
 @app.get("/debug")
 def debug_info():
     """Debug endpoint to check API status"""
+    from .db import get_session
+    from .models import User, Training, Company
+    from sqlmodel import select
+    
     # Get actual routes from the app
     frame_routes = [r.path for r in app.routes if hasattr(r, 'path') and 'frame' in r.path.lower()]
     
-    return {
-        "status": "ok",
-        "message": "API is running",
-        "timestamp": "2024-01-01T00:00:00Z",
-        "endpoints": [
-            "/",
-            "/docs",
-            "/trainings",
-            "/users",
-            "/companies",
-            "/assets",
-            "/styles",
-            "/frame-configs"
-        ],
-        "frame_routes": frame_routes,
-        "total_routes": len(app.routes)
-    }
+    # Get database info
+    session = next(get_session())
+    try:
+        users = session.exec(select(User).limit(5)).all()
+        trainings = session.exec(select(Training).limit(5)).all()
+        companies = session.exec(select(Company).limit(5)).all()
+        
+        return {
+            "status": "ok",
+            "message": "API is running",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "endpoints": [
+                "/",
+                "/docs",
+                "/trainings",
+                "/users",
+                "/companies",
+                "/assets",
+                "/styles",
+                "/frame-configs"
+            ],
+            "frame_routes": frame_routes,
+            "total_routes": len(app.routes),
+            "users": [{"id": u.id, "email": u.email, "role": u.role} for u in users],
+            "trainings": [{"id": t.id, "title": t.title} for t in trainings],
+            "companies": [{"id": c.id, "name": c.name} for c in companies]
+        }
+    except Exception as e:
+        return {
+            "status": "ok",
+            "message": "API is running",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "endpoints": [
+                "/",
+                "/docs",
+                "/trainings",
+                "/users",
+                "/companies",
+                "/assets",
+                "/styles",
+                "/frame-configs"
+            ],
+            "frame_routes": frame_routes,
+            "total_routes": len(app.routes),
+            "error": str(e)
+        }
 
 @app.get("/test-frame-configs")
 def test_frame_configs_direct():

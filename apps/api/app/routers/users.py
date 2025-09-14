@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 import uuid
 from ..db import get_session
-from ..models import User, CompanyTraining, Company
+from ..models import User, CompanyTraining, Company, Training, Asset, Style, Avatar
 from ..auth import hash_password, get_current_user, is_super_admin, check_same_company, is_admin
 from ..auth import check_company_access, can_manage_user
 
@@ -331,3 +331,59 @@ def delete_user_training(
     session.commit()
     
     return {"ok": True}
+
+
+@router.get("/statistics/dashboard")
+def get_dashboard_statistics(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Get dashboard statistics for the current user"""
+    if not is_admin(current_user):
+        raise HTTPException(403, "Only admins can view dashboard statistics")
+    
+    if is_super_admin(current_user):
+        # SuperAdmin can see all statistics
+        total_users = session.exec(select(User)).count()
+        total_trainings = session.exec(select(Training)).count()
+        total_assets = session.exec(select(Asset)).count()
+        total_styles = session.exec(select(Style)).count()
+        total_avatars = session.exec(select(Avatar)).count()
+    else:
+        # Admin can only see their company's statistics
+        if not current_user.company_id:
+            return {
+                "totalUsers": 0,
+                "totalTrainings": 0,
+                "totalAssets": 0,
+                "totalStyles": 0,
+                "totalAvatars": 0
+            }
+        
+        total_users = session.exec(
+            select(User).where(User.company_id == current_user.company_id)
+        ).count()
+        total_trainings = session.exec(
+            select(Training).where(Training.company_id == current_user.company_id)
+        ).count()
+        total_assets = session.exec(
+            select(Asset).where(Asset.company_id == current_user.company_id)
+        ).count()
+        total_styles = session.exec(
+            select(Style).where(Style.company_id == current_user.company_id)
+        ).count()
+        # Avatars: company avatars + default avatars
+        total_avatars = session.exec(
+            select(Avatar).where(
+                (Avatar.company_id == current_user.company_id) | 
+                (Avatar.is_default == True)
+            )
+        ).count()
+    
+    return {
+        "totalUsers": total_users,
+        "totalTrainings": total_trainings,
+        "totalAssets": total_assets,
+        "totalStyles": total_styles,
+        "totalAvatars": total_avatars
+    }

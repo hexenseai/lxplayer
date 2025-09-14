@@ -4,6 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Overlay as OverlayType, OverlayComponentProps } from '@/lib/types';
 import * as LucideIcons from 'lucide-react';
 
+// Global cache for styles to prevent duplicate API calls
+const styleCache = new Map<string, any>();
+
 export function OverlayRoot({ children }: { children: React.ReactNode }) {
   return <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">{children}</div>;
 }
@@ -57,13 +60,55 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
     // Use style from training_json if available, otherwise fetch from API
     if (overlay.style) {
       setStyleData(overlay.style);
-    } else if (overlay.style_id) {
+    } else if (overlay.style_id && !styleData) { // Only fetch if not already loaded
+      // Check cache first
+      if (styleCache.has(overlay.style_id)) {
+        setStyleData(styleCache.get(overlay.style_id));
+        return;
+      }
+      
       const loadStyle = async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/styles/${overlay.style_id}`);
+          // Use authenticated API call instead of direct fetch
+          const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+          let token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+          
+          // Auto-login for development if no token
+          if (!token && typeof window !== 'undefined' && (process.env.NODE_ENV === 'development' || process.env.BYPASS_AUTH === 'true')) {
+            try {
+              const loginResponse = await fetch(`${base}/auth/login`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ 
+                  email: 'superadmin@example.com', 
+                  password: 'superadmin123' 
+                }),
+              });
+              
+              if (loginResponse.ok) {
+                const loginData = await loginResponse.json();
+                token = loginData.access_token;
+                if (token) {
+                  localStorage.setItem('token', token);
+                }
+              }
+            } catch (error) {
+              console.log('Auto-login failed for style fetch:', error);
+            }
+          }
+          
+          const headers: Record<string, string> = { 'content-type': 'application/json' };
+          if (token) {
+            headers['authorization'] = `Bearer ${token}`;
+          }
+          
+          const response = await fetch(`${base}/styles/${overlay.style_id}`, { headers });
           if (response.ok) {
             const style = await response.json();
+            styleCache.set(overlay.style_id, style); // Cache the result
             setStyleData(style);
+          } else {
+            console.error('Failed to load style:', response.status, response.statusText);
           }
         } catch (error) {
           console.error('Error loading style:', error);
@@ -77,13 +122,55 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
 
   // Load icon style data when overlay changes
   useEffect(() => {
-    if (overlay.icon_style_id) {
+    if (overlay.icon_style_id && !iconStyleData) { // Only fetch if not already loaded
+      // Check cache first
+      if (styleCache.has(overlay.icon_style_id)) {
+        setIconStyleData(styleCache.get(overlay.icon_style_id));
+        return;
+      }
+      
       const loadIconStyle = async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/styles/${overlay.icon_style_id}`);
+          // Use authenticated API call instead of direct fetch
+          const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+          let token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+          
+          // Auto-login for development if no token
+          if (!token && typeof window !== 'undefined' && (process.env.NODE_ENV === 'development' || process.env.BYPASS_AUTH === 'true')) {
+            try {
+              const loginResponse = await fetch(`${base}/auth/login`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ 
+                  email: 'superadmin@example.com', 
+                  password: 'superadmin123' 
+                }),
+              });
+              
+              if (loginResponse.ok) {
+                const loginData = await loginResponse.json();
+                token = loginData.access_token;
+                if (token) {
+                  localStorage.setItem('token', token);
+                }
+              }
+            } catch (error) {
+              console.log('Auto-login failed for icon style fetch:', error);
+            }
+          }
+          
+          const headers: Record<string, string> = { 'content-type': 'application/json' };
+          if (token) {
+            headers['authorization'] = `Bearer ${token}`;
+          }
+          
+          const response = await fetch(`${base}/styles/${overlay.icon_style_id}`, { headers });
           if (response.ok) {
             const style = await response.json();
+            styleCache.set(overlay.icon_style_id, style); // Cache the result
             setIconStyleData(style);
+          } else {
+            console.error('Failed to load icon style:', response.status, response.statusText);
           }
         } catch (error) {
           console.error('Error loading icon style:', error);
@@ -382,6 +469,11 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
           </button>
         );
       
+      case 'llm_interaction':
+        // LLM interaction overlay'leri görsel olarak gösterilmez
+        // Sadece video durdurma ve mesaj ekleme işlemi yapılır
+        return null;
+      
       case 'content':
         if (overlay.content_asset) {
           const isFullscreenAuto = overlay.position === 'fullscreen';
@@ -498,6 +590,7 @@ export function OverlayManager({
   pausedOverlayId?: string | null;
 }) {
   const [activeOverlays, setActiveOverlays] = useState<Set<string>>(new Set());
+  const [triggeredLLMInteractions, setTriggeredLLMInteractions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const newActiveOverlays = new Set<string>();
@@ -507,6 +600,21 @@ export function OverlayManager({
         // frame_set overlay'leri sürekli aktif kalır, sadece başlangıç zamanını kontrol et
         if (currentTime >= overlay.time_stamp) {
           newActiveOverlays.add(overlay.id);
+        }
+      } else if (overlay.type === 'llm_interaction') {
+        // LLM interaction overlay'leri görsel olarak gösterilmez
+        // Sadece zaman geldiğinde ve daha önce tetiklenmemişse tetiklenir
+        if (currentTime >= overlay.time_stamp && !isPaused && !triggeredLLMInteractions.has(overlay.id)) {
+          // LLM interaction tetikle - sadece video durdur ve chat aç
+          onAction?.('pause_video', overlay.id);
+          onAction?.('open_chat_with_message', { 
+            overlayId: overlay.id, 
+            message: overlay.caption || 'LLM Interaction',
+            isLLMInteraction: true
+          });
+          
+          // Bu overlay'i tetiklenmiş olarak işaretle
+          setTriggeredLLMInteractions(prev => new Set(prev).add(overlay.id));
         }
       } else {
         // Diğer overlay'ler için normal zamanlama
@@ -522,7 +630,7 @@ export function OverlayManager({
     });
     
     setActiveOverlays(newActiveOverlays);
-  }, [currentTime, overlays]);
+  }, [currentTime, overlays, isPaused, pausedOverlayId, onAction]);
 
   // Pozisyonları grupla
   const overlaysByPosition = overlays.reduce((acc, overlay) => {

@@ -12,7 +12,8 @@ export const VideoFrame = forwardRef<any, VideoFrameProps>(({
   onTimeUpdate,
   onPlay,
   onPause,
-  onEnded
+  onEnded,
+  onDurationChange
 }, ref) => {
   const playerRef = useRef<ReactPlayer>(null);
   const [isReady, setIsReady] = useState(false);
@@ -144,6 +145,12 @@ export const VideoFrame = forwardRef<any, VideoFrameProps>(({
     onEnded();
   };
 
+  const handleDuration = (duration: number) => {
+    if (onDurationChange) {
+      onDurationChange(duration);
+    }
+  };
+
   if (!videoUrl) {
     return (
       <div className="w-full h-full bg-gray-900 flex items-center justify-center">
@@ -163,16 +170,26 @@ export const VideoFrame = forwardRef<any, VideoFrameProps>(({
          controls={false}
          muted={false}
          volume={volume}
+         loop={false}
          onReady={handleReady}
          onProgress={handleProgress}
          onPlay={handlePlay}
          onPause={handlePause}
          onEnded={handleEnded}
+         onDuration={handleDuration}
          style={getFrameStyles()}
          config={{
+           youtube: {
+             playerVars: {
+               loop: 0,
+               rel: 0,
+               modestbranding: 1
+             }
+           },
            file: {
              attributes: {
-               style: getFrameStyles()
+               style: getFrameStyles(),
+               loop: false
              }
            }
          }}

@@ -62,12 +62,27 @@ class Flow(SQLModel, table=True):
     company_id: Optional[str] = Field(default=None, foreign_key="company.id")
 
 
+class Avatar(SQLModel, table=True):
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    name: str = Field(description="Avatar name")
+    personality: str = Field(description="Avatar personality description")
+    elevenlabs_voice_id: str = Field(description="ElevenLabs voice ID for this avatar")
+    description: Optional[str] = None
+    image_url: Optional[str] = Field(default=None, description="Avatar image URL")
+    is_default: bool = Field(default=False, description="Whether this is a default system avatar")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class Training(SQLModel, table=True):
     id: str = Field(default_factory=gen_uuid, primary_key=True)
     title: str
     description: Optional[str] = None
     flow_id: Optional[str] = Field(default=None, foreign_key="flow.id")
     ai_flow: Optional[str] = Field(default=None, description="JSON string for AI flow configuration")
+    access_code: Optional[str] = Field(default=None, description="Access code for interactive player")
+    avatar_id: Optional[str] = Field(default=None, foreign_key="avatar.id", description="Avatar for this training")
     company_id: Optional[str] = Field(default=None, foreign_key="company.id")
 
 
@@ -81,6 +96,9 @@ class TrainingSection(SQLModel, table=True):
     video_object: Optional[str] = Field(default=None, description="MinIO object key or full video URL for this section")
     asset_id: Optional[str] = Field(default=None, foreign_key="asset.id")
     order_index: int = Field(default=0, description="order of sections within training")
+    
+    # Section type: 'video' or 'llm_task'
+    type: str = Field(default="video", description="Section type: video or llm_task")
     
     # New fields for language and target audience
     language: Optional[str] = Field(default="TR", description="Language code: TR, EN, DE, FR, ES, etc.")
@@ -101,7 +119,7 @@ class Overlay(SQLModel, table=True):
     training_id: str = Field(foreign_key="training.id")
     training_section_id: Optional[str] = Field(default=None, foreign_key="trainingsection.id")
     time_stamp: int = Field(description="video da gözükeceği sn")
-    type: str = Field(description="frame_set|button_link|button_message|button_content|label|content")
+    type: str = Field(description="frame_set|button_link|button_message|button_content|label|content|llm_interaction")
     caption: Optional[str] = Field(default=None, description="metin içeriği")
     content_id: Optional[str] = Field(default=None, foreign_key="asset.id")
     frame: Optional[str] = Field(default=None, description="wide|face_left|face_right|face_middle|face_close|custom")
@@ -167,8 +185,97 @@ class Session(SQLModel, table=True):
     id: str = Field(default_factory=gen_uuid, primary_key=True)
     user_id: Optional[str] = Field(default=None, foreign_key="user.id")
     training_id: str = Field(foreign_key="training.id")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
     started_at: datetime = Field(default_factory=auto_now)
     ended_at: Optional[datetime] = None
+    last_activity_at: datetime = Field(default_factory=auto_now)
+    total_duration: Optional[int] = Field(default=None, description="Total session duration in seconds")
+    completion_percentage: Optional[float] = Field(default=0.0, description="Training completion percentage")
+    status: str = Field(default="active", description="active|completed|abandoned|paused")
+
+
+class UserInteraction(SQLModel, table=True):
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    session_id: str = Field(foreign_key="session.id")
+    user_id: Optional[str] = Field(default=None, foreign_key="user.id")
+    training_id: str = Field(foreign_key="training.id")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+    timestamp: datetime = Field(default_factory=auto_now)
+    
+    # Interaction details
+    interaction_type: str = Field(description="play|pause|seek|section_change|chat_message|llm_response|overlay_click|navigation|training_start|training_end|training_resume")
+    section_id: Optional[str] = Field(default=None, foreign_key="trainingsection.id")
+    overlay_id: Optional[str] = Field(default=None, foreign_key="overlay.id")
+    
+    # Context data
+    video_time: Optional[float] = Field(default=None, description="Video timestamp when interaction occurred")
+    duration: Optional[float] = Field(default=None, description="Duration of interaction in seconds")
+    
+    # Content data
+    content: Optional[str] = Field(default=None, description="Message content, button text, etc.")
+    interaction_metadata: str = Field(default="{}", description="JSON string with additional interaction data")
+    
+    # Performance metrics
+    response_time: Optional[float] = Field(default=None, description="Response time in milliseconds")
+    success: bool = Field(default=True, description="Whether interaction was successful")
+
+
+class TrainingProgress(SQLModel, table=True):
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    user_id: str = Field(foreign_key="user.id")
+    training_id: str = Field(foreign_key="training.id")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+    
+    # Progress tracking
+    current_section_id: Optional[str] = Field(default=None, foreign_key="trainingsection.id")
+    completed_sections: str = Field(default="[]", description="JSON array of completed section IDs")
+    current_video_time: Optional[float] = Field(default=None, description="Current position in video")
+    
+    # Statistics
+    total_time_spent: int = Field(default=0, description="Total time spent in training (seconds)")
+    completion_percentage: float = Field(default=0.0, description="Overall completion percentage")
+    last_accessed_at: datetime = Field(default_factory=auto_now)
+    first_accessed_at: datetime = Field(default_factory=auto_now)
+    
+    # Learning analytics
+    sections_attempted: int = Field(default=0, description="Number of sections attempted")
+    sections_completed: int = Field(default=0, description="Number of sections completed")
+    total_interactions: int = Field(default=0, description="Total number of interactions")
+    chat_messages_count: int = Field(default=0, description="Number of chat messages exchanged")
+    
+    # Status
+    status: str = Field(default="not_started", description="not_started|in_progress|completed|abandoned")
+    is_completed: bool = Field(default=False)
+    completed_at: Optional[datetime] = None
+
+
+class ChatMessage(SQLModel, table=True):
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    session_id: str = Field(foreign_key="session.id")
+    user_id: Optional[str] = Field(default=None, foreign_key="user.id")
+    training_id: str = Field(foreign_key="training.id")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+    
+    # Message details
+    message_type: str = Field(description="user|assistant|system")
+    content: str = Field(description="Message content")
+    timestamp: datetime = Field(default_factory=auto_now)
+    
+    # Context
+    section_id: Optional[str] = Field(default=None, foreign_key="trainingsection.id")
+    video_time: Optional[float] = Field(default=None, description="Video timestamp when message was sent")
+    
+    # LLM specific
+    llm_model: Optional[str] = Field(default=None, description="LLM model used for response")
+    llm_tokens_used: Optional[int] = Field(default=None, description="Number of tokens used")
+    llm_response_time: Optional[float] = Field(default=None, description="LLM response time in milliseconds")
+    
+    # Audio data
+    audio_data: Optional[str] = Field(default=None, description="Base64 encoded audio data for TTS")
+    has_audio: bool = Field(default=False, description="Whether message has audio")
+    
+    # Metadata
+    message_metadata: str = Field(default="{}", description="JSON string with additional message data")
 
 
 class InteractionLog(SQLModel, table=True):

@@ -10,7 +10,7 @@ import { IconSelector } from './IconSelector';
 
 const overlaySchema = z.object({
   time_stamp: z.number().min(0, 'Zaman damgası 0 veya daha büyük olmalı'),
-  type: z.enum(['frame_set', 'button_link', 'button_message', 'button_content', 'label', 'content'], {
+  type: z.enum(['frame_set', 'button_link', 'button_message', 'button_content', 'label', 'content', 'llm_interaction'], {
     required_error: 'Tip seçiniz'
   }),
   caption: z.string().optional(),
@@ -191,6 +191,13 @@ export default function OverlayForm({ trainingId, sectionId, overlayId, onSucces
           showFields: ['caption', 'content_id', 'style_id', 'position', 'animation', 'duration', 'pause_on_show'],
           requiredFields: ['content_id']
         };
+      case 'llm_interaction':
+        return {
+          title: 'LLM Interaction',
+          description: 'LLM ile etkileşim kurar, videoyu durdurur ve chat açar',
+          showFields: ['caption', 'icon', 'icon_style_id', 'style_id', 'position', 'animation', 'duration', 'pause_on_show'],
+          requiredFields: ['caption']
+        };
       default:
         return {
           title: 'Seçiniz',
@@ -242,6 +249,7 @@ export default function OverlayForm({ trainingId, sectionId, overlayId, onSucces
               <option value="button_content">📄 Button Content</option>
               <option value="label">🏷️ Label</option>
               <option value="content">📋 Content</option>
+              <option value="llm_interaction">🤖 LLM Interaction</option>
             </select>
             {errors.type && (
               <p className="mt-1 text-sm text-red-600">{errors.type.message}</p>

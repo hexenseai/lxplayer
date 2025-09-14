@@ -227,3 +227,35 @@ class FlowResponse(BaseModel):
     title: str
     graph_json: str
     organization_id: Optional[str] = None
+
+
+class AvatarCreate(BaseModel):
+    name: str
+    personality: str
+    elevenlabs_voice_id: str
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    is_default: bool = False
+    company_id: Optional[str] = None
+
+
+class AvatarUpdate(BaseModel):
+    name: Optional[str] = None
+    personality: Optional[str] = None
+    elevenlabs_voice_id: Optional[str] = None
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    is_default: Optional[bool] = None
+    company_id: Optional[str] = None
+
+
+class AvatarResponse(BaseModel):
+    id: str
+    name: str
+    personality: str
+    elevenlabs_voice_id: str
+    description: Optional[str] = None
+    is_default: bool
+    company_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime

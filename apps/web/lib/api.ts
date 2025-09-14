@@ -1,6 +1,29 @@
 import { z } from 'zod';
 
-export const Training = z.object({ id: z.string(), title: z.string(), description: z.string().optional(), flow_id: z.string().nullable().optional(), ai_flow: z.string().nullable().optional(), organization_id: z.string().nullable().optional() });
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+export const Training = z.object({ 
+  id: z.string(), 
+  title: z.string(), 
+  description: z.string().optional(), 
+  flow_id: z.string().nullable().optional(), 
+  ai_flow: z.string().nullable().optional(), 
+  access_code: z.string().nullable().optional(), 
+  avatar_id: z.string().nullable().optional(),
+  avatar: z.object({
+    id: z.string(),
+    name: z.string(),
+    personality: z.string(),
+    elevenlabs_voice_id: z.string(),
+    description: z.string().nullable().optional(),
+    is_default: z.boolean(),
+    company_id: z.string().nullable().optional(),
+    image_url: z.string().nullable().optional(),
+    created_at: z.string(),
+    updated_at: z.string()
+  }).optional(),
+  organization_id: z.string().nullable().optional() 
+});
 export type Training = z.infer<typeof Training>;
 
 export const Asset = z.object({ 
@@ -26,6 +49,7 @@ export const TrainingSection = z.object({
   asset_id: z.string().nullable().optional(),
   order_index: z.number(),
   training_id: z.string(),
+  type: z.string().default("video"), // "video" or "llm_task"
   language: z.string().nullable().optional(),
   target_audience: z.string().nullable().optional(),
   audio_asset_id: z.string().nullable().optional(),
@@ -232,9 +256,9 @@ export const api = {
   // trainings
   listTrainings: () => request('/trainings', z.array(Training)),
   getTraining: (id: string) => request(`/trainings/${id}`, Training),
-  createTraining: (input: { title: string; description?: string; flow_id?: string | null; company_id?: string | null }) =>
+  createTraining: (input: { title: string; description?: string; flow_id?: string | null; access_code?: string | null; company_id?: string | null }) =>
     request('/trainings', Training, { method: 'POST', body: JSON.stringify(input) }),
-  updateTraining: (id: string, input: { title: string; description?: string; flow_id?: string | null; ai_flow?: string | null; company_id?: string | null }) =>
+  updateTraining: (id: string, input: { title: string; description?: string; flow_id?: string | null; ai_flow?: string | null; access_code?: string | null; company_id?: string | null }) =>
     request(`/trainings/${id}`, Training, { method: 'PUT', body: JSON.stringify(input) }),
   deleteTraining: (id: string) => request(`/trainings/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
   
@@ -251,6 +275,13 @@ export const api = {
 
   // users
   listUsers: () => request('/users', z.array(User)),
+  getDashboardStatistics: () => request('/users/statistics/dashboard', z.object({
+    totalUsers: z.number(),
+    totalTrainings: z.number(),
+    totalAssets: z.number(),
+    totalStyles: z.number(),
+    totalAvatars: z.number()
+  })),
   getUser: (id: string) => request(`/users/${id}`, User),
   createUser: (input: { email: string; username?: string; full_name?: string; company_id?: string | null; role?: string | null; department?: string | null; password?: string | null; gpt_prefs?: string | null }) =>
     request('/users', User, { method: 'POST', body: JSON.stringify(input) }),
@@ -306,9 +337,9 @@ export const api = {
   // training sections
   listTrainingSections: (trainingId: string) => request(`/trainings/${trainingId}/sections`, z.array(TrainingSection)),
   getTrainingSection: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}`, TrainingSection),
-  createTrainingSection: (trainingId: string, input: { title: string; description?: string; script?: string; duration?: number; video_object?: string; asset_id?: string; order_index?: number; language?: string; target_audience?: string; audio_asset_id?: string }) =>
+  createTrainingSection: (trainingId: string, input: { title: string; description?: string; script?: string; duration?: number; video_object?: string; asset_id?: string; order_index?: number; type?: string; language?: string; target_audience?: string; audio_asset_id?: string }) =>
     request(`/trainings/${trainingId}/sections`, TrainingSection, { method: 'POST', body: JSON.stringify(input) }),
-  updateTrainingSection: (trainingId: string, sectionId: string, input: { title: string; description?: string; script?: string; duration?: number; video_object?: string; asset_id?: string; order_index?: number; language?: string; target_audience?: string; audio_asset_id?: string }) =>
+  updateTrainingSection: (trainingId: string, sectionId: string, input: { title: string; description?: string; script?: string; duration?: number; video_object?: string; asset_id?: string; order_index?: number; type?: string; language?: string; target_audience?: string; audio_asset_id?: string }) =>
     request(`/trainings/${trainingId}/sections/${sectionId}`, TrainingSection, { method: 'PUT', body: JSON.stringify(input) }),
   deleteTrainingSection: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
@@ -404,4 +435,259 @@ export const api = {
       return response.blob();
     });
   },
+
+  // Avatar management
+  listAvatars: () => request('/avatars/', z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    personality: z.string(),
+    elevenlabs_voice_id: z.string(),
+    description: z.string().nullable().optional(),
+    is_default: z.boolean(),
+    company_id: z.string().nullable().optional(),
+    created_at: z.string(),
+    updated_at: z.string()
+  }))),
+  getAvatar: (avatarId: string) => request(`/avatars/${avatarId}`, z.object({
+    id: z.string(),
+    name: z.string(),
+    personality: z.string(),
+    elevenlabs_voice_id: z.string(),
+    description: z.string().nullable().optional(),
+    is_default: z.boolean(),
+    company_id: z.string().nullable().optional(),
+    created_at: z.string(),
+    updated_at: z.string()
+  })),
+  createAvatar: (input: { name: string; personality: string; elevenlabs_voice_id: string; description?: string; is_default?: boolean }) =>
+    request('/avatars/', z.object({
+      id: z.string(),
+      name: z.string(),
+      personality: z.string(),
+      elevenlabs_voice_id: z.string(),
+      description: z.string().nullable().optional(),
+      is_default: z.boolean(),
+      company_id: z.string().nullable().optional(),
+      created_at: z.string(),
+      updated_at: z.string()
+    }), { method: 'POST', body: JSON.stringify(input) }),
+  updateAvatar: (avatarId: string, input: { name?: string; personality?: string; elevenlabs_voice_id?: string; description?: string; is_default?: boolean }) =>
+    request(`/avatars/${avatarId}`, z.object({
+      id: z.string(),
+      name: z.string(),
+      personality: z.string(),
+      elevenlabs_voice_id: z.string(),
+      description: z.string().nullable().optional(),
+      is_default: z.boolean(),
+      company_id: z.string().nullable().optional(),
+      created_at: z.string(),
+      updated_at: z.string()
+    }), { method: 'PUT', body: JSON.stringify(input) }),
+  deleteAvatar: (avatarId: string) => request(`/avatars/${avatarId}`, z.object({ message: z.string() }), { method: 'DELETE' }),
+  importAvatars: (avatars: any[]) => request('/avatars/import', z.object({
+    imported_count: z.number(),
+    errors: z.array(z.string()),
+    avatars: z.array(z.any())
+  }), { method: 'POST', body: JSON.stringify(avatars) }),
+  exportAvatars: () => request('/avatars/export/company', z.object({
+    avatars: z.array(z.any()),
+    exported_count: z.number(),
+    exported_at: z.string()
+  })),
+
+  // ElevenLabs integration
+  getElevenLabsVoices: () => request('/avatars/elevenlabs/voices', z.object({
+    voices: z.array(z.object({
+      voice_id: z.string(),
+      name: z.string(),
+      category: z.string(),
+      description: z.string(),
+      labels: z.record(z.string()),
+      preview_url: z.string()
+    })),
+    total_count: z.number()
+  })),
+  testElevenLabsVoice: (voiceId: string, text?: string) => request(`/avatars/elevenlabs/test-voice?voice_id=${encodeURIComponent(voiceId)}&text=${encodeURIComponent(text || 'Merhaba! Bu bir ses denemesidir.')}`, z.object({
+    success: z.boolean(),
+    audio_data: z.string(),
+    voice_id: z.string(),
+    text: z.string(),
+    content_type: z.string()
+  }), { 
+    method: 'POST'
+  }),
+  
+  // Avatar image upload
+  uploadAvatarImage: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return fetch(`${API_BASE}/uploads/avatar-image`, {
+      method: 'POST',
+      body: formData,
+      headers
+    }).then(async (response) => {
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Upload failed');
+      }
+      return response.json();
+    });
+  },
+
+  // User interactions and tracking
+  createSession: (sessionData: {
+    user_id: string;
+    training_id: string;
+    company_id: string;
+    status?: string;
+  }) => request('/interactions/sessions', z.object({ 
+    id: z.string(), 
+    message: z.string() 
+  }), {
+    method: 'POST',
+    body: JSON.stringify(sessionData)
+  }),
+
+  createInteraction: (interaction: {
+    session_id: string;
+    interaction_type: string;
+    section_id?: string;
+    overlay_id?: string;
+    video_time?: number;
+    duration?: number;
+    content?: string;
+    interaction_metadata?: Record<string, any>;
+    response_time?: number;
+    success?: boolean;
+  }) => request('/interactions/interactions', z.object({ id: z.string(), message: z.string() }), {
+    method: 'POST',
+    body: JSON.stringify(interaction)
+  }),
+
+  createChatMessage: (message: {
+    session_id: string;
+    message_type: string;
+    content: string;
+    section_id?: string;
+    video_time?: number;
+    llm_model?: string;
+    llm_tokens_used?: number;
+    llm_response_time?: number;
+    audio_data?: string;
+    has_audio?: boolean;
+    message_metadata?: Record<string, any>;
+  }) => request('/interactions/chat-messages', z.object({ id: z.string(), message: z.string() }), {
+    method: 'POST',
+    body: JSON.stringify(message)
+  }),
+
+  updateTrainingProgress: (userId: string, trainingId: string, progress: {
+    current_section_id?: string;
+    current_video_time?: number;
+    completed_sections?: string[];
+    status?: string;
+    is_completed?: boolean;
+  }) => request(`/interactions/training-progress/${userId}/${trainingId}`, z.object({ 
+    message: z.string(), 
+    progress: z.any() 
+  }), {
+    method: 'PUT',
+    body: JSON.stringify(progress)
+  }),
+
+  // Training Completion
+  completeTraining: (completionData: {
+    user_id: string;
+    training_id: string;
+    company_id?: string;
+    completion_time?: number;
+    completion_percentage?: number;
+  }) => request('/interactions/complete-training', z.object({ 
+    id: z.string(), 
+    message: z.string(),
+    completion_time: z.number(),
+    completion_percentage: z.number()
+  }), {
+    method: 'POST',
+    body: JSON.stringify(completionData)
+  }),
+
+  getTrainingCompletions: () => request('/interactions/training-completions', z.object({
+    completions: z.array(z.object({
+      id: z.string(),
+      user_id: z.string(),
+      training_id: z.string(),
+      company_id: z.string(),
+      completed_at: z.string(),
+      completion_percentage: z.number(),
+      total_time_spent: z.number(),
+      total_interactions: z.number(),
+      sections_completed: z.number()
+    })),
+    total_count: z.number()
+  }), {
+    method: 'GET'
+  }),
+
+  getTrainingProgress: (userId: string, trainingId: string) => request(`/interactions/training-progress/${userId}/${trainingId}`, z.any()),
+
+  getUserReport: (userId: string, trainingId: string) => request(`/interactions/user-report/${userId}/${trainingId}`, z.object({
+    user_id: z.string(),
+    training_id: z.string(),
+    total_sessions: z.number(),
+    total_time_spent: z.number(),
+    completion_percentage: z.number(),
+    last_accessed: z.string(),
+    sections_completed: z.number(),
+    total_interactions: z.number(),
+    chat_messages_count: z.number(),
+    average_session_duration: z.number(),
+    engagement_score: z.number()
+  })),
+
+  getSessionInteractions: (sessionId: string, limit?: number, offset?: number) => request(
+    `/interactions/interactions/${sessionId}?limit=${limit || 100}&offset=${offset || 0}`,
+    z.object({
+      interactions: z.array(z.any()),
+      total: z.number(),
+      limit: z.number(),
+      offset: z.number()
+    })
+  ),
+
+  getChatHistory: (sessionId: string, limit?: number, offset?: number) => request(
+    `/interactions/chat-history/${sessionId}?limit=${limit || 100}&offset=${offset || 0}`,
+    z.object({
+      messages: z.array(z.any()),
+      total: z.number(),
+      limit: z.number(),
+      offset: z.number()
+    })
+  ),
+
+  getTrainingAnalytics: (trainingId: string, days?: number) => request(
+    `/interactions/analytics/training/${trainingId}?days=${days || 30}`,
+    z.object({
+      training_id: z.string(),
+      period_days: z.number(),
+      progress_stats: z.object({
+        total_users: z.number(),
+        completed_users: z.number(),
+        average_completion: z.number(),
+        average_time_spent: z.number()
+      }),
+      interaction_stats: z.object({
+        total_interactions: z.number(),
+        chat_interactions: z.number(),
+        navigation_interactions: z.number()
+      })
+    })
+  ),
 };

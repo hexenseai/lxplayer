@@ -4,6 +4,7 @@ import { useUser } from '@/hooks/useUser';
 import { useRouter } from 'next/navigation';
 import { api, Asset as AssetT } from '@/lib/api';
 import { AssetForm } from '@/components/admin/forms/AssetForm';
+import { AdvancedAIGenerateModal } from '@/components/admin/AdvancedAIGenerateModal';
 
 export default function AdminAssetsPage() {
   const { user, loading: userLoading, isSuperAdmin, isAdmin } = useUser();
@@ -14,6 +15,7 @@ export default function AdminAssetsPage() {
   const [editingAsset, setEditingAsset] = useState<AssetT | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState<string>('');
+  const [showAIGenerateModal, setShowAIGenerateModal] = useState(false);
   
   const cdn = process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer';
 
@@ -59,6 +61,12 @@ export default function AdminAssetsPage() {
     setPreviewTitle('');
   };
 
+  const handleAIGenerateSuccess = (assetId: string) => {
+    // AI ile üretilen asset'i listeye ekle
+    loadAssets();
+    setShowAIGenerateModal(false);
+  };
+
   if (userLoading || loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -89,12 +97,23 @@ export default function AdminAssetsPage() {
               }
             </p>
           </div>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            Yeni İçerik Ekle
-          </button>
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setShowAIGenerateModal(true)}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-colors flex items-center space-x-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <span>AI İçerik Üret</span>
+            </button>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              Yeni İçerik Ekle
+            </button>
+          </div>
         </div>
       </div>
 
@@ -145,6 +164,14 @@ export default function AdminAssetsPage() {
             />
           </div>
         </div>
+      )}
+
+      {/* AI Generate Modal */}
+      {showAIGenerateModal && (
+        <AdvancedAIGenerateModal
+          onClose={() => setShowAIGenerateModal(false)}
+          onSuccess={handleAIGenerateSuccess}
+        />
       )}
 
       {/* HTML Preview Modal */}

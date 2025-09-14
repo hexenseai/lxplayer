@@ -156,6 +156,25 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
+        <Link href="/admin/avatars" className="group">
+          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-gray-200">
+            <div className="flex items-center mb-4">
+              <div className="p-3 bg-pink-100 rounded-lg">
+                <svg className="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 ml-3">Avatarlar</h3>
+            </div>
+            <p className="text-gray-600 text-sm">
+              {isSuperAdmin 
+                ? 'Sistem avatarlarını yönetin ve yeni avatarlar oluşturun.'
+                : 'Avatarları görüntüleyin ve firmanıza özel avatarlar oluşturun.'
+              }
+            </p>
+          </div>
+        </Link>
+
         <Link href="/admin/assets" className="group">
           <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border border-gray-200">
             <div className="flex items-center mb-4">

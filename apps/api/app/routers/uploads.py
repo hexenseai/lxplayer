@@ -197,6 +197,66 @@ def presign_upload(body: UploadRequest, session: Session = Depends(get_session))
         raise
 
 
+@router.post("/avatar-image")
+async def upload_avatar_image(
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Avatar görseli yükleme"""
+    print(f"🚀 Avatar image upload: {file.filename}")
+    
+    # Sadece Admin ve SuperAdmin yükleyebilir
+    if current_user.role not in ["Admin", "SuperAdmin"]:
+        raise HTTPException(status_code=403, detail="Only Admin and SuperAdmin can upload avatar images")
+    
+    try:
+        # Dosya tipini kontrol et
+        if not file.content_type or not file.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Only image files are allowed")
+        
+        # Dosya boyutunu kontrol et (max 5MB)
+        file_content = await file.read()
+        if len(file_content) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File size must be less than 5MB")
+        
+        # Dosya adını güvenli hale getir
+        safe_filename = file.filename.replace(" ", "_").replace("/", "_")
+        object_name = f"avatars/{uuid.uuid4()}_{safe_filename}"
+        
+        # MinIO client oluştur
+        client = get_minio()
+        ensure_bucket(client)
+        
+        # Dosyayı MinIO'ya yükle
+        data = io.BytesIO(file_content)
+        client.put_object(
+            'lxplayer',
+            object_name,
+            data,
+            len(file_content),
+            content_type=file.content_type
+        )
+        
+        # GET URL oluştur
+        get_url = presign_get_url(client, object_name)
+        
+        return {
+            "status": "success",
+            "image_url": get_url,
+            "object_name": object_name,
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "size": len(file_content)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Avatar upload hatası: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
 @router.get("/asset/{asset_id}")
 def get_asset_by_id(asset_id: str, session: Session = Depends(get_session)):
     """Get asset information by its unique ID"""

@@ -12,7 +12,7 @@ import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from ..db import get_session
-from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style
+from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar
 from ..auth import hash_password, get_current_user, is_super_admin, is_admin, check_company_access
 from ..storage import get_minio
 
@@ -24,6 +24,8 @@ class TrainingIn(BaseModel):
     description: str | None = None
     flow_id: str | None = None
     ai_flow: str | None = None
+    access_code: str | None = None
+    avatar_id: str | None = None
     company_id: str | None = None
 
 
@@ -35,6 +37,7 @@ class TrainingSectionIn(BaseModel):
     video_object: str | None = None
     asset_id: str | None = None
     order_index: int = 0
+    type: str = "video"  # "video" or "llm_task"
     language: str | None = "TR"
     target_audience: str | None = "Genel"
     audio_asset_id: str | None = None
@@ -61,14 +64,26 @@ def list_trainings(
 ):
     if is_super_admin(current_user):
         # Süper admin tüm eğitimleri görebilir
-        return session.exec(select(Training)).all()
+        trainings = session.exec(select(Training)).all()
     else:
         # Diğer kullanıcılar sadece kendi şirketlerindeki eğitimleri görebilir
         if not current_user.company_id:
             return []
-        return session.exec(
+        trainings = session.exec(
             select(Training).where(Training.company_id == current_user.company_id)
         ).all()
+    
+    # Avatar bilgilerini ekle
+    result = []
+    for training in trainings:
+        training_dict = training.model_dump()
+        if training.avatar_id:
+            avatar = session.get(Avatar, training.avatar_id)
+            if avatar:
+                training_dict['avatar'] = avatar.model_dump()
+        result.append(training_dict)
+    
+    return result
 
 
 @router.get("/system", operation_id="list_system_trainings")
@@ -305,7 +320,14 @@ def get_training(
     if not check_company_access(current_user, training.company_id):
         raise HTTPException(403, "Access denied")
     
-    return training
+    # Avatar bilgilerini ekle
+    training_dict = training.model_dump()
+    if training.avatar_id:
+        avatar = session.get(Avatar, training.avatar_id)
+        if avatar:
+            training_dict['avatar'] = avatar.model_dump()
+    
+    return training_dict
 
 
 @router.post("", operation_id="create_training")

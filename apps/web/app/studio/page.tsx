@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { api, Training as TrainingT, TrainingSection } from '@/lib/api';
 import { TrainingSectionForm } from '@/components/admin/forms/TrainingSectionForm';
+import FlowEditor from '@/components/admin/flow/FlowEditor';
 import { LANGUAGES, TARGET_AUDIENCES } from '@/lib/constants';
 
 export default function StudioPage() {
@@ -18,6 +19,7 @@ export default function StudioPage() {
   const [selectedTraining, setSelectedTraining] = useState<TrainingT | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateSectionForm, setShowCreateSectionForm] = useState(false);
+  const [showFlowEditor, setShowFlowEditor] = useState(false);
 
   useEffect(() => {
     if (isSuperAdmin || isAdmin) {
@@ -78,6 +80,9 @@ export default function StudioPage() {
         video_object: formData.get('video_object') as string || undefined,
         asset_id: formData.get('asset_id') as string || undefined,
         order_index: parseInt(formData.get('order_index') as string) || sections.length + 1,
+        type: formData.get('type') as string || 'video',
+        language: formData.get('language') as string || 'TR',
+        target_audience: formData.get('target_audience') as string || 'Genel',
       };
 
       await api.createTrainingSection(selectedTraining.id, data);
@@ -112,6 +117,7 @@ export default function StudioPage() {
         video_object: section.video_object || '',
         asset_id: section.asset_id || '',
         order_index: sections.length + 1, // Son sıraya ekle
+        type: (section as any).type || 'video',
         language: section.language || 'TR',
         target_audience: section.target_audience || 'Genel',
         audio_asset_id: section.audio_asset_id || ''
@@ -128,16 +134,16 @@ export default function StudioPage() {
         const overlayData = {
           time_stamp: overlay.time_stamp,
           type: overlay.type,
-          caption: overlay.caption,
-          content_id: overlay.content_id,
-          style_id: overlay.style_id,
-          frame: overlay.frame,
-          animation: overlay.animation,
+          caption: overlay.caption || undefined,
+          content_id: overlay.content_id || undefined,
+          style_id: overlay.style_id || undefined,
+          frame: overlay.frame || undefined,
+          animation: overlay.animation || undefined,
           duration: overlay.duration,
-          position: overlay.position,
-          icon: overlay.icon,
+          position: overlay.position || undefined,
+          icon: overlay.icon || undefined,
           pause_on_show: overlay.pause_on_show,
-          frame_config_id: overlay.frame_config_id
+          frame_config_id: overlay.frame_config_id || undefined
         };
         
         await api.createSectionOverlay(selectedTraining.id, newSection.id, overlayData);
@@ -198,12 +204,33 @@ export default function StudioPage() {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">{selectedTraining.title}</h1>
               <p className="text-gray-600 mb-4">{selectedTraining.description}</p>
             </div>
-            <button
-              onClick={() => setShowCreateSectionForm(true)}
-              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              Yeni Bölüm Ekle
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  if (selectedTraining.access_code) {
+                    const userId = user?.id || 'anonymous';
+                    window.open(`/player/${selectedTraining.access_code}?userId=${userId}`, '_blank');
+                  } else {
+                    alert('Bu eğitimin access code\'u yok. Lütfen önce access code oluşturun.');
+                  }
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Interactive Player'da Aç
+              </button>
+              <button
+                onClick={() => setShowFlowEditor(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Akış Düzenle
+              </button>
+              <button
+                onClick={() => setShowCreateSectionForm(true)}
+                className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                Yeni Bölüm Ekle
+              </button>
+            </div>
           </div>
         </div>
 
@@ -223,14 +250,26 @@ export default function StudioPage() {
           </div>
         )}
 
+        {/* Flow Editor Modal */}
+        {showFlowEditor && selectedTraining && (
+          <FlowEditor
+            trainingId={selectedTraining.id}
+            onClose={() => setShowFlowEditor(false)}
+          />
+        )}
+
         {/* Sections Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sections.map((section) => (
             <div key={section.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">📖 {section.title}</h3>
-                  <p className="text-sm text-gray-600 mb-2">Bölüm #{section.order_index}</p>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    {(section as any).type === 'llm_task' ? '🤖' : '📹'} {section.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Bölüm #{section.order_index} • {(section as any).type === 'llm_task' ? 'LLM Görevi' : 'Video Bölümü'}
+                  </p>
                   {section.description && (
                     <p className="text-sm text-gray-600 line-clamp-3">{section.description}</p>
                   )}
@@ -258,7 +297,8 @@ export default function StudioPage() {
               </div>
               
               <div className="mb-4 space-y-2">
-                {section.duration && section.duration > 0 && (
+                {/* Video bölümleri için süre bilgisi */}
+                {(section as any).type !== 'llm_task' && section.duration && section.duration > 0 && (
                   <div className="text-xs text-gray-500">
                     <span className="font-medium">Süre:</span> {section.duration} saniye
                   </div>
@@ -288,13 +328,13 @@ export default function StudioPage() {
                   </div>
                 </div>
 
-                {/* Asset bilgileri */}
-                {section.asset_id && (
+                {/* Video bölümleri için asset bilgileri */}
+                {(section as any).type !== 'llm_task' && section.asset_id && (
                   <div className="text-xs text-gray-500">
                     <span className="font-medium">Video:</span> {section.asset_id.substring(0, 8)}...
                   </div>
                 )}
-                {section.audio_asset_id && (
+                {(section as any).type !== 'llm_task' && section.audio_asset_id && (
                   <div className="text-xs text-gray-500">
                     <span className="font-medium">Ses:</span> {section.audio_asset_id.substring(0, 8)}...
                   </div>

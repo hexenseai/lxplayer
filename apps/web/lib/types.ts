@@ -3,6 +3,8 @@ export interface TrainingData {
   title: string;
   description?: string;
   ai_flow?: string;
+  avatar_id?: string;
+  avatar?: Avatar;
   sections: Section[];
 }
 
@@ -13,6 +15,7 @@ export interface Section {
   script?: string;
   duration?: number;
   order_index: number;
+  type?: string; // "video" or "llm_task"
   video_url?: string;
   overlays: Overlay[];
 }
@@ -20,7 +23,7 @@ export interface Section {
 export interface Overlay {
   id: string;
   time_stamp: number;
-  type: 'frame_set' | 'button_link' | 'button_message' | 'button_content' | 'label' | 'content';
+  type: 'frame_set' | 'button_link' | 'button_message' | 'button_content' | 'label' | 'content' | 'llm_interaction';
   caption?: string;
   content_id?: string;
   style_id?: string;
@@ -108,6 +111,7 @@ export interface VideoFrameProps {
   onPlay: () => void;
   onPause: () => void;
   onEnded: () => void;
+  onDurationChange?: (duration: number) => void;
 }
 
 export interface ControlBarProps {
@@ -140,4 +144,17 @@ export interface FlowStepsProps {
   sections: Section[];
   currentSection: string | null;
   onSectionSelect: (sectionId: string) => void;
+}
+
+export interface Avatar {
+  id: string;
+  name: string;
+  personality: string;
+  elevenlabs_voice_id: string;
+  description?: string;
+  image_url?: string;
+  is_default: boolean;
+  company_id?: string;
+  created_at: string;
+  updated_at: string;
 }

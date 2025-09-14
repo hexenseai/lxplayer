@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useUser } from '@/hooks/useUser';
 import { useRouter } from 'next/navigation';
 import { api, Training as TrainingT } from '@/lib/api';
+import type { Avatar } from '@/lib/types';
 import Link from 'next/link';
 
 export default function AdminTrainingsPage() {
@@ -15,12 +16,15 @@ export default function AdminTrainingsPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [systemTrainings, setSystemTrainings] = useState<TrainingT[]>([]);
   const [importLoading, setImportLoading] = useState(false);
+  const [avatars, setAvatars] = useState<Avatar[]>([]);
+  const [loadingAvatars, setLoadingAvatars] = useState(true);
 
   // Router redirect removed - now rendered within dashboard
 
   useEffect(() => {
     if (isSuperAdmin || isAdmin) {
       loadTrainings();
+      loadAvatars();
     }
   }, [isSuperAdmin, isAdmin]);
 
@@ -36,6 +40,18 @@ export default function AdminTrainingsPage() {
     }
   };
 
+  const loadAvatars = async () => {
+    try {
+      setLoadingAvatars(true);
+      const avatars = await api.listAvatars();
+      setAvatars(avatars);
+    } catch (error) {
+      console.error('Error loading avatars:', error);
+    } finally {
+      setLoadingAvatars(false);
+    }
+  };
+
   const handleCreateTraining = async (formData: FormData) => {
     try {
       const data = {
@@ -43,6 +59,7 @@ export default function AdminTrainingsPage() {
         description: formData.get('description') as string || undefined,
         flow_id: formData.get('flow_id') as string || undefined,
         ai_flow: formData.get('ai_flow') as string || undefined,
+        avatar_id: formData.get('avatar_id') as string || undefined,
         company_id: isSuperAdmin ? (formData.get('company_id') as string || undefined) : user?.company_id,
       };
 
@@ -63,6 +80,8 @@ export default function AdminTrainingsPage() {
         description: formData.get('description') as string || undefined,
         flow_id: formData.get('flow_id') as string || undefined,
         ai_flow: formData.get('ai_flow') as string || undefined,
+        access_code: formData.get('access_code') as string || undefined,
+        avatar_id: formData.get('avatar_id') as string || undefined,
         company_id: isSuperAdmin ? (formData.get('company_id') as string || undefined) : user?.company_id,
       };
 
@@ -205,6 +224,27 @@ export default function AdminTrainingsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Avatar</label>
+                <select
+                  name="avatar_id"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Avatar seçin (opsiyonel)</option>
+                  {loadingAvatars ? (
+                    <option disabled>Avatarlar yükleniyor...</option>
+                  ) : (
+                    avatars.map((avatar) => (
+                      <option key={avatar.id} value={avatar.id}>
+                        {avatar.name} {avatar.is_default ? '(Varsayılan)' : ''}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Eğitim için kullanılacak avatarı seçin. Avatar, eğitim sırasında AI asistanın kişiliğini belirler.
+                </p>
+              </div>
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
@@ -251,6 +291,31 @@ export default function AdminTrainingsPage() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Access Code</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    name="access_code"
+                    defaultValue={editingTraining.access_code || ''}
+                    placeholder="Otomatik oluşturulacak"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.querySelector('input[name="access_code"]') as HTMLInputElement;
+                      if (input) {
+                        input.value = Math.random().toString(36).substring(2, 15);
+                      }
+                    }}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                  >
+                    Oluştur
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Interactive Player için erişim kodu</p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Flow ID</label>
                 <input
                   type="text"
@@ -267,6 +332,28 @@ export default function AdminTrainingsPage() {
                   rows={6}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Avatar</label>
+                <select
+                  name="avatar_id"
+                  defaultValue={editingTraining.avatar_id || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Avatar seçin (opsiyonel)</option>
+                  {loadingAvatars ? (
+                    <option disabled>Avatarlar yükleniyor...</option>
+                  ) : (
+                    avatars.map((avatar) => (
+                      <option key={avatar.id} value={avatar.id}>
+                        {avatar.name} {avatar.is_default ? '(Varsayılan)' : ''}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Eğitim için kullanılacak avatarı seçin. Avatar, eğitim sırasında AI asistanın kişiliğini belirler.
+                </p>
               </div>
               <div className="flex justify-end space-x-3 pt-4">
                 <button
@@ -376,6 +463,16 @@ export default function AdminTrainingsPage() {
             </div>
             
             <div className="mb-4">
+              {training.avatar && (
+                <div className="flex items-center text-xs text-gray-500 mb-2">
+                  <div className="p-1 bg-pink-100 rounded mr-2">
+                    <svg className="w-3 h-3 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <span>Avatar: {training.avatar.name}</span>
+                </div>
+              )}
               {training.flow_id && (
                 <div className="text-xs text-gray-500 mb-1">
                   Flow ID: {training.flow_id}

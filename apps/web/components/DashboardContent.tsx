@@ -9,6 +9,8 @@ import AssetsPage from '@/app/admin/assets/page';
 import TrainingsPage from '@/app/admin/trainings/page';
 import StylesPage from '@/app/admin/styles/page';
 import FrameConfigsPage from '@/app/admin/frame-configs/page';
+import AvatarsPage from '@/app/admin/avatars/page';
+import { UsageReportsPage } from './UsageReportsPage';
 
 interface DashboardContentProps {
   activePage: string;
@@ -22,24 +24,45 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
     totalTrainings: 0,
     totalAssets: 0,
     totalStyles: 0,
+    totalAvatars: 0,
     recentTrainings: []
   });
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // Geçici olarak sadece kullanıcıları al, diğer API'ler CORS hatası veriyor
-        const users = await api.listUsers().catch(() => []);
+        // Use the new statistics endpoint
+        const statistics = await api.getDashboardStatistics();
         
         setStats({
-          totalUsers: users.length,
-          totalTrainings: 0, // Geçici olarak 0
-          totalAssets: 0, // Geçici olarak 0
-          totalStyles: 0, // Geçici olarak 0
-          recentTrainings: [] // Geçici olarak boş
+          totalUsers: statistics.totalUsers,
+          totalTrainings: statistics.totalTrainings,
+          totalAssets: statistics.totalAssets,
+          totalStyles: statistics.totalStyles,
+          totalAvatars: statistics.totalAvatars,
+          recentTrainings: [] // TODO: Add recent trainings if needed
         });
       } catch (error) {
         console.error('Failed to fetch stats:', error);
+        // Fallback to individual API calls if statistics endpoint fails
+        try {
+          const users = await api.listUsers().catch(() => []);
+          const trainings = await api.listTrainings().catch(() => []);
+          const assets = await api.listAssets().catch(() => []);
+          const styles = await api.listStyles().catch(() => []);
+          const avatars = await api.listAvatars().catch(() => []);
+          
+          setStats({
+            totalUsers: users.length,
+            totalTrainings: trainings.length,
+            totalAssets: assets.length,
+            totalStyles: styles.length,
+            totalAvatars: avatars.length,
+            recentTrainings: []
+          });
+        } catch (fallbackError) {
+          console.error('Fallback stats fetch also failed:', fallbackError);
+        }
       }
     };
 
@@ -56,7 +79,7 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-blue-100">
@@ -112,6 +135,20 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
             </div>
           </div>
         </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-pink-100">
+              <svg className="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Toplam Avatar</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalAvatars}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Quick Actions */}
@@ -158,6 +195,16 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
               </svg>
               <span className="text-gray-700">Frame Ayarları</span>
             </button>
+            
+            <button 
+              onClick={() => window.location.href = '/admin/avatars'}
+              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <span className="text-gray-700">Avatar Oluştur</span>
+            </button>
           </div>
         </div>
 
@@ -197,6 +244,8 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
         return <CompanyProfilePage />;
       case 'users':
         return <UsersPage />;
+      case 'usage-reports':
+        return <UsageReportsPage />;
       case 'styles':
         return <StylesPage />;
       case 'assets':
@@ -205,6 +254,8 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
         return <TrainingsPage />;
       case 'frame-configs':
         return <FrameConfigsPage />;
+      case 'avatars':
+        return <AvatarsPage />;
       default:
         return renderDashboard();
     }
