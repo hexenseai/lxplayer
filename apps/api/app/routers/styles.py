@@ -8,7 +8,7 @@ from ..models import Style, User
 from ..schemas import StyleCreate, StyleUpdate, StyleResponse
 from ..auth import get_current_user, is_super_admin, check_company_access
 
-router = APIRouter(tags=["styles"])
+router = APIRouter(prefix="/styles", tags=["styles"])
 
 
 @router.get("/", response_model=List[StyleResponse])
