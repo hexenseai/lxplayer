@@ -16,7 +16,7 @@ function buildVideoUrl(sectionNode: any | null): string | undefined {
   const sectionData = sectionNode?.data?.section ?? sectionNode;
   if (!sectionData || sectionData?.type === 'llm_task') return;
 
-  const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer').replace(/\/+$/, '');
+  const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer').replace(/\/+$/, '');
   const fromObj = (value?: string) => value ? (value.startsWith('http') ? value : `${cdn}/${encodeURIComponent(value)}`) : undefined;
 
   const videoObject = sectionData?.video_object as string | undefined;

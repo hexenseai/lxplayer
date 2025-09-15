@@ -11,7 +11,7 @@ interface HtmlPreviewModalProps {
 
 function rewriteHtmlAssetUrls(html: string): string {
   const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer').replace(/\/$/, '');
+  const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer').replace(/\/$/, '');
   const cdnOrigin = cdn.split('/').slice(0, 3).join('/');
   const cdnPathPrefix = cdn.replace(cdnOrigin, '').replace(/^\//, '');
   return (html || '').replace(/\s(src|href)=("|')([^"']+)(\2)/gi, (_m, attr, quote, url, endQuote) => {

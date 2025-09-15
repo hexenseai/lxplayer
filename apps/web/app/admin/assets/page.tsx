@@ -17,7 +17,7 @@ export default function AdminAssetsPage() {
   const [previewTitle, setPreviewTitle] = useState<string>('');
   const [showAIGenerateModal, setShowAIGenerateModal] = useState(false);
   
-  const cdn = process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer';
+  const cdn = process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer';
 
   // Router redirect removed - now rendered within dashboard
 

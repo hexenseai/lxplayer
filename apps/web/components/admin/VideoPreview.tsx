@@ -46,7 +46,7 @@ export function VideoPreview({ assetId, className = "" }: VideoPreviewProps) {
     }
     
     // If it's a MinIO object name, construct the URL
-    const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer').replace(/\/$/, '');
+    const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer').replace(/\/$/, '');
     return `${cdn}/${encodeURIComponent(uri)}`;
   };
 

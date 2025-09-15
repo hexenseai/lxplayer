@@ -884,7 +884,7 @@ def generate_transcript(training_id: str, section_id: str, session: Session = De
         video_url = asset.uri
         if not video_url.startswith('http'):
             # Assume it's a local file path
-            cdn_url = os.getenv('CDN_URL', 'http://localhost:9000/lxplayer')
+            cdn_url = os.getenv('CDN_URL', 'http://minio:9000/lxplayer')
             video_url = f"{cdn_url}/{video_url}"
         
         # Create temporary file for video
@@ -1059,7 +1059,7 @@ def dub_audio(training_id: str, section_id: str, session: Session = Depends(get_
                         # Download video to get duration
                         video_url = asset.uri
                         if not video_url.startswith('http'):
-                            cdn_url = os.getenv('CDN_URL', 'http://localhost:9000/lxplayer')
+                            cdn_url = os.getenv('CDN_URL', 'http://minio:9000/lxplayer')
                             video_url = f"{cdn_url}/{video_url}"
                         
                         # Use ffprobe to get duration
@@ -1740,7 +1740,7 @@ def download_scorm_package(training_id: str, session: Session = Depends(get_sess
                             # Asset'i CDN'den indir
                             asset_url = section.asset.uri
                             if not asset_url.startswith('http'):
-                                cdn_url = os.getenv('CDN_URL', 'http://localhost:9000/lxplayer')
+                                cdn_url = os.getenv('CDN_URL', 'http://minio:9000/lxplayer')
                                 asset_url = f"{cdn_url}/{asset_url}"
                             
                             response = requests.get(asset_url, stream=True)

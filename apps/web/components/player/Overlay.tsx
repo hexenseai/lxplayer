@@ -356,13 +356,13 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
     const resolveAssetUri = (uri: string | undefined): string | undefined => {
       if (!uri) return undefined;
       if (/^(https?:)?\/\//i.test(uri) || /^data:/i.test(uri) || /^blob:/i.test(uri)) return uri;
-      const cdn = process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer';
+      const cdn = process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer';
       // Use encodeURI to preserve path separators while encoding spaces and unsafe chars
       return encodeURI(`${cdn}/${uri}`);
     };
 
     const rewriteHtmlAssetUrls = (html: string): string => {
-      const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer').replace(/\/$/, '');
+      const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer').replace(/\/$/, '');
       const api = process.env.NEXT_PUBLIC_API_URL || '';
       const cdnOrigin = cdn.split('/').slice(0, 3).join('/'); // http://host:port
       const cdnPathPrefix = cdn.replace(cdnOrigin, '').replace(/^\//, ''); // lxplayer

@@ -215,12 +215,12 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
                             controls
                             preload="metadata"
                           >
-                            <source src={`${process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer'}/${encodeURIComponent(section.asset.uri)}`} type="video/mp4" />
+                            <source src={`${process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer'}/${encodeURIComponent(section.asset.uri)}`} type="video/mp4" />
                             Video oynatılamıyor.
                           </video>
                         ) : section.asset.kind === 'image' ? (
                           <img
-                            src={`${process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer'}/${encodeURIComponent(section.asset.uri)}`}
+                            src={`${process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer'}/${encodeURIComponent(section.asset.uri)}`}
                             alt={section.asset.title}
                             className="w-full h-full object-cover"
                           />

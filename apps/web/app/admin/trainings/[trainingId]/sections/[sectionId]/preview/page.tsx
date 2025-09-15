@@ -11,7 +11,7 @@ import OverlayTimeline from '@/components/admin/OverlayTimeline';
 import OverlayModal from '@/components/admin/forms/OverlayModal';
 
 function buildVideoUrl(section: TrainingSection): string | undefined {
-  const cdn = process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer';
+  const cdn = process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer';
   const videoObject = (section as any).video_object as string | undefined;
   if (videoObject && videoObject.length > 0) {
     if (videoObject.startsWith('http')) return videoObject;
