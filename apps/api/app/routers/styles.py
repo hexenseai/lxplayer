@@ -12,6 +12,7 @@ router = APIRouter(prefix="/styles", tags=["styles"])
 
 
 @router.get("", response_model=List[StyleResponse])
+@router.get("/", response_model=List[StyleResponse])
 async def list_styles(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)

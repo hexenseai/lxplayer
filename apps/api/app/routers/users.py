@@ -344,11 +344,11 @@ def get_dashboard_statistics(
     
     if is_super_admin(current_user):
         # SuperAdmin can see all statistics
-        total_users = session.exec(select(User)).count()
-        total_trainings = session.exec(select(Training)).count()
-        total_assets = session.exec(select(Asset)).count()
-        total_styles = session.exec(select(Style)).count()
-        total_avatars = session.exec(select(Avatar)).count()
+        total_users = len(session.exec(select(User)).all())
+        total_trainings = len(session.exec(select(Training)).all())
+        total_assets = len(session.exec(select(Asset)).all())
+        total_styles = len(session.exec(select(Style)).all())
+        total_avatars = len(session.exec(select(Avatar)).all())
     else:
         # Admin can only see their company's statistics
         if not current_user.company_id:
@@ -360,25 +360,25 @@ def get_dashboard_statistics(
                 "totalAvatars": 0
             }
         
-        total_users = session.exec(
+        total_users = len(session.exec(
             select(User).where(User.company_id == current_user.company_id)
-        ).count()
-        total_trainings = session.exec(
+        ).all())
+        total_trainings = len(session.exec(
             select(Training).where(Training.company_id == current_user.company_id)
-        ).count()
-        total_assets = session.exec(
+        ).all())
+        total_assets = len(session.exec(
             select(Asset).where(Asset.company_id == current_user.company_id)
-        ).count()
-        total_styles = session.exec(
+        ).all())
+        total_styles = len(session.exec(
             select(Style).where(Style.company_id == current_user.company_id)
-        ).count()
+        ).all())
         # Avatars: company avatars + default avatars
-        total_avatars = session.exec(
+        total_avatars = len(session.exec(
             select(Avatar).where(
                 (Avatar.company_id == current_user.company_id) | 
                 (Avatar.is_default == True)
             )
-        ).count()
+        ).all())
     
     return {
         "totalUsers": total_users,
