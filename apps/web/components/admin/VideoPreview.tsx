@@ -46,9 +46,8 @@ export function VideoPreview({ assetId, className = "" }: VideoPreviewProps) {
     }
     
     // If it's a MinIO object name, construct the URL
-    const baseUrl = process.env.NEXT_PUBLIC_MINIO_URL || 'http://localhost:9000';
-    const bucket = process.env.NEXT_PUBLIC_MINIO_BUCKET || 'lxplayer';
-    return `${baseUrl}/${bucket}/${uri}`;
+    const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://localhost:9000/lxplayer').replace(/\/$/, '');
+    return `${cdn}/${encodeURIComponent(uri)}`;
   };
 
   if (!assetId) {
