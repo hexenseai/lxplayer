@@ -380,10 +380,10 @@ export const api = {
   deleteSectionOverlay: (trainingId: string, sectionId: string, overlayId: string) => request(`/trainings/${trainingId}/sections/${sectionId}/overlays/${overlayId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
   // styles
-  listStyles: () => request('/styles', z.array(Style)),
+  listStyles: () => request('/styles/', z.array(Style)),
   getStyle: (id: string) => request(`/styles/${id}`, Style),
   createStyle: (input: { name: string; description?: string; style_json: string; company_id?: string | null }) =>
-    request('/styles', Style, { method: 'POST', body: JSON.stringify(input) }),
+    request('/styles/', Style, { method: 'POST', body: JSON.stringify(input) }),
   updateStyle: (id: string, input: { name?: string; description?: string; style_json?: string; company_id?: string | null }) =>
     request(`/styles/${id}`, Style, { method: 'PUT', body: JSON.stringify(input) }),
   deleteStyle: (id: string) => request(`/styles/${id}`, z.object({ message: z.string() }), { method: 'DELETE' }),
