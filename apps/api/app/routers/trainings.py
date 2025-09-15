@@ -1172,7 +1172,7 @@ def dub_audio(training_id: str, section_id: str, session: Session = Depends(get_
         
         # Upload to MinIO
         object_name = f"audio/{uuid.uuid4()}.mp3"
-        cdn_url = os.getenv('CDN_URL', 'http://localhost:9000/lxplayer')
+        cdn_url = os.getenv('CDN_URL', 'http://minio:9000/lxplayer')
         minio_client = get_minio()
         
         with open(new_audio_path, 'rb') as audio_file:
