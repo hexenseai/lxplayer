@@ -385,7 +385,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     };
     
     loadTrainingTitle();
-  }, [accessCode, sections.length]);
+  }, [accessCode]);
 
 
 
