@@ -144,7 +144,7 @@ export type User = z.infer<typeof User>;
 
 export const CompanyTraining = z.object({ 
   id: z.string(), 
-  company_id: z.string(), 
+  company_id: z.string().nullable().optional(), 
   training_id: z.string(), 
   expectations: z.string().nullable().optional(), 
   access_code: z.string(),

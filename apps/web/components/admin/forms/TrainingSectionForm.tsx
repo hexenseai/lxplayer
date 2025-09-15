@@ -63,7 +63,23 @@ export function TrainingSectionForm({ trainingId, initialSection, onDone, initia
     defaultValues 
   });
 
+  const watchedAssetId = watch('asset_id');
   const sectionType = watch('type');
+
+  // Watch for asset_id changes and update video_object automatically
+  useEffect(() => {
+    if (watchedAssetId && assets.length > 0) {
+      const selectedAsset = assets.find(asset => asset.id === watchedAssetId);
+      console.log('🎥 Asset ID changed, found asset:', selectedAsset);
+      if (selectedAsset && selectedAsset.kind === 'video') {
+        setValue('video_object', selectedAsset.uri);
+        console.log('🎥 Auto-updated video_object to:', selectedAsset.uri);
+      }
+    } else if (!watchedAssetId) {
+      setValue('video_object', undefined as any);
+      console.log('🎥 Asset ID cleared, video_object cleared');
+    }
+  }, [watchedAssetId, assets, setValue]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -125,6 +141,17 @@ export function TrainingSectionForm({ trainingId, initialSection, onDone, initia
   const onSubmit = async (values: FormValues) => {
     try {
       const isUpdate = Boolean(initialSection?.id);
+      
+      // Ensure video_object is set if asset_id is selected
+      if (values.asset_id && !values.video_object) {
+        const selectedAsset = assets.find(asset => asset.id === values.asset_id);
+        if (selectedAsset && selectedAsset.kind === 'video') {
+          values.video_object = selectedAsset.uri;
+          console.log('🎥 Final check: Set video_object to:', selectedAsset.uri);
+        }
+      }
+      
+      console.log('🎥 Submitting form with values:', values);
       
       if (isUpdate) {
         await api.updateTrainingSection(trainingId, initialSection!.id, {
@@ -263,7 +290,17 @@ export function TrainingSectionForm({ trainingId, initialSection, onDone, initia
             </div>
           </div>
 
-          <input type="hidden" {...register('video_object')} />
+          <div>
+            <Label htmlFor="video_object">Video Object ID (otomatik doldurulur)</Label>
+            <Input 
+              id="video_object" 
+              {...register('video_object')} 
+              placeholder="Video asset seçildiğinde otomatik doldurulur"
+              readOnly
+              className="bg-gray-50"
+            />
+            <p className="text-xs text-gray-500 mt-1">Bu alan video asset seçildiğinde otomatik olarak doldurulur.</p>
+          </div>
         </>
       )}
 
@@ -282,29 +319,29 @@ export function TrainingSectionForm({ trainingId, initialSection, onDone, initia
       )}
 
       {sectionType === 'video' && (
-        <div>
-          <Label htmlFor="asset_id">Var Olan İçerikten Seç (opsiyonel)</Label>
-          {isLoadingAssets ? (
-            <div className="text-gray-500 text-sm">Videolar yükleniyor...</div>
-          ) : (
-            <select 
-              id="asset_id" 
-              {...register('asset_id')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">Video seçin</option>
-              {assets
-                .filter(asset => asset.kind === 'video')
-                .map(asset => (
-                  <option key={asset.id} value={asset.id}>
-                    {asset.title}
-                  </option>
-                ))
-              }
-            </select>
-          )}
-          <p className="text-xs text-gray-500 mt-1">Yüklenen video önceliklidir. Seçili içerik sadece yükleme yapılmadıysa kullanılır.</p>
-        </div>
+          <div>
+            <Label htmlFor="asset_id">Var Olan İçerikten Seç (opsiyonel)</Label>
+            {isLoadingAssets ? (
+              <div className="text-gray-500 text-sm">Videolar yükleniyor...</div>
+            ) : (
+              <select 
+                id="asset_id" 
+                {...register('asset_id')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Video seçin</option>
+                {assets
+                  .filter(asset => asset.kind === 'video')
+                  .map(asset => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.title}
+                    </option>
+                  ))
+                }
+              </select>
+            )}
+            <p className="text-xs text-gray-500 mt-1">Yüklenen video önceliklidir. Seçili içerik sadece yükleme yapılmadıysa kullanılır.</p>
+          </div>
       )}
 
       {sectionType === 'llm_task' && (

@@ -120,6 +120,7 @@ export default function SectionEditPage() {
       }
 
       if (trainingId) {
+        console.log('🎥 Saving section with formData:', formData);
         await api.updateTrainingSection(trainingId, sectionId, formData);
         router.push(`/studio?trainingId=${trainingId}`);
       }
@@ -449,7 +450,22 @@ export default function SectionEditPage() {
                 <AssetSelector
                   selectedAssetId={formData.asset_id}
                   onAssetSelect={(asset: Asset | null) => {
-                    setFormData({...formData, asset_id: asset?.id || ''});
+                    console.log('🎥 Asset selected in Studio:', asset);
+                    if (asset && asset.kind === 'video') {
+                      setFormData({
+                        ...formData, 
+                        asset_id: asset.id,
+                        video_object: asset.uri // Otomatik olarak video_object'i asset.uri ile doldur
+                      });
+                      console.log('🎥 Auto-updated video_object to:', asset.uri);
+                    } else {
+                      setFormData({
+                        ...formData, 
+                        asset_id: asset?.id || '',
+                        video_object: '' // Asset seçimi kaldırıldığında video_object'i temizle
+                      });
+                      console.log('🎥 Cleared video_object');
+                    }
                   }}
                   assetKind="video"
                   placeholder="Video içerik seçin"

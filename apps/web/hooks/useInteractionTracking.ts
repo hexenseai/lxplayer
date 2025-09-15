@@ -63,7 +63,7 @@ export const useInteractionTracking = (options: InteractionTrackingOptions) => {
     } catch (error) {
       console.error('❌ Failed to track interaction:', error);
     }
-  }, [sessionId, currentSectionId, currentVideoTime]);
+  }, [sessionId, currentSectionId]); // Remove currentVideoTime from dependencies
 
   const trackChatMessage = useCallback(async (data: ChatMessageData) => {
     if (!sessionId) {
@@ -91,7 +91,7 @@ export const useInteractionTracking = (options: InteractionTrackingOptions) => {
     } catch (error) {
       console.error('❌ Failed to track chat message:', error);
     }
-  }, [sessionId, currentSectionId, currentVideoTime]);
+  }, [sessionId, currentSectionId]); // Remove currentVideoTime from dependencies
 
   const updateTrainingProgress = useCallback(async (progress: {
     current_section_id?: string;

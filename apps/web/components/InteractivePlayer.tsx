@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle, memo } from 'react';
 import { VideoFrame } from './player/VideoFrame';
 import { OverlayManager, OverlayComponent } from './player/Overlay';
 import { api, type TrainingSection, type Overlay as OverlayT, type CompanyTraining } from '@/lib/api';
@@ -14,20 +14,39 @@ interface InteractivePlayerProps {
 
 function buildVideoUrl(sectionNode: any | null): string | undefined {
   const sectionData = sectionNode?.data?.section ?? sectionNode;
-  if (!sectionData || sectionData?.type === 'llm_task') return;
+  if (!sectionData || sectionData?.type === 'llm_task') {
+    console.log('🎥 buildVideoUrl: No section data or LLM task type');
+    return;
+  }
 
   const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer').replace(/\/+$/, '');
   const fromObj = (value?: string) => value ? (value.startsWith('http') ? value : `${cdn}/${encodeURIComponent(value)}`) : undefined;
 
   const videoObject = sectionData?.video_object as string | undefined;
-  if (videoObject) return fromObj(videoObject);
+  if (videoObject) {
+    console.log('🎥 buildVideoUrl: Using video_object:', videoObject);
+    return fromObj(videoObject);
+  }
 
   const asset = sectionData?.asset as { kind?: string; uri?: string } | undefined;
-  if (asset?.kind === 'video' && asset.uri) return fromObj(asset.uri);
+  console.log('🎥 buildVideoUrl: Section asset:', asset);
+  if (asset?.kind === 'video' && asset.uri) {
+    console.log('🎥 buildVideoUrl: Using asset URI:', asset.uri);
+    return fromObj(asset.uri);
+  }
 
+  console.log('🎥 buildVideoUrl: No video found in section');
   return;
 }
 
+
+// Memoized VideoFrame to prevent unnecessary re-renders
+const MemoizedVideoFrame = memo(forwardRef<any, any>((props, ref) => {
+  return <VideoFrame ref={ref} {...props} />;
+}));
+
+// Global WebSocket connection tracker to prevent multiple connections
+let globalWebSocketConnection: WebSocket | null = null;
 
 export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ accessCode, userId }, ref) => {
   const playerRef = useRef<any>(null);
@@ -36,6 +55,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   const wsDidOpenRef = useRef(false);
   const wsUnmountedRef = useRef(false);
   const wsHelloSentRef = useRef(false);
+  const wsInitializedRef = useRef(false);
   const loadingRef = useRef<boolean>(false);
   const sectionsRef = useRef<any[]>([]);
   const currentSectionRef = useRef<any>(null);
@@ -399,9 +419,36 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     return url.toString();
   };
 
-  // Open chat websocket connection
+  // Open chat websocket connection - only once
   useEffect(() => {
     console.log('🔄 WebSocket useEffect triggered - Component mounted or remounted');
+    
+    // Global check to prevent multiple WebSocket connections across all instances
+    if (globalWebSocketConnection && globalWebSocketConnection.readyState === WebSocket.OPEN) {
+      console.log('🔄 Global WebSocket already connected, using existing connection...');
+      wsRef.current = globalWebSocketConnection;
+      return;
+    }
+    
+    // Prevent multiple WebSocket connections
+    if (wsInitializedRef.current) {
+      console.log('🔄 WebSocket already initialized, skipping...');
+      return;
+    }
+    
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log('🔄 WebSocket already connected, skipping...');
+      return;
+    }
+    
+    // Additional check: if we're in the middle of connecting, don't start another
+    if (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
+      console.log('🔄 WebSocket already connecting, skipping...');
+      return;
+    }
+    
+    wsInitializedRef.current = true;
+    
     let closedByUnmount = false;
     let reconnectTimer: any;
 
@@ -410,6 +457,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
         const wsUrl = toWsUrl(process.env.NEXT_PUBLIC_API_URL || '');
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
+        globalWebSocketConnection = ws; // Store globally
         wsDidOpenRef.current = false;
         ws.onopen = () => {
           if (closedByUnmount) return;
@@ -714,6 +762,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
       closedByUnmount = true;
       wsUnmountedRef.current = true;
       wsHelloSentRef.current = false;
+      wsInitializedRef.current = false; // Reset initialization flag
       clearTimeout(reconnectTimer);
       const ws = wsRef.current;
       wsRef.current = null;
@@ -958,7 +1007,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
           )}
           
           {/* Video bölümü */}
-          <VideoFrame
+          <MemoizedVideoFrame
               ref={playerRef}
               videoUrl={videoUrl}
               currentTime={currentTime}
