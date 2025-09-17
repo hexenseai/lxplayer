@@ -11,7 +11,7 @@ MINIO_BUCKET = os.getenv("MINIO_BUCKET", "lxplayer")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
 # Nginx proxy URL'i (browser'dan erişilebilir)
-NGINX_PROXY_URL = os.getenv("NGINX_PROXY_URL", "http://yodea.hexense.ai")
+NGINX_PROXY_URL = os.getenv("NGINX_PROXY_URL", "https://yodea.hexense.ai")
 
 
 def get_minio() -> Minio:
@@ -91,10 +91,8 @@ def presign_put_url(client: Minio, object_name: str, content_type: str | None = 
 
 def presign_get_url(client: Minio, object_name: str, expires: int = 10800) -> str:
     """Presigned GET URL oluştur (Nginx proxy üzerinden - browser erişimi için)"""
-    # MinIO'dan presign URL al
-    minio_url = client.presigned_get_object(MINIO_BUCKET, object_name, expires=timedelta(seconds=expires))
-    
-    # MinIO URL'ini Nginx proxy URL'ine dönüştür
-    proxy_url = minio_url.replace(f"http://{MINIO_ENDPOINT}", NGINX_PROXY_URL)
+    # Nginx proxy üzerinden direkt URL oluştur
+    # MinIO presigned URL yerine nginx /uploads/ path'ini kullan
+    proxy_url = f"{NGINX_PROXY_URL}/uploads/{object_name}"
     return proxy_url
 
