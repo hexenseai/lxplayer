@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@lxplayer/ui';
-import { Mic, MicOff, Volume2, VolumeX, Bot, User, ArrowLeft, Loader2, CheckCircle, XCircle, Play } from 'lucide-react';
-import { api, TrainingSection } from '@/lib/api';
+import { Mic, MicOff, Volume2, VolumeX, Bot, User, ArrowLeft, Loader2, CheckCircle, XCircle, Play, RefreshCw } from 'lucide-react';
+import { api, TrainingSection, Training } from '@/lib/api';
 import { useAgentConversation } from '../hooks/useAgentConversation';
 
 interface AgentMessage {
@@ -16,11 +16,14 @@ interface AgentMessage {
 
 export default function LLMAgentTestPage() {
   const searchParams = useSearchParams();
-  const trainingId = searchParams.get('trainingId') || 'd59c49af-ed95-4473-9159-30ab9c362de2';
-  const sectionId = searchParams.get('sectionId') || 'cc221fa0-6668-4233-ab9e-972bbf6947c8';
   
+  const [trainings, setTrainings] = useState<Training[]>([]);
+  const [selectedTrainingId, setSelectedTrainingId] = useState<string>('');
+  const [sections, setSections] = useState<TrainingSection[]>([]);
+  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [section, setSection] = useState<TrainingSection | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSections, setIsLoadingSections] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // WebSocket conversation hook
   const {
@@ -40,26 +43,68 @@ export default function LLMAgentTestPage() {
   
   // Voice chat only - no message display needed
 
+  // Load trainings on component mount
   useEffect(() => {
-    const fetchSection = async () => {
+    const fetchTrainings = async () => {
       try {
         setIsLoading(true);
-        const foundSection = await api.getTrainingSection(trainingId, sectionId);
-        if (foundSection) {
-          setSection(foundSection as TrainingSection);
-        } else {
-          setError('Section not found');
+        const trainingsList = await api.listTrainings();
+        setTrainings(trainingsList);
+        
+        // Auto-select first training if available
+        if (trainingsList.length > 0) {
+          setSelectedTrainingId(trainingsList[0].id);
         }
       } catch (err) {
-        console.error('Error fetching section:', err);
-        setError('Failed to load section');
+        console.error('Error fetching trainings:', err);
+        setError('Failed to load trainings');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchSection();
-  }, [trainingId, sectionId]);
+    fetchTrainings();
+  }, []);
+
+  // Load sections when training is selected
+  useEffect(() => {
+    const fetchSections = async () => {
+      if (!selectedTrainingId) return;
+      
+      try {
+        setIsLoadingSections(true);
+        const sectionsList = await api.listTrainingSections(selectedTrainingId);
+        setSections(sectionsList as TrainingSection[]);
+        
+        // Auto-select first llm_agent section if available
+        const llmAgentSection = sectionsList.find(s => s.type === 'llm_agent');
+        if (llmAgentSection) {
+          setSelectedSectionId(llmAgentSection.id);
+          setSection(llmAgentSection as TrainingSection);
+        } else if (sectionsList.length > 0) {
+          setSelectedSectionId(sectionsList[0].id);
+          setSection(sectionsList[0] as TrainingSection);
+        }
+      } catch (err) {
+        console.error('Error fetching sections:', err);
+        setError('Failed to load sections');
+      } finally {
+        setIsLoadingSections(false);
+      }
+    };
+
+    fetchSections();
+  }, [selectedTrainingId]);
+
+  // Update section when section is selected
+  useEffect(() => {
+    if (selectedSectionId && sections.length > 0) {
+      const foundSection = sections.find(s => s.id === selectedSectionId);
+      if (foundSection) {
+        setSection(foundSection);
+      }
+    }
+  }, [selectedSectionId, sections]);
 
 
   const handleStartSession = async () => {
@@ -179,15 +224,87 @@ export default function LLMAgentTestPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Section Info */}
+        {/* Training and Section Selection */}
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-2">{section.title}</h2>
-          <p className="text-gray-600 mb-4">{section.description}</p>
-          <div className="bg-gray-50 rounded p-4">
-            <h3 className="font-medium mb-2">Script:</h3>
-            <p className="text-sm text-gray-700">{section.script}</p>
+          <h2 className="text-lg font-semibold mb-4">Training ve Section Seçimi</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {/* Training Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Training Seçin
+              </label>
+              <select
+                value={selectedTrainingId}
+                onChange={(e) => setSelectedTrainingId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={isLoading}
+              >
+                <option value="">Training seçin...</option>
+                {trainings.map((training) => (
+                  <option key={training.id} value={training.id}>
+                    {training.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Section Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Section Seçin
+              </label>
+              <select
+                value={selectedSectionId}
+                onChange={(e) => setSelectedSectionId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={isLoadingSections || !selectedTrainingId}
+              >
+                <option value="">Section seçin...</option>
+                {sections.map((sec) => (
+                  <option key={sec.id} value={sec.id}>
+                    {sec.title} {sec.type === 'llm_agent' ? '(LLM Agent)' : `(${sec.type})`}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          {isLoadingSections && (
+            <div className="flex items-center gap-2 text-blue-600 mb-4">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Section'lar yükleniyor...</span>
+            </div>
+          )}
         </div>
+
+        {/* Section Info */}
+        {section && (
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className="text-lg font-semibold">{section.title}</h2>
+              <span className={`px-2 py-1 text-xs rounded-full ${
+                section.type === 'llm_agent' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-gray-100 text-gray-800'
+              }`}>
+                {section.type}
+              </span>
+            </div>
+            <p className="text-gray-600 mb-4">{section.description}</p>
+            <div className="bg-gray-50 rounded p-4">
+              <h3 className="font-medium mb-2">Script:</h3>
+              <p className="text-sm text-gray-700">{section.script}</p>
+            </div>
+            {section.agent_id && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-md">
+                <p className="text-sm text-blue-700">
+                  <strong>Agent ID:</strong> {section.agent_id}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Connection Status */}
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
@@ -300,12 +417,16 @@ export default function LLMAgentTestPage() {
           <h4 className="font-medium mb-2">Debug Bilgileri</h4>
           <div className="text-xs text-gray-600 space-y-1">
             <p>Agent ID: {agentId}</p>
-            <p>Training ID: {trainingId}</p>
-            <p>Section ID: {sectionId}</p>
+            <p>Selected Training ID: {selectedTrainingId}</p>
+            <p>Selected Section ID: {selectedSectionId}</p>
+            <p>Section Type: {section?.type || 'N/A'}</p>
+            <p>Section Agent ID: {section?.agent_id || 'N/A'}</p>
             <p>WebSocket Connected: {isConnected ? 'Yes' : 'No'}</p>
             <p>Recording: {isRecording ? 'Yes' : 'No'}</p>
             <p>Playing: {isPlaying ? 'Yes' : 'No'}</p>
             <p>Voice Chat Mode: Active</p>
+            <p>Trainings Loaded: {trainings.length}</p>
+            <p>Sections Loaded: {sections.length}</p>
             {webSocketError && <p className="text-red-600">Error: {webSocketError}</p>}
           </div>
           
