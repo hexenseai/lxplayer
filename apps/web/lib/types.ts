@@ -15,7 +15,8 @@ export interface Section {
   script?: string;
   duration?: number;
   order_index: number;
-  type?: string; // "video" or "llm_task"
+  type?: string; // "video", "llm_interaction", or "llm_agent"
+  agent_id?: string; // ElevenLabs Agent ID for llm_agent sections
   video_url?: string;
   overlays: Overlay[];
 }

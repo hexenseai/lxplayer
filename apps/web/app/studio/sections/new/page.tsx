@@ -5,11 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@lxplayer/ui';
 import { Button } from '@lxplayer/ui';
 import { api, Training, Asset } from '@/lib/api';
-import { AssetSelector } from '@/components/admin/AssetSelector';
-import { VideoPreview } from '@/components/admin/VideoPreview';
-import { TranscriptModal } from '@/components/admin/TranscriptModal';
-import { DescriptionModal } from '@/components/admin/DescriptionModal';
-import { HeyGenModal } from '@/components/admin/HeyGenModal';
+import { AssetSelector } from '../../components/AssetSelector';
+import { VideoPreview } from '../../components/VideoPreview';
+import { TranscriptModal } from '../../components/TranscriptModal';
+import { DescriptionModal } from '../../components/DescriptionModal';
+import { HeyGenModal } from '../../components/HeyGenModal';
 import { LANGUAGES, TARGET_AUDIENCES } from '@/lib/constants';
 
 export default function NewSectionPage() {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, FrameConfig, GlobalFrameConfig } from '@/lib/api';
-import FrameConfigModal from '@/components/admin/forms/FrameConfigModal';
+import FrameConfigModal from '../../../components/FrameConfigModal';
 
 export default function FrameConfigsPage() {
   const params = useParams() as { id: string };

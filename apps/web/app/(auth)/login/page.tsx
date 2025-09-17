@@ -45,18 +45,15 @@ export default function LoginPage() {
         {/* Logo and Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <div className="relative h-20 w-20">
-              <img
-                src="/logo.png"
-                alt="LXPlayer Logo"
-                className="h-20 w-20 object-contain"
-              />
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-lg">LX</span>
+              </div>
+              <span className="text-3xl font-bold text-gray-900">LXPlayer</span>
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            <span className="bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent">
-              LXPlayer
-            </span>
+          <h1 className="text-xl font-medium text-gray-600 mb-2">
+            Sistem içeriklerini yönetin ve yeni eğitimler oluşturun
           </h1>
           <p className="text-muted-foreground">
             Hesabınıza giriş yapın

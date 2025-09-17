@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { api, Training as TrainingT, TrainingSection } from '@/lib/api';
-import { TrainingSectionForm } from '@/components/admin/forms/TrainingSectionForm';
-import FlowEditor from '@/components/admin/flow/FlowEditor';
+import { TrainingSectionForm } from './components/TrainingSectionForm';
+import FlowEditor from './components/FlowEditor';
 import { LANGUAGES, TARGET_AUDIENCES } from '@/lib/constants';
 
 export default function StudioPage() {
@@ -15,7 +15,7 @@ export default function StudioPage() {
   const { user, loading: userLoading, isSuperAdmin, isAdmin } = useUser();
   
   const [trainings, setTrainings] = useState<TrainingT[]>([]);
-  const [sections, setSections] = useState<TrainingSection[]>([]);
+  const [sections, setSections] = useState<any[]>([]);
   const [selectedTraining, setSelectedTraining] = useState<TrainingT | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateSectionForm, setShowCreateSectionForm] = useState(false);
@@ -76,11 +76,12 @@ export default function StudioPage() {
         title: formData.get('title') as string,
         description: formData.get('description') as string || undefined,
         script: formData.get('script') as string || undefined,
-        duration: parseInt(formData.get('duration') as string) || 0,
+        duration: parseInt(formData.get('duration') as string) || 1,
         video_object: formData.get('video_object') as string || undefined,
         asset_id: formData.get('asset_id') as string || undefined,
         order_index: parseInt(formData.get('order_index') as string) || sections.length + 1,
         type: formData.get('type') as string || 'video',
+        agent_id: formData.get('agent_id') as string || undefined,
         language: formData.get('language') as string || 'TR',
         target_audience: formData.get('target_audience') as string || 'Genel',
       };
@@ -142,7 +143,7 @@ export default function StudioPage() {
           duration: overlay.duration,
           position: overlay.position || undefined,
           icon: overlay.icon || undefined,
-          pause_on_show: overlay.pause_on_show,
+          pause_on_show: overlay.pause_on_show || undefined,
           frame_config_id: overlay.frame_config_id || undefined
         };
         
@@ -377,7 +378,7 @@ export default function StudioPage() {
             </p>
           </div>
           <button
-            onClick={() => router.push('/admin/trainings')}
+            onClick={() => router.push('/studio')}
             className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
           >
             Yeni Eğitim Ekle
@@ -398,7 +399,7 @@ export default function StudioPage() {
               </div>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => router.push(`/admin/trainings/${training.id}` as any)}
+                  onClick={() => router.push(`/studio?trainingId=${training.id}`)}
                   className="text-blue-600 hover:text-blue-900 text-sm"
                 >
                   Düzenle
@@ -420,12 +421,20 @@ export default function StudioPage() {
             </div>
             
             <div className="flex justify-between items-center">
-              <button
-                onClick={() => handleTrainingSelect(training)}
-                className="text-primary hover:text-primary/80 text-sm font-medium"
-              >
-                Bölümleri Yönet →
-              </button>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleTrainingSelect(training)}
+                  className="text-primary hover:text-primary/80 text-sm font-medium"
+                >
+                  Bölümleri Yönet →
+                </button>
+                <button
+                  onClick={() => router.push(`/llm-agent-test?trainingId=${training.id}`)}
+                  className="text-green-600 hover:text-green-800 text-sm font-medium"
+                >
+                  🤖 Agent Test
+                </button>
+              </div>
               <div className="text-xs text-gray-500">
                 ID: {training.id.substring(0, 8)}...
               </div>
@@ -438,7 +447,7 @@ export default function StudioPage() {
         <div className="text-center py-12">
           <div className="text-gray-500 mb-4">Henüz eğitim yok</div>
           <button
-            onClick={() => router.push('/admin/trainings')}
+            onClick={() => router.push('/studio')}
             className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
           >
             İlk Eğitimi Oluştur
@@ -453,7 +462,7 @@ export default function StudioPage() {
             <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
             <span>Yeni bir eğitim oluşturun</span>
             <button
-              onClick={() => router.push('/admin/trainings')}
+              onClick={() => router.push('/studio')}
               className="bg-primary text-white px-3 py-1 rounded text-sm hover:bg-primary/90"
             >
               Eğitim Oluştur

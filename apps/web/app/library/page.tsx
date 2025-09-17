@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { CompanyUserSection } from '@/components/CompanyUserSection';
-import { ScormDownloadButton } from '@/components/admin/ScormDownloadButton';
+import { ScormDownloadButton } from '@/components/ScormDownloadButton';
 
 export default async function LibraryPage() {
   const trainings = await api
@@ -17,12 +17,11 @@ export default async function LibraryPage() {
         <div className="container mx-auto px-4">
           <div className="text-center max-w-3xl mx-auto">
             <div className="flex justify-center mb-6">
-              <div className="relative h-20 w-20">
-                <img
-                  src="/logo.png"
-                  alt="LXPlayer Logo"
-                  className="h-20 w-20 object-contain"
-                />
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center">
+                  <span className="text-white font-bold text-2xl">LX</span>
+                </div>
+                <span className="text-4xl font-bold text-gray-900">LXPlayer</span>
               </div>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
@@ -91,7 +90,7 @@ export default async function LibraryPage() {
             <p className="text-muted-foreground mb-6">
               Kütüphanede henüz eğitim içeriği bulunmuyor.
             </p>
-            <Link href="/admin/trainings" className="btn btn-primary">
+            <Link href="/studio" className="btn btn-primary">
               Eğitim Ekle
             </Link>
           </div>

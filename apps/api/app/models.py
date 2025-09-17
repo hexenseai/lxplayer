@@ -92,13 +92,16 @@ class TrainingSection(SQLModel, table=True):
     title: str
     description: Optional[str] = None
     script: Optional[str] = None
-    duration: Optional[int] = Field(default=None, description="duration in seconds")
+    duration: Optional[int] = Field(default=1, description="duration in seconds")
     video_object: Optional[str] = Field(default=None, description="MinIO object key or full video URL for this section")
     asset_id: Optional[str] = Field(default=None, foreign_key="asset.id")
     order_index: int = Field(default=0, description="order of sections within training")
     
-    # Section type: 'video' or 'llm_task'
-    type: str = Field(default="video", description="Section type: video or llm_task")
+    # Section type: 'video', 'llm_interaction', or 'llm_agent'
+    type: str = Field(default="video", description="Section type: video, llm_interaction, or llm_agent")
+    
+    # ElevenLabs Agent ID for llm_agent sections
+    agent_id: Optional[str] = Field(default=None, description="ElevenLabs Agent ID for voice conversations")
     
     # New fields for language and target audience
     language: Optional[str] = Field(default="TR", description="Language code: TR, EN, DE, FR, ES, etc.")

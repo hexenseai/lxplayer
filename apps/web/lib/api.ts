@@ -5,7 +5,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 export const Training = z.object({ 
   id: z.string(), 
   title: z.string(), 
-  description: z.string().optional(), 
+  description: z.string().nullable().optional(), 
   flow_id: z.string().nullable().optional(), 
   ai_flow: z.string().nullable().optional(), 
   access_code: z.string().nullable().optional(), 
@@ -49,7 +49,8 @@ export const TrainingSection = z.object({
   asset_id: z.string().nullable().optional(),
   order_index: z.number(),
   training_id: z.string(),
-  type: z.string().default("video"), // "video" or "llm_task"
+  type: z.string().default("video"), // "video", "llm_interaction", or "llm_agent"
+  agent_id: z.string().nullable().optional(), // ElevenLabs Agent ID for llm_agent sections
   language: z.string().nullable().optional(),
   target_audience: z.string().nullable().optional(),
   audio_asset_id: z.string().nullable().optional(),
@@ -412,14 +413,6 @@ export const api = {
     request(`/frame-configs/global/${globalConfigId}`, GlobalFrameConfig, { method: 'PUT', body: JSON.stringify(input) }),
   deleteGlobalFrameConfig: (globalConfigId: string) => request(`/frame-configs/global/${globalConfigId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
-  // training sections
-  listTrainingSections: (trainingId: string) => request(`/trainings/${trainingId}/sections`, z.array(TrainingSection)),
-  getTrainingSection: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}`, TrainingSection),
-  createTrainingSection: (trainingId: string, input: { title: string; description?: string; order_index?: number }) =>
-    request(`/trainings/${trainingId}/sections`, TrainingSection, { method: 'POST', body: JSON.stringify(input) }),
-  updateTrainingSection: (trainingId: string, sectionId: string, input: { title?: string; description?: string; order_index?: number }) =>
-    request(`/trainings/${trainingId}/sections/${sectionId}`, TrainingSection, { method: 'PUT', body: JSON.stringify(input) }),
-  deleteTrainingSection: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
 
   // SCORM package download
   downloadScormPackage: (trainingId: string) => {

@@ -33,11 +33,12 @@ class TrainingSectionIn(BaseModel):
     title: str
     description: str | None = None
     script: str | None = None
-    duration: int | None = None
+    duration: int | None = 1
     video_object: str | None = None
     asset_id: str | None = None
     order_index: int = 0
-    type: str = "video"  # "video" or "llm_task"
+    type: str = "video"  # "video", "llm_interaction", or "llm_agent"
+    agent_id: str | None = None  # ElevenLabs Agent ID for llm_agent sections
     language: str | None = "TR"
     target_audience: str | None = "Genel"
     audio_asset_id: str | None = None

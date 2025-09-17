@@ -5,11 +5,11 @@ import { useRouter, useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@lxplayer/ui';
 import { Button } from '@lxplayer/ui';
 import { api, TrainingSection, Asset } from '@/lib/api';
-import { AssetSelector } from '@/components/admin/AssetSelector';
-import { VideoPreview } from '@/components/admin/VideoPreview';
-import { TranscriptModal } from '@/components/admin/TranscriptModal';
-import { DescriptionModal } from '@/components/admin/DescriptionModal';
-import { HeyGenModal } from '@/components/admin/HeyGenModal';
+import { AssetSelector } from '../../components/AssetSelector';
+import { VideoPreview } from '../../components/VideoPreview';
+import { TranscriptModal } from '../../components/TranscriptModal';
+import { DescriptionModal } from '../../components/DescriptionModal';
+import { HeyGenModal } from '../../components/HeyGenModal';
 import { LANGUAGES, TARGET_AUDIENCES } from '@/lib/constants';
 
 export default function SectionEditPage() {
@@ -37,10 +37,12 @@ export default function SectionEditPage() {
     title: '',
     description: '',
     script: '',
-    duration: 0,
+    duration: 1,
     video_object: '',
     asset_id: '',
     order_index: 0,
+    type: 'video',
+    agent_id: '',
     language: 'TR',
     target_audience: 'Genel',
     audio_asset_id: ''
@@ -80,10 +82,12 @@ export default function SectionEditPage() {
           title: foundSection.title,
           description: foundSection.description || '',
           script: foundSection.script || '',
-          duration: foundSection.duration || 0,
+          duration: foundSection.duration || 1,
           video_object: foundSection.video_object || '',
           asset_id: foundSection.asset_id || '',
           order_index: foundSection.order_index,
+          type: (foundSection as any).type || 'video',
+          agent_id: (foundSection as any).agent_id || '',
           language: foundSection.language || 'TR',
           target_audience: foundSection.target_audience || 'Genel',
           audio_asset_id: foundSection.audio_asset_id || ''

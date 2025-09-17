@@ -7,7 +7,7 @@ from typing import Dict, Any, List
 from fastapi import APIRouter, WebSocket, HTTPException, Depends, File, UploadFile
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import Training, TrainingSection, Overlay, Asset, Style, CompanyTraining, Avatar, User, Session, UserInteraction, ChatMessage
+from app.models import Training, TrainingSection, Overlay, Asset, Style, CompanyTraining, Avatar, User, Session as DBSession, UserInteraction, ChatMessage
 from app.storage import get_minio, presign_get_url
 from app.auth import get_current_user
 from openai import AsyncOpenAI
@@ -15,6 +15,10 @@ import os
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# LLM Agent endpoints moved to llm_agent.py router
+
+# LLM Agent endpoints moved to llm_agent.py router
 
 def get_openai_client():
     api_key = os.getenv("OPENAI_API_KEY")
@@ -165,7 +169,7 @@ def build_training_json(training: Training, sections: List[TrainingSection], ove
         x = 160
         for s in sorted(sections, key=lambda x: x.order_index):
             # Section type'a göre node type belirle
-            node_type = "taskNode" if s.type == "llm_task" else "sectionNode"
+            node_type = "taskNode" if s.type == "llm_interaction" else "sectionNode"
             flow_nodes.append({
                 "id": s.id,
                 "type": node_type,
@@ -667,7 +671,8 @@ NAVIGATION ÖRNEKLERİ:
 }}
 
 Mevcut bölümün tipine göre davran:
-- "llm_task": Bu bölümde LLM görevleri var, kullanıcıyla etkileşim kur
+- "llm_interaction": Bu bölümde LLM etkileşimi var, kullanıcıyla etkileşim kur
+- "llm_agent": Bu bölümde LLM agent var, canlı konuşma yap
 - "video": Video bölümü, video kontrollerini kullan
 - "interactive": Etkileşimli bölüm, kullanıcıdan input al
 """

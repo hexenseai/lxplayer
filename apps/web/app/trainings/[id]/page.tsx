@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { api, Training, CompanyTraining } from '@/lib/api';
 import { CompanyUserSection } from '@/components/CompanyUserSection';
-import { ScormDownloadButton } from '@/components/admin/ScormDownloadButton';
+import { ScormDownloadButton } from '@/components/ScormDownloadButton';
 
 interface TrainingDetailProps {
   params: { 

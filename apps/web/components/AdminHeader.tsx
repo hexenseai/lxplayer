@@ -12,16 +12,10 @@ export function AdminHeader({ user }: AdminHeaderProps) {
     <header className="bg-white shadow-sm border-b border-gray-200 h-16 flex items-center justify-between px-6">
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-2">
-          <div className="relative h-8 w-8">
-            <img
-              src="/logo.png"
-              alt="LXPlayer Logo"
-              className="h-8 w-8 object-contain"
-            />
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-sm">LX</span>
           </div>
-          <span className="text-xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent">
-            LXPlayer Studio
-          </span>
+          <span className="text-xl font-bold text-gray-900">LXPlayer Studio</span>
         </div>
       </div>
       

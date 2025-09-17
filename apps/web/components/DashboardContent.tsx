@@ -2,15 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { UsageReportsPage } from './UsageReportsPage';
+import StudioPage from '@/app/studio/page';
+import StudioAssetsPage from '@/app/studio/assets/page';
 import CompaniesPage from '@/app/admin/companies/page';
-import CompanyProfilePage from '@/app/admin/company-profile/page';
 import UsersPage from '@/app/admin/users/page';
-import AssetsPage from '@/app/admin/assets/page';
-import TrainingsPage from '@/app/admin/trainings/page';
 import StylesPage from '@/app/admin/styles/page';
 import FrameConfigsPage from '@/app/admin/frame-configs/page';
 import AvatarsPage from '@/app/admin/avatars/page';
-import { UsageReportsPage } from './UsageReportsPage';
 
 interface DashboardContentProps {
   activePage: string;
@@ -238,24 +237,22 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
     switch (activePage) {
       case 'dashboard':
         return renderDashboard();
+      case 'trainings':
+        return <StudioPage />;
+      case 'assets':
+        return <StudioAssetsPage />;
       case 'companies':
         return <CompaniesPage />;
-      case 'company-profile':
-        return <CompanyProfilePage />;
       case 'users':
         return <UsersPage />;
-      case 'usage-reports':
-        return <UsageReportsPage />;
       case 'styles':
         return <StylesPage />;
-      case 'assets':
-        return <AssetsPage />;
-      case 'trainings':
-        return <TrainingsPage />;
       case 'frame-configs':
         return <FrameConfigsPage />;
       case 'avatars':
         return <AvatarsPage />;
+      case 'usage-reports':
+        return <UsageReportsPage />;
       default:
         return renderDashboard();
     }
