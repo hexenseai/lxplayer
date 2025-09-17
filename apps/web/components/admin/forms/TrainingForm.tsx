@@ -25,7 +25,7 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
   const defaultValues = initialTraining ? { 
     title: initialTraining.title, 
     description: initialTraining.description ?? undefined,
-    avatar_id: initialTraining.avatar_id ?? undefined
+    avatar_id: initialTraining.avatar_id ?? ''
   } : undefined;
   
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setError } = useForm<FormValues>({ 
@@ -48,19 +48,49 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
     fetchAvatars();
   }, []);
 
-  const onSubmit = async (values: FormValues) => {
-    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const isUpdate = Boolean(initialTraining?.id);
-    const path = isUpdate ? `${base}/trainings/${initialTraining!.id}` : `${base}/trainings`;
-    const method = isUpdate ? 'PUT' : 'POST';
-    const res = await fetch(path, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(values) });
-    if (!res.ok) {
-      setError('title', { type: 'manual', message: `Hata: ${res.status}` });
-      return;
+  // Reset form when initialTraining changes
+  useEffect(() => {
+    if (initialTraining) {
+      const newValues = {
+        title: initialTraining.title,
+        description: initialTraining.description ?? undefined,
+        avatar_id: initialTraining.avatar_id ?? ''
+      };
+      console.log('🔄 Form reset values:', newValues);
+      console.log('📋 Available avatars:', avatars.map(a => ({ id: a.id, name: a.name })));
+      reset(newValues);
     }
-    reset();
-    router.refresh();
-    onDone?.();
+  }, [initialTraining, reset, avatars]);
+
+  const onSubmit = async (values: FormValues) => {
+    try {
+      const isUpdate = Boolean(initialTraining?.id);
+      
+      if (isUpdate) {
+        await api.updateTraining(initialTraining!.id, {
+          title: values.title,
+          description: values.description || undefined,
+          flow_id: initialTraining.flow_id,
+          ai_flow: initialTraining.ai_flow,
+          access_code: initialTraining.access_code,
+          avatar_id: values.avatar_id || undefined,
+          company_id: initialTraining.organization_id
+        });
+      } else {
+        await api.createTraining({
+          title: values.title,
+          description: values.description || undefined,
+          avatar_id: values.avatar_id || undefined
+        });
+      }
+      
+      reset();
+      router.refresh();
+      onDone?.();
+    } catch (error) {
+      console.error('Training save error:', error);
+      setError('title', { type: 'manual', message: 'Kaydetme sırasında hata oluştu' });
+    }
   };
 
   return (

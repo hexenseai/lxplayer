@@ -3,17 +3,19 @@ import { type TrainingSection } from '@/lib/api';
 import { Mic, MicOff, Volume2, Bot, ArrowLeft, ArrowRight, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@lxplayer/ui';
 import { useAgentConversation } from '../../app/hooks/useAgentConversation';
+import { type ActionPayload, type ActionResponse } from '@/lib/training-llm';
 
 interface LLMAgentPlayerProps {
   section: TrainingSection;
   onComplete: () => void;
   onNavigateNext: () => void;
   onNavigatePrevious: () => void;
+  onLLMAction?: (actionPayload: ActionPayload) => Promise<ActionResponse>;
 }
 
 type ViewState = 'loading' | 'voice-chat' | 'error';
 
-export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigatePrevious }: LLMAgentPlayerProps) {
+export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigatePrevious, onLLMAction }: LLMAgentPlayerProps) {
   const [viewState, setViewState] = useState<ViewState>('loading');
   const [error, setError] = useState<string | null>(null);
 
@@ -94,6 +96,18 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
   const handleToggleRecording = async () => {
     try {
       await toggleRecording();
+      
+      // LLM sistemine action gönder
+      if (onLLMAction) {
+        await onLLMAction({
+          type: isRecording ? 'agent_stop_recording' : 'agent_start_recording',
+          data: {
+            sectionId: section.id,
+            isRecording: !isRecording
+          },
+          timestamp: Date.now()
+        });
+      }
     } catch (err) {
       console.error('Error toggling recording:', err);
       setError('Failed to toggle recording');

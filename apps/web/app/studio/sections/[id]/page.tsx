@@ -363,22 +363,38 @@ export default function SectionEditPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Açıklama</label>
+                <label className="block text-sm font-medium mb-2">
+                  {formData.type === 'llm_interaction' ? 'Etkileşim Açıklaması' : 
+                   formData.type === 'llm_agent' ? 'Agent Rolü ve Görevi' : 
+                   'Açıklama'}
+                </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                   className="w-full p-2 border rounded-md h-24"
-                  placeholder="Bölüm açıklaması"
+                  placeholder={
+                    formData.type === 'llm_interaction' ? 'LLM etkileşiminin açıklamasını yazın' : 
+                    formData.type === 'llm_agent' ? 'Agent\'ın rolünü ve görevini tanımlayın' : 
+                    'Bölüm açıklaması'
+                  }
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Script</label>
+                <label className="block text-sm font-medium mb-2">
+                  {formData.type === 'llm_agent' ? 'Agent Ön Bilgisi' : 
+                   formData.type === 'video' ? 'Script' : 
+                   'İçerik'}
+                </label>
                 <textarea
                   value={formData.script}
                   onChange={(e) => setFormData({...formData, script: e.target.value})}
                   className="w-full p-2 border rounded-md h-32"
-                  placeholder="Bölüm scripti"
+                  placeholder={
+                    formData.type === 'llm_agent' ? 'Agent\'a verilecek ön bilgi ve bağlam bilgilerini yazın' : 
+                    formData.type === 'video' ? 'Bölüm scripti' : 
+                    'Etkileşim içeriği'
+                  }
                 />
               </div>
 
@@ -406,16 +422,46 @@ export default function SectionEditPage() {
                 </div>
               </div>
 
+              {/* Section Type Display */}
               <div>
-                <label className="block text-sm font-medium mb-2">Video Object</label>
-                <input
-                  type="text"
-                  value={formData.video_object}
-                  onChange={(e) => setFormData({...formData, video_object: e.target.value})}
-                  className="w-full p-2 border rounded-md"
-                  placeholder="Video object ID"
-                />
+                <label className="block text-sm font-medium mb-2">Bölüm Türü</label>
+                <div className="p-2 bg-gray-50 border rounded-md">
+                  {formData.type === 'video' && '📹 Video Bölümü'}
+                  {formData.type === 'llm_interaction' && '💬 LLM Etkileşim'}
+                  {formData.type === 'llm_agent' && '🎭 LLM Agent'}
+                </div>
               </div>
+
+              {/* Agent ID field for llm_agent sections */}
+              {formData.type === 'llm_agent' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">ElevenLabs Agent ID</label>
+                  <input
+                    type="text"
+                    value={formData.agent_id}
+                    onChange={(e) => setFormData({...formData, agent_id: e.target.value})}
+                    className="w-full p-2 border rounded-md"
+                    placeholder="agent_2901k5a3e15feg6sjmw44apewq20"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    ElevenLabs Agent ID'sini buraya girin. Boş bırakılırsa default agent kullanılır.
+                  </p>
+                </div>
+              )}
+
+              {/* Video Object field - only show for video sections */}
+              {formData.type === 'video' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Video Object</label>
+                  <input
+                    type="text"
+                    value={formData.video_object}
+                    onChange={(e) => setFormData({...formData, video_object: e.target.value})}
+                    className="w-full p-2 border rounded-md"
+                    placeholder="Video object ID"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -449,60 +495,67 @@ export default function SectionEditPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Video İçerik</label>
-                <AssetSelector
-                  selectedAssetId={formData.asset_id}
-                  onAssetSelect={(asset: Asset | null) => {
-                    console.log('🎥 Asset selected in Studio:', asset);
-                    if (asset && asset.kind === 'video') {
-                      setFormData({
-                        ...formData, 
-                        asset_id: asset.id,
-                        video_object: asset.uri // Otomatik olarak video_object'i asset.uri ile doldur
-                      });
-                      console.log('🎥 Auto-updated video_object to:', asset.uri);
-                    } else {
-                      setFormData({
-                        ...formData, 
-                        asset_id: asset?.id || '',
-                        video_object: '' // Asset seçimi kaldırıldığında video_object'i temizle
-                      });
-                      console.log('🎥 Cleared video_object');
-                    }
-                  }}
-                  assetKind="video"
-                  placeholder="Video içerik seçin"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Sadece video içerikler gösterilir. Seçilen video bölümün içeriği olarak kullanılacak.
-                </p>
-              </div>
+              {/* Video content fields - only show for video sections */}
+              {formData.type === 'video' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Video İçerik</label>
+                    <AssetSelector
+                      selectedAssetId={formData.asset_id}
+                      onAssetSelect={(asset: Asset | null) => {
+                        console.log('🎥 Asset selected in Studio:', asset);
+                        if (asset && asset.kind === 'video') {
+                          setFormData({
+                            ...formData, 
+                            asset_id: asset.id,
+                            video_object: asset.uri // Otomatik olarak video_object'i asset.uri ile doldur
+                          });
+                          console.log('🎥 Auto-updated video_object to:', asset.uri);
+                        } else {
+                          setFormData({
+                            ...formData, 
+                            asset_id: asset?.id || '',
+                            video_object: '' // Asset seçimi kaldırıldığında video_object'i temizle
+                          });
+                          console.log('🎥 Cleared video_object');
+                        }
+                      }}
+                      assetKind="video"
+                      placeholder="Video içerik seçin"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Sadece video içerikler gösterilir. Seçilen video bölümün içeriği olarak kullanılacak.
+                    </p>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Ses Dosyası (Dublaj/Çeviri)</label>
-                <AssetSelector
-                  selectedAssetId={formData.audio_asset_id}
-                  onAssetSelect={(asset: Asset | null) => {
-                    setFormData({...formData, audio_asset_id: asset?.id || ''});
-                  }}
-                  assetKind="audio"
-                  placeholder="Ses dosyası seçin (opsiyonel)"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Video için farklı dilde seslendirme veya dublaj dosyası. Video sesini kapatıp bu ses dosyası ile oynatabilirsiniz.
-                </p>
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Ses Dosyası (Dublaj/Çeviri)</label>
+                    <AssetSelector
+                      selectedAssetId={formData.audio_asset_id}
+                      onAssetSelect={(asset: Asset | null) => {
+                        setFormData({...formData, audio_asset_id: asset?.id || ''});
+                      }}
+                      assetKind="audio"
+                      placeholder="Ses dosyası seçin (opsiyonel)"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Video için farklı dilde seslendirme veya dublaj dosyası. Video sesini kapatıp bu ses dosyası ile oynatabilirsiniz.
+                    </p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
 
         <div className="space-y-4">
-          {/* Video Preview */}
-          <VideoPreview 
-            assetId={formData.asset_id} 
-            className="mb-4"
-          />
+          {/* Video Preview - only show for video sections */}
+          {formData.type === 'video' && (
+            <VideoPreview 
+              assetId={formData.asset_id} 
+              className="mb-4"
+            />
+          )}
           
           <Card>
             <CardHeader>
@@ -517,15 +570,39 @@ export default function SectionEditPage() {
                 {saving ? 'Kaydediliyor...' : 'Kaydet'}
               </Button>
               
-              <Button 
-                variant="outline"
-                onClick={handleGenerateTranscript}
-                disabled={!formData.asset_id || transcriptLoading}
-                className="w-full"
-              >
-                {transcriptLoading ? 'Transcript Oluşturuluyor...' : 'Transcript Oluştur'}
-              </Button>
+              {/* Video-specific actions */}
+              {formData.type === 'video' && (
+                <>
+                  <Button 
+                    variant="outline"
+                    onClick={handleGenerateTranscript}
+                    disabled={!formData.asset_id || transcriptLoading}
+                    className="w-full"
+                  >
+                    {transcriptLoading ? 'Transcript Oluşturuluyor...' : 'Transcript Oluştur'}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={() => setShowHeyGenModal(true)}
+                    disabled={!formData.script.trim()}
+                    className="w-full bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                  >
+                    Script'ten Video Oluştur
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={handleDubAudio}
+                    disabled={!formData.script.trim() || dubbingLoading}
+                    className="w-full bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                  >
+                    {dubbingLoading ? 'Seslendirme Oluşturuluyor...' : 'Farklı Bir Dilde Seslendir'}
+                  </Button>
+                </>
+              )}
               
+              {/* General actions */}
               <Button 
                 variant="outline"
                 onClick={handleGenerateDescription}
@@ -535,39 +612,26 @@ export default function SectionEditPage() {
                 {descriptionLoading ? 'Açıklama Oluşturuluyor...' : 'Açıklama Oluştur'}
               </Button>
               
-              <Button 
-                variant="outline"
-                onClick={() => setShowHeyGenModal(true)}
-                disabled={!formData.script.trim()}
-                className="w-full bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
-              >
-                Script'ten Video Oluştur
-              </Button>
-              
-              <Button 
-                variant="outline"
-                onClick={handleDubAudio}
-                disabled={!formData.script.trim() || dubbingLoading}
-                className="w-full bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-              >
-                {dubbingLoading ? 'Seslendirme Oluşturuluyor...' : 'Farklı Bir Dilde Seslendir'}
-              </Button>
-              
-              <Button 
-                variant="outline"
-                onClick={() => router.push(`/studio/sections/${sectionId}/overlays`)}
-                className="w-full"
-              >
-                Overlay'leri Yönet
-              </Button>
-              
-              <Button 
-                variant="outline"
-                onClick={() => router.push(`/studio/sections/${sectionId}/frame-configs`)}
-                className="w-full"
-              >
-                Frame Config'leri
-              </Button>
+              {/* Video-specific navigation */}
+              {formData.type === 'video' && (
+                <>
+                  <Button 
+                    variant="outline"
+                    onClick={() => router.push(`/studio/sections/${sectionId}/overlays`)}
+                    className="w-full"
+                  >
+                    Overlay'leri Yönet
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={() => router.push(`/studio/sections/${sectionId}/frame-configs`)}
+                    className="w-full"
+                  >
+                    Frame Config'leri
+                  </Button>
+                </>
+              )}
               
               {dubbingError && (
                 <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">

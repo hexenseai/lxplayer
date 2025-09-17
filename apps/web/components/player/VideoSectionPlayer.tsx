@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { VideoFrame } from './VideoFrame';
 import { OverlayManager, OverlayComponent } from './Overlay';
 import { type TrainingSection } from '@/lib/api';
-import { Play, Pause, Volume2, VolumeX, Send } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Send, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { type ActionPayload, type ActionResponse } from '@/lib/training-llm';
+import { api } from '@/lib/api';
 
 interface VideoSectionPlayerProps {
   section: TrainingSection;
@@ -18,6 +20,11 @@ interface VideoSectionPlayerProps {
   onTrackOverlayClick: (overlayId: string, overlayType: string, caption: string) => void;
   onTrackUserMessage: (message: string) => void;
   onTrackAssistantMessage: (message: string) => void;
+  onLLMAction?: (actionPayload: ActionPayload) => Promise<ActionResponse>;
+  // LLM Chat props
+  sessionId?: string;
+  accessCode?: string;
+  userId?: string;
 }
 
 function buildVideoUrl(section: TrainingSection): string | undefined {
@@ -53,7 +60,11 @@ export function VideoSectionPlayer({
   onTrackVideoSeek,
   onTrackOverlayClick,
   onTrackUserMessage,
-  onTrackAssistantMessage
+  onTrackAssistantMessage,
+  onLLMAction,
+  sessionId,
+  accessCode,
+  userId
 }: VideoSectionPlayerProps) {
   const playerRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -71,6 +82,7 @@ export function VideoSectionPlayer({
   const [chatInput, setChatInput] = useState<string>('');
   const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
   const [overlaySuggestions, setOverlaySuggestions] = useState<Array<{ overlay_id?: string; caption?: string; time_seconds?: number }>>([]);
+  
   
   // Overlay states
   const [overlayPaused, setOverlayPaused] = useState<boolean>(false);
@@ -232,9 +244,14 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
     } catch {}
   }, [chatMessages, chatOpen]);
 
-  const sendUserMessage = (text: string) => {
+  const sendUserMessage = async (text: string) => {
     const msg = (text || '').trim();
     if (!msg) return;
+    
+    // Add user message to chat
+    setChatMessages(m => [...m, { type: 'user', content: msg, ts: Date.now() }]);
+    onTrackUserMessage(msg);
+    setChatInput('');
     
     // Check if this is a video ended response
     const isVideoEndedResponse = msg.toLowerCase().includes('devam et') || 
@@ -249,16 +266,70 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
           setIsPlaying(true);
           setChatOpen(false);
         }
+        return;
       } else if (msg.toLowerCase().includes('devam et') || msg.toLowerCase().includes('sonraki')) {
+        // Use LLM API for navigation
+        if (sessionId) {
+          try {
+            const response = await api.sendMessageToLLM(sessionId, msg, 'user');
+            
+            // Add LLM response to chat
+            setChatMessages(m => [...m, { 
+              type: 'ai', 
+              content: response.message, 
+              ts: Date.now() 
+            }]);
+            onTrackAssistantMessage(response.message);
+            
+            // Handle LLM actions
+            if (response.actions && response.actions.length > 0) {
+              for (const action of response.actions) {
+                if (onLLMAction) {
+                  await onLLMAction(action);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('❌ Failed to send message to LLM:', error);
+          }
+        }
+        return;
+      }
+    }
+    
+    // Use LLM API for regular messages
+    if (sessionId) {
+      try {
+        const response = await api.sendMessageToLLM(sessionId, msg, 'user');
+        
+        // Add LLM response to chat
+        setChatMessages(m => [...m, { 
+          type: 'ai', 
+          content: response.message, 
+          ts: Date.now() 
+        }]);
+        onTrackAssistantMessage(response.message);
+        
+        // Update suggestions
+        setChatSuggestions(response.suggestions || []);
+        
+        // Handle LLM actions
+        if (response.actions && response.actions.length > 0) {
+          for (const action of response.actions) {
+            if (onLLMAction) {
+              await onLLMAction(action);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Failed to send message to LLM:', error);
+        // Fallback to old WebSocket system if LLM fails
         try { wsRef.current?.send(JSON.stringify({ type: 'user_message', content: msg })); } catch {}
       }
     } else {
+      // Fallback to old WebSocket system if no session
       try { wsRef.current?.send(JSON.stringify({ type: 'user_message', content: msg })); } catch {}
     }
-    
-    setChatMessages(m => [...m, { type: 'user', content: msg, ts: Date.now() }]);
-    onTrackUserMessage(msg);
-    setChatInput('');
   };
 
   const openChatWindow = () => {
@@ -300,8 +371,8 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
   }
 
   return (
-    <div className="w-full h-full bg-gray-900 flex flex-col">
-      <div className="flex-1 relative" style={{ aspectRatio: '16/9' }}>
+    <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-6xl relative" style={{ aspectRatio: '16/9' }}>
         {/* Training Title Overlay - Show when chat is open */}
         {chatOpen && (
           <div className="absolute top-3 left-3 z-30 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 text-white">
@@ -617,9 +688,32 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
       </div>
 
       {/* Video Controls */}
-      <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-lg p-3">
+      <div className="w-full max-w-6xl flex items-center gap-3 bg-white/5 border border-white/10 rounded-lg p-3">
         <button
-          onClick={() => setIsPlaying(p => !p)}
+          onClick={async () => {
+            const newPlayingState = !isPlaying;
+            setIsPlaying(newPlayingState);
+            
+            // LLM sistemine action gönder
+            if (onLLMAction) {
+              await onLLMAction({
+                type: newPlayingState ? 'video_play' : 'video_pause',
+                data: {
+                  sectionId: section.id,
+                  currentTime: currentTime,
+                  isPlaying: newPlayingState
+                },
+                timestamp: Date.now()
+              });
+            }
+            
+            // Tracking
+            if (newPlayingState) {
+              onTrackVideoPlay();
+            } else {
+              onTrackVideoPause();
+            }
+          }}
           className="p-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
           title={isPlaying ? 'Durdur' : 'Oynat'}
         >
@@ -658,7 +752,9 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
           {Math.floor(currentTime)}s {duration ? `/ ${duration}s` : ''}
         </div>
       </div>
+
     </div>
   );
+
 }
 

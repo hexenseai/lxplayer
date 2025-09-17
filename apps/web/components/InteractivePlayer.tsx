@@ -5,6 +5,7 @@ import { LLMInteractionPlayer } from './player/LLMInteractionPlayer';
 import { VideoSectionPlayer } from './player/VideoSectionPlayer';
 import { api, type TrainingSection, type CompanyTraining } from '@/lib/api';
 import { useInteractionTracking } from '@/hooks/useInteractionTracking';
+// LLM System removed - using REST API instead
 
 interface InteractivePlayerProps {
   accessCode: string;
@@ -15,6 +16,9 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   const loadingRef = useRef<boolean>(false);
   const sectionsRef = useRef<any[]>([]);
   const currentSectionRef = useRef<any>(null);
+  
+  // REST API Session management
+  const [interactionSessionId, setInteractionSessionId] = useState<string | null>(null);
   
   // Helper function to update both state and ref
   const updateCurrentSection = (section: any) => {
@@ -33,6 +37,11 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   const [trainingAvatar, setTrainingAvatar] = useState<any>(null);
   const [currentSection, setCurrentSection] = useState<any | null>(null);
   const [overlays, setOverlays] = useState<any[]>([]);
+
+  // REST API state
+  const [isSessionReady, setIsSessionReady] = useState<boolean>(false);
+  const [currentSectionHandler, setCurrentSectionHandler] = useState<any>(null);
+  const [flowAnalysis, setFlowAnalysis] = useState<any>(null);
   
   // Interaction tracking hook
   const {
@@ -73,10 +82,52 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
       trackTrainingStart();
       
       console.log('✅ Session created:', newSessionId);
+      
+      // REST API session'ı başlat
+      await initializeRestAPISession(trainingId, newSessionId);
     } catch (error) {
       console.error('❌ Failed to create session:', error);
     } finally {
       sessionCreateInFlightRef.current = false;
+    }
+  };
+
+  // REST API session'ı başlat
+  const initializeRestAPISession = async (trainingId: string, sessionId: string) => {
+    try {
+      console.log('🔄 Initializing REST API session...');
+      
+      // Interaction session oluştur - current_section_id'yi gönderme
+      const sessionData = {
+        training_id: trainingId,
+        user_id: userId || 'anonymous',
+        access_code: accessCode
+      };
+      
+      console.log('🔍 Sending session data:', sessionData);
+      
+      const interactionSession = await api.createInteractionSession(sessionData);
+      
+      setInteractionSessionId(interactionSession.id);
+      setIsSessionReady(true);
+      
+      // Flow analysis'ı yükle
+      await loadFlowAnalysis(interactionSession.id);
+      
+      console.log('✅ REST API session initialized:', interactionSession.id);
+    } catch (error) {
+      console.error('❌ Failed to initialize REST API session:', error);
+    }
+  };
+
+  const loadFlowAnalysis = async (sessionId: string) => {
+    try {
+      console.log('🔄 Loading flow analysis...');
+      const analysis = await api.getFlowAnalysis(sessionId);
+      setFlowAnalysis(analysis);
+      console.log('✅ Flow analysis loaded:', analysis);
+    } catch (error) {
+      console.error('❌ Failed to load flow analysis:', error);
     }
   };
 
@@ -90,6 +141,18 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
       console.log('setFrame called:', frame);
     }
   }));
+
+  // Cleanup on unmount - MUST be before other useEffect hooks
+  useEffect(() => {
+    return () => {
+      // REST API session cleanup
+      if (interactionSessionId) {
+        console.log('🧹 Cleaning up REST API session:', interactionSessionId);
+        // Session'ı abandon et (soft delete)
+        api.updateInteractionSession(interactionSessionId, { status: 'abandoned' }).catch(console.error);
+      }
+    };
+  }, []);
 
   // Load training data
   useEffect(() => {
@@ -210,6 +273,11 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
         
         // Create session for tracking
         createSession(trainingId);
+        
+        // REST API session ile section handler'ı başlat
+        if (isSessionReady && interactionSessionId) {
+          await initializeSectionHandler(currentSection);
+        }
       } catch (e) {
         console.error('Overlay update error:', e);
       }
@@ -217,26 +285,115 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     
     loadSectionOverlays();
     console.log('🔄 Current section changed:', currentSection);
-  }, [currentSection, companyTraining, accessCode]);
+  }, [currentSection, companyTraining, accessCode, isSessionReady, interactionSessionId]);
 
-  // Navigation functions
-  const safeNavigateNext = (reason?: string) => {
+  // Section handler'ı başlat (REST API için basitleştirilmiş)
+  const initializeSectionHandler = async (section: any) => {
+    try {
+      console.log('🎯 Initializing section handler for:', section.title);
+      
+      if (!interactionSessionId) return;
+      
+      // Section progress'ı güncelle
+      await api.updateSectionProgress(interactionSessionId, section.id, {
+        status: 'in_progress',
+        started_at: new Date().toISOString()
+      });
+      
+      console.log('✅ Section handler initialized:', section.type);
+    } catch (error) {
+      console.error('❌ Failed to initialize section handler:', error);
+    }
+  };
+
+  // Navigation functions with REST API integration
+  const safeNavigateNext = async (reason?: string) => {
     const idx = sectionsRef.current.findIndex(s => s.id === currentSectionRef.current?.id);
     if (idx >= 0 && idx < sectionsRef.current.length - 1) {
       const next = sectionsRef.current[idx + 1];
+      
+      // Current section'ı tamamlandı olarak işaretle
+      if (interactionSessionId && currentSectionRef.current) {
+        try {
+          await api.updateSectionProgress(interactionSessionId, currentSectionRef.current.id, {
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('❌ Failed to update section progress:', error);
+        }
+      }
+      
       updateCurrentSection(next);
       trackSectionChange(next.id, next.title);
       trackNavigation('navigate_next', next.id, reason);
     }
   };
 
-  const safeNavigatePrevious = (reason?: string) => {
+  const safeNavigatePrevious = async (reason?: string) => {
     const idx = sectionsRef.current.findIndex(s => s.id === currentSectionRef.current?.id);
     if (idx > 0) {
       const prev = sectionsRef.current[idx - 1];
+      
+      // Current section'ı tamamlandı olarak işaretle
+      if (interactionSessionId && currentSectionRef.current) {
+        try {
+          await api.updateSectionProgress(interactionSessionId, currentSectionRef.current.id, {
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('❌ Failed to update section progress:', error);
+        }
+      }
+      
       updateCurrentSection(prev);
       trackSectionChange(prev.id, prev.title);
       trackNavigation('navigate_previous', prev.id, reason);
+    }
+  };
+
+  // REST API action handler
+  const handleLLMAction = async (actionPayload: any) => {
+    if (!interactionSessionId) {
+      return { success: false, message: 'Session not ready' };
+    }
+
+    try {
+      console.log('🔄 Processing LLM action:', actionPayload);
+      
+      // Action tipine göre farklı işlemler yap
+      switch (actionPayload.type) {
+        case 'navigate_next':
+          console.log('🚀 LLM requested: Navigate to next section');
+          safeNavigateNext('LLM requested navigation to next section');
+          break;
+          
+        case 'navigate_previous':
+          console.log('🚀 LLM requested: Navigate to previous section');
+          safeNavigatePrevious('LLM requested navigation to previous section');
+          break;
+          
+        case 'video_play':
+        case 'video_pause':
+          // Video actions için tracking
+          console.log('🎥 LLM requested video action:', actionPayload.type);
+          break;
+          
+        case 'agent_start_recording':
+        case 'agent_stop_recording':
+          // Agent actions için tracking
+          console.log('🎤 LLM requested agent action:', actionPayload.type);
+          break;
+          
+        default:
+          console.log('🔧 Unknown LLM action type:', actionPayload.type);
+      }
+      
+      return { success: true, message: 'Action processed' };
+    } catch (error) {
+      console.error('❌ Failed to process action:', error);
+      return { success: false, message: 'Action processing failed' };
     }
   };
 
@@ -258,12 +415,26 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
         return (
           <LLMAgentPlayer
             section={currentSection}
-            onComplete={() => {
+            onComplete={async () => {
               console.log('🤖 LLM Agent section completed');
+              
+              // Section completion action'ı gönder (REST API)
+              if (handleLLMAction) {
+                await handleLLMAction({
+                  type: 'section_complete',
+                  data: {
+                    sectionId: currentSection.id,
+                    sectionType: 'llm_agent'
+                  },
+                  timestamp: Date.now()
+                });
+              }
+              
               safeNavigateNext('LLM Agent completed');
             }}
             onNavigateNext={() => safeNavigateNext('User requested next section')}
             onNavigatePrevious={() => safeNavigatePrevious('User requested previous section')}
+            onLLMAction={handleLLMAction}
           />
         );
         
@@ -273,10 +444,15 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             section={currentSection}
             trainingTitle={trainingTitle}
             trainingAvatar={trainingAvatar}
+            accessCode={accessCode}
+            userId={userId}
+            sessionId={interactionSessionId}
+            flowAnalysis={flowAnalysis}
             onNavigateNext={() => safeNavigateNext('User requested next section')}
             onNavigatePrevious={() => safeNavigatePrevious('User requested previous section')}
             onTrackUserMessage={trackUserMessage}
             onTrackAssistantMessage={trackAssistantMessage}
+            onLLMAction={handleLLMAction}
           />
         );
         
@@ -296,6 +472,10 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             onTrackOverlayClick={trackOverlayClick}
             onTrackUserMessage={trackUserMessage}
             onTrackAssistantMessage={trackAssistantMessage}
+            onLLMAction={handleLLMAction}
+            sessionId={interactionSessionId}
+            accessCode={accessCode}
+            userId={userId}
           />
         );
     }
@@ -314,6 +494,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
           </div>
         </div>
       )}
+      
     </div>
   );
 });

@@ -307,3 +307,74 @@ class Embedding(SQLModel, table=True):
     owner_kind: str = Field(description="asset|overlay|rubric|training")
     owner_id: str
     vector: bytes = Field(description="binary or serialized vector")
+
+
+class InteractionSession(SQLModel, table=True):
+    """LLM Interaction için özel session yönetimi"""
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    training_id: str = Field(foreign_key="training.id")
+    user_id: str = Field(foreign_key="user.id")
+    access_code: str = Field(description="Training access code")
+    current_section_id: Optional[str] = Field(default=None, foreign_key="trainingsection.id")
+    status: str = Field(default="active", description="active|completed|paused|abandoned")
+    created_at: datetime = Field(default_factory=auto_now)
+    updated_at: datetime = Field(default_factory=auto_now)
+    last_activity_at: datetime = Field(default_factory=auto_now)
+    
+    # Training progress tracking
+    total_time_spent: int = Field(default=0, description="Total time spent in seconds")
+    interactions_count: int = Field(default=0, description="Total number of interactions")
+    completion_percentage: float = Field(default=0.0, description="Training completion percentage")
+    
+    # LLM context and state
+    llm_context_json: str = Field(default="{}", description="Current LLM context as JSON")
+    current_phase: str = Field(default="greeting", description="greeting|interaction|completion")
+    
+    # Metadata
+    metadata_json: str = Field(default="{}", description="Additional session metadata")
+
+
+class InteractionMessage(SQLModel, table=True):
+    """LLM interaction mesajları"""
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    session_id: str = Field(foreign_key="interactionsession.id")
+    message: str = Field(description="The actual message content")
+    message_type: str = Field(description="user|assistant|system")
+    
+    # LLM processing data
+    llm_context_json: Optional[str] = Field(default=None, description="Context sent to LLM")
+    llm_response_json: Optional[str] = Field(default=None, description="Full LLM response")
+    llm_model: Optional[str] = Field(default=None, description="LLM model used")
+    processing_time_ms: Optional[int] = Field(default=None, description="LLM processing time")
+    
+    # Suggestions and actions
+    suggestions_json: str = Field(default="[]", description="Suggested responses as JSON array")
+    actions_json: str = Field(default="[]", description="Available actions as JSON array")
+    
+    # Timestamps
+    timestamp: datetime = Field(default_factory=auto_now)
+    
+    # Metadata
+    metadata_json: str = Field(default="{}", description="Additional message metadata")
+
+
+class SectionProgress(SQLModel, table=True):
+    """Bölüm bazlı ilerleme takibi"""
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    session_id: str = Field(foreign_key="interactionsession.id")
+    section_id: str = Field(foreign_key="trainingsection.id")
+    user_id: str = Field(foreign_key="user.id")
+    
+    # Progress tracking
+    status: str = Field(default="not_started", description="not_started|in_progress|completed|skipped")
+    time_spent: int = Field(default=0, description="Time spent in this section (seconds)")
+    interactions_count: int = Field(default=0, description="Number of interactions in this section")
+    completion_percentage: float = Field(default=0.0, description="Section completion percentage")
+    
+    # Timestamps
+    started_at: Optional[datetime] = Field(default=None)
+    completed_at: Optional[datetime] = Field(default=None)
+    last_accessed_at: datetime = Field(default_factory=auto_now)
+    
+    # Section-specific data
+    section_data_json: str = Field(default="{}", description="Section-specific progress data")

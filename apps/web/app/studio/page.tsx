@@ -6,6 +6,7 @@ import { useUser } from '@/hooks/useUser';
 import { api, Training as TrainingT, TrainingSection } from '@/lib/api';
 import { TrainingSectionForm } from './components/TrainingSectionForm';
 import FlowEditor from './components/FlowEditor';
+import { TrainingForm } from '@/components/admin/forms/TrainingForm';
 import { LANGUAGES, TARGET_AUDIENCES } from '@/lib/constants';
 
 export default function StudioPage() {
@@ -20,6 +21,8 @@ export default function StudioPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateSectionForm, setShowCreateSectionForm] = useState(false);
   const [showFlowEditor, setShowFlowEditor] = useState(false);
+  const [showTrainingEditModal, setShowTrainingEditModal] = useState(false);
+  const [editingTraining, setEditingTraining] = useState<TrainingT | null>(null);
 
   useEffect(() => {
     if (isSuperAdmin || isAdmin) {
@@ -164,6 +167,26 @@ export default function StudioPage() {
     setSelectedTraining(training);
     setSections([]);
     router.push(`/studio?trainingId=${training.id}`);
+  };
+
+  const handleEditTraining = async (training: TrainingT) => {
+    try {
+      // Always fetch fresh data when opening the modal
+      const freshTraining = await api.getTraining(training.id);
+      setEditingTraining(freshTraining);
+      setShowTrainingEditModal(true);
+    } catch (error) {
+      console.error('Error loading training data:', error);
+      // Fallback to the training data we have
+      setEditingTraining(training);
+      setShowTrainingEditModal(true);
+    }
+  };
+
+  const handleTrainingEditComplete = () => {
+    setShowTrainingEditModal(false);
+    setEditingTraining(null);
+    loadTrainings(); // Reload trainings to get updated data
   };
 
   const handleBackToTrainings = () => {
@@ -399,7 +422,7 @@ export default function StudioPage() {
               </div>
               <div className="flex space-x-2">
                 <button
-                  onClick={() => router.push(`/studio?trainingId=${training.id}`)}
+                  onClick={() => handleEditTraining(training)}
                   className="text-blue-600 hover:text-blue-900 text-sm"
                 >
                   Düzenle
@@ -408,6 +431,26 @@ export default function StudioPage() {
             </div>
             
             <div className="mb-4">
+              {training.avatar && (
+                <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                  <div className="w-3 h-3 bg-pink-100 rounded-full flex items-center justify-center">
+                    <svg className="w-2 h-2 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <span>Avatar: {training.avatar.name}</span>
+                </div>
+              )}
+              {training.avatar_id && !training.avatar && (
+                <div className="text-xs text-red-500 mb-1">
+                  Avatar ID: {training.avatar_id} (Avatar bulunamadı)
+                </div>
+              )}
+              {!training.avatar_id && !training.avatar && (
+                <div className="text-xs text-gray-400 mb-1">
+                  Avatar: Seçilmemiş
+                </div>
+              )}
               {training.flow_id && (
                 <div className="text-xs text-gray-500 mb-1">
                   Flow ID: {training.flow_id}
@@ -490,6 +533,29 @@ export default function StudioPage() {
           </div>
         </div>
       </div>
+
+      {/* Training Edit Modal */}
+      {showTrainingEditModal && editingTraining && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Eğitimi Düzenle</h2>
+              <button
+                onClick={() => setShowTrainingEditModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <TrainingForm 
+              initialTraining={editingTraining} 
+              onDone={handleTrainingEditComplete}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

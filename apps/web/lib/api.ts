@@ -257,9 +257,9 @@ export const api = {
   // trainings
   listTrainings: () => request('/trainings', z.array(Training)),
   getTraining: (id: string) => request(`/trainings/${id}`, Training),
-  createTraining: (input: { title: string; description?: string; flow_id?: string | null; access_code?: string | null; company_id?: string | null }) =>
+  createTraining: (input: { title: string; description?: string; flow_id?: string | null; access_code?: string | null; avatar_id?: string | null; company_id?: string | null }) =>
     request('/trainings', Training, { method: 'POST', body: JSON.stringify(input) }),
-  updateTraining: (id: string, input: { title: string; description?: string; flow_id?: string | null; ai_flow?: string | null; access_code?: string | null; company_id?: string | null }) =>
+  updateTraining: (id: string, input: { title: string; description?: string; flow_id?: string | null; ai_flow?: string | null; access_code?: string | null; avatar_id?: string | null; company_id?: string | null }) =>
     request(`/trainings/${id}`, Training, { method: 'PUT', body: JSON.stringify(input) }),
   deleteTraining: (id: string) => request(`/trainings/${id}`, z.object({ ok: z.boolean() }), { method: 'DELETE' }),
   
@@ -680,6 +680,221 @@ export const api = {
         total_interactions: z.number(),
         chat_interactions: z.number(),
         navigation_interactions: z.number()
+      })
+    })
+  ),
+
+  // ===== INTERACTION SESSION API =====
+  
+  createInteractionSession: (data: {
+    training_id: string;
+    user_id: string;
+    access_code: string;
+    current_section_id?: string;
+  }) => request(
+    `/api/interaction-sessions/`,
+    z.object({
+      id: z.string(),
+      training_id: z.string(),
+      user_id: z.string(),
+      access_code: z.string(),
+      current_section_id: z.string().nullable().optional(),
+      status: z.string(),
+      created_at: z.string(),
+      updated_at: z.string(),
+      last_activity_at: z.string(),
+      total_time_spent: z.number(),
+      interactions_count: z.number(),
+      completion_percentage: z.number(),
+      llm_context_json: z.string(),
+      current_phase: z.string(),
+      metadata_json: z.string()
+    }),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }
+  ),
+
+  getInteractionSession: (sessionId: string) => request(
+    `/api/interaction-sessions/${sessionId}`,
+    z.object({
+      id: z.string(),
+      training_id: z.string(),
+      user_id: z.string(),
+      access_code: z.string(),
+      current_section_id: z.string().nullable().optional(),
+      status: z.string(),
+      created_at: z.string(),
+      updated_at: z.string(),
+      last_activity_at: z.string(),
+      total_time_spent: z.number(),
+      interactions_count: z.number(),
+      completion_percentage: z.number(),
+      llm_context_json: z.string(),
+      current_phase: z.string(),
+      metadata_json: z.string()
+    })
+  ),
+
+  updateInteractionSession: (sessionId: string, data: {
+    current_section_id?: string;
+    status?: string;
+    current_phase?: string;
+    total_time_spent?: number;
+    interactions_count?: number;
+    completion_percentage?: number;
+  }) => request(
+    `/api/interaction-sessions/${sessionId}`,
+    z.object({
+      id: z.string(),
+      training_id: z.string(),
+      user_id: z.string(),
+      access_code: z.string(),
+      current_section_id: z.string().nullable().optional(),
+      status: z.string(),
+      created_at: z.string(),
+      updated_at: z.string(),
+      last_activity_at: z.string(),
+      total_time_spent: z.number(),
+      interactions_count: z.number(),
+      completion_percentage: z.number(),
+      llm_context_json: z.string(),
+      current_phase: z.string(),
+      metadata_json: z.string()
+    }),
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }
+  ),
+
+  sendMessageToLLM: (sessionId: string, message: string, messageType: string = 'user') => request(
+    `/api/interaction-sessions/${sessionId}/messages`,
+    z.object({
+      message: z.string(),
+      suggestions: z.array(z.string()),
+      actions: z.array(z.any()),
+      session_id: z.string(),
+      timestamp: z.string(),
+      processing_time_ms: z.number().nullable().optional()
+    }),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, message_type: messageType })
+    }
+  ),
+
+  getSessionMessages: (sessionId: string, limit?: number, offset?: number) => request(
+    `/api/interaction-sessions/${sessionId}/messages?limit=${limit || 50}&offset=${offset || 0}`,
+    z.array(z.object({
+      id: z.string(),
+      session_id: z.string(),
+      message: z.string(),
+      message_type: z.string(),
+      llm_context_json: z.string().nullable().optional(),
+      llm_response_json: z.string().nullable().optional(),
+      llm_model: z.string().nullable().optional(),
+      processing_time_ms: z.number().nullable().optional(),
+      suggestions_json: z.string(),
+      actions_json: z.string(),
+      timestamp: z.string(),
+      metadata_json: z.string()
+    }))
+  ),
+
+  getSessionProgress: (sessionId: string) => request(
+    `/api/interaction-sessions/${sessionId}/progress`,
+    z.object({
+      training_id: z.string(),
+      user_id: z.string(),
+      session_id: z.string(),
+      total_sections: z.number(),
+      completed_sections: z.number(),
+      current_section_id: z.string().nullable().optional(),
+      completion_percentage: z.number(),
+      total_time_spent: z.number(),
+      total_interactions: z.number(),
+      last_accessed_at: z.string(),
+      sections_progress: z.array(z.object({
+        id: z.string(),
+        session_id: z.string(),
+        section_id: z.string(),
+        user_id: z.string(),
+        status: z.string(),
+        time_spent: z.number(),
+        interactions_count: z.number(),
+        completion_percentage: z.number(),
+        started_at: z.string().nullable().optional(),
+        completed_at: z.string().nullable().optional(),
+        last_accessed_at: z.string(),
+        section_data_json: z.string()
+      }))
+    })
+  ),
+
+  updateSectionProgress: (sessionId: string, sectionId: string, data: {
+    status?: string;
+    time_spent?: number;
+    interactions_count?: number;
+    completion_percentage?: number;
+    started_at?: string;
+    completed_at?: string;
+  }) => request(
+    `/api/interaction-sessions/${sessionId}/sections/${sectionId}/progress`,
+    z.object({
+      id: z.string(),
+      session_id: z.string(),
+      section_id: z.string(),
+      user_id: z.string(),
+      status: z.string(),
+      time_spent: z.number(),
+      interactions_count: z.number(),
+      completion_percentage: z.number(),
+      started_at: z.string().nullable().optional(),
+      completed_at: z.string().nullable().optional(),
+      last_accessed_at: z.string(),
+      section_data_json: z.string()
+    }),
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }
+  ),
+
+  // ===== FLOW ANALYSIS API =====
+
+  getFlowAnalysis: (sessionId: string) => request(
+    `/api/interaction-sessions/${sessionId}/flow-analysis`,
+    z.object({
+      current_node: z.any().nullable().optional(),
+      possible_paths: z.array(z.any()),
+      user_progress: z.object({
+        completion_percentage: z.number(),
+        interactions_count: z.number(),
+        time_spent: z.number(),
+        current_phase: z.string(),
+        recent_activity: z.number(),
+        engagement_level: z.string()
+      }),
+      recommendations: z.object({
+        suggested_next_action: z.string().nullable().optional(),
+        alternative_paths: z.array(z.any()),
+        flow_guidance: z.string(),
+        user_guidance: z.string()
+      }),
+      flow_data: z.any().nullable().optional(),
+      session_context: z.object({
+        session_id: z.string(),
+        current_section_id: z.string().nullable().optional(),
+        status: z.string(),
+        phase: z.string(),
+        interactions_count: z.number(),
+        completion_percentage: z.number()
       })
     })
   ),

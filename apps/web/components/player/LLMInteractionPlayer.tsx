@@ -2,315 +2,391 @@ import React, { useEffect, useRef, useState } from 'react';
 import { type TrainingSection } from '@/lib/api';
 import { Send, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@lxplayer/ui';
+import { api } from '@/lib/api';
 
 interface LLMInteractionPlayerProps {
   section: TrainingSection;
   trainingTitle: string;
   trainingAvatar: any;
+  accessCode?: string;
+  userId?: string;
+  sessionId?: string | null;
+  flowAnalysis?: any;
   onNavigateNext: () => void;
   onNavigatePrevious: () => void;
   onTrackUserMessage: (message: string) => void;
   onTrackAssistantMessage: (message: string) => void;
+  onLLMAction?: (actionPayload: any) => Promise<any>;
+}
+
+interface ChatMessage {
+  id: string;
+  type: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  suggestions?: string[];
 }
 
 export function LLMInteractionPlayer({ 
   section, 
   trainingTitle, 
   trainingAvatar, 
-  onNavigateNext, 
+  accessCode, 
+  userId, 
+  sessionId,
+  flowAnalysis,
+  onNavigateNext,
   onNavigatePrevious,
   onTrackUserMessage,
-  onTrackAssistantMessage
+  onTrackAssistantMessage,
+  onLLMAction
 }: LLMInteractionPlayerProps) {
-  const [chatMessages, setChatMessages] = useState<Array<{ type: 'user'|'ai'|'system'; content: string; ts: number }>>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
 
-  // WebSocket URL utility
-  const toWsUrl = (apiBase: string) => {
-    if (!apiBase) return (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/chat/ws';
-    const url = new URL(apiBase);
-    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    url.pathname = (url.pathname.replace(/\/+$/, '')) + '/chat/ws';
-    return url.toString();
-  };
-
-  // Initialize WebSocket connection
+  // Load existing messages when session is ready
   useEffect(() => {
-    console.log('🤖 LLM Interaction: Initializing WebSocket connection');
-    
-    const openSocket = () => {
+    if (!sessionId || isInitialized) return;
+
+    const loadMessages = async () => {
       try {
-        const wsUrl = toWsUrl(process.env.NEXT_PUBLIC_API_URL || '');
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
+        console.log('📚 Loading existing messages for session:', sessionId);
         
-        ws.onopen = () => {
-          console.log('✅ LLM Interaction WebSocket connected');
-          // Send initialization message
-          ws.send(JSON.stringify({ 
-            type: 'init', 
-            context: { 
-              sectionId: section.id,
-              sectionType: 'llm_interaction',
-              trainingId: section.training_id 
-            } 
-          }));
-          
-          // Send training context as system message (LLM should not respond to this)
-          setTimeout(() => {
-            ws.send(JSON.stringify({ 
-              type: 'system_message', 
-              content: `# EĞİTİM BİLGİLERİ (Bu bilgilere cevap verme, sadece referans olarak kullan)
-              
-**Eğitim Başlığı:** ${trainingTitle}
-**Bölüm:** ${section.title}
-**Bölüm Açıklaması:** ${section.description || 'Açıklama yok'}
-**Bölüm Türü:** LLM Etkileşim
+        // Load existing messages
+        const messages = await api.getSessionMessages(sessionId);
+        
+        const formattedMessages: ChatMessage[] = messages.map(msg => ({
+          id: msg.id,
+          type: msg.message_type === 'user' ? 'user' : 
+                msg.message_type === 'assistant' ? 'assistant' : 'system',
+          content: msg.message,
+          timestamp: msg.timestamp,
+          suggestions: msg.suggestions_json ? JSON.parse(msg.suggestions_json) : []
+        }));
 
-## GÖREV TALİMATLARI:
-Bu bir ETKİLEŞİM BÖLÜMÜDÜR. Kullanıcı ile aktif olarak iletişim kurmalısın:
+        setChatMessages(formattedMessages);
+        console.log('📚 Loaded messages:', formattedMessages.length);
 
-1. **Görev Odaklı Yaklaşım**: Bu bölümün amacını gerçekleştirmek için kullanıcıya sorular sor
-2. **Aktif Yönlendirme**: Kullanıcıyı görev doğrultusunda yönlendir
-3. **İnteraktif Sohbet**: Sadece cevap verme, sorular sor ve etkileşimi başlat
-4. **Öneriler Sun**: Her mesajında kullanıcıya yapabileceği seçenekler sun
-5. **İlerleme Takibi**: Kullanıcının görevi tamamlayıp tamamlamadığını kontrol et
+        // Send initial greeting if no messages exist
+        if (formattedMessages.length === 0) {
+          await sendInitialGreeting();
+        }
 
-Bu bölümde TTS/STT özellikleri kullanılmamalı, sadece metin tabanlı sohbet yapılmalı.`
-            }));
-          }, 500);
-          
-          // Send initial greeting to trigger LLM interaction
-          setTimeout(() => {
-            ws.send(JSON.stringify({ 
-              type: 'user_message', 
-              content: 'Bu etkileşim bölümüne başlayalım. Lütfen bana bu bölümde ne yapmam gerektiğini açıkla ve ilk adımımı sor.' 
-            }));
-          }, 1500);
-        };
-        
-        ws.onmessage = (ev) => {
-          try {
-            const data = JSON.parse(ev.data);
-            
-            if (data.type === 'assistant_message') {
-              let assistantMessage = '';
-              
-              if (typeof data.content === 'object' && data.content) {
-                assistantMessage = String(data.content.message || '');
-              } else if (typeof data.content === 'string') {
-                assistantMessage = data.content;
-              }
-              
-              if (assistantMessage && assistantMessage.trim()) {
-                setChatMessages(m => [...m, { type: 'ai', content: assistantMessage, ts: Date.now() }]);
-                onTrackAssistantMessage(assistantMessage);
-              }
-              
-              // Handle suggestions
-              if (data.suggestions && data.suggestions.length > 0) {
-                const suggestionTexts = data.suggestions.map((s: any) => s.text || s).filter(Boolean);
-                if (suggestionTexts.length > 0) {
-                  setChatSuggestions(suggestionTexts);
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-          }
-        };
-        
-        ws.onerror = (error) => {
-          console.error('❌ LLM Interaction WebSocket error:', error);
-        };
-        
-        ws.onclose = () => {
-          console.log('🔌 LLM Interaction WebSocket closed');
-          wsRef.current = null;
-        };
+        setIsInitialized(true);
       } catch (error) {
-        console.error('Error creating WebSocket:', error);
+        console.error('❌ Failed to load messages:', error);
+        setIsInitialized(true); // Still mark as initialized to prevent infinite loop
       }
     };
-    
-    openSocket();
-    
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
+
+    loadMessages();
+  }, [sessionId, isInitialized]);
+
+  // Send initial greeting
+  const sendInitialGreeting = async () => {
+    if (!sessionId) return;
+
+    try {
+      let initialMessage = '';
+      
+      if (section.description || section.script) {
+        initialMessage = `Bu etkileşim bölümünde yukarıdaki açıklama ve script içeriğini kullanarak benimle etkileşim kur. Bölümün özel amacına uygun şekilde başla.`;
+      } else {
+        initialMessage = 'Merhaba! Etkileşim bölümüne hoş geldiniz. Lütfen kendinizi tanıtın ve eğitim hakkındaki beklentilerinizi paylaşın.';
       }
-    };
-  }, [section.id, section.training_id]);
 
-  // Auto-scroll chat to the latest message
-  useEffect(() => {
-    try {
-      const el = messagesScrollRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
-    } catch {}
-  }, [chatMessages]);
+      console.log('📤 Sending initial greeting...');
+      const response = await api.sendMessageToLLM(sessionId, initialMessage, 'system');
+      
+      // Add assistant message to chat
+      const assistantMessage: ChatMessage = {
+        id: `initial-${Date.now()}`,
+        type: 'assistant',
+        content: response.message,
+        timestamp: response.timestamp,
+        suggestions: response.suggestions
+      };
 
-  const sendUserMessage = (text: string) => {
-    const msg = (text || '').trim();
-    if (!msg || !wsRef.current) return;
-    
-    setIsLoading(true);
-    setChatMessages(m => [...m, { type: 'user', content: msg, ts: Date.now() }]);
-    onTrackUserMessage(msg);
-    
-    try {
-      wsRef.current.send(JSON.stringify({ type: 'user_message', content: msg }));
+      setChatMessages(prev => [...prev, assistantMessage]);
+      setChatSuggestions(response.suggestions);
+      
+      // Track the message
+      onTrackAssistantMessage(response.message);
+      
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Failed to send initial greeting:', error);
     }
-    
-    setChatInput('');
-    setIsLoading(false);
   };
+
+  // Send user message
+  const sendUserMessage = async (message: string) => {
+    if (!message.trim() || !sessionId || isLoading) return;
+
+    console.log('🚀 Sending user message:', message);
+
+    // Add user message to chat immediately
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      type: 'user',
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsLoading(true);
+
+    // Track the message
+    onTrackUserMessage(message);
+
+    try {
+      // Send to LLM via REST API
+      const response = await api.sendMessageToLLM(sessionId, message, 'user');
+      
+      // Add assistant response to chat
+      const assistantMessage: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        type: 'assistant',
+        content: response.message,
+        timestamp: response.timestamp,
+        suggestions: response.suggestions
+      };
+
+      setChatMessages(prev => [...prev, assistantMessage]);
+      setChatSuggestions(response.suggestions);
+      
+      // Track the response
+      onTrackAssistantMessage(response.message);
+
+      // Handle LLM actions (navigation, etc.)
+      if (response.actions && response.actions.length > 0) {
+        for (const action of response.actions) {
+          console.log('🔄 Processing LLM action:', action);
+          await onLLMAction(action);
+        }
+      }
+
+      // Update section progress
+      await updateSectionProgress();
+
+      console.log('✅ LLM response received:', {
+        message: response.message.substring(0, 100) + '...',
+        suggestions: response.suggestions.length,
+        processingTime: response.processing_time_ms
+      });
+
+    } catch (error) {
+      console.error('❌ Failed to send message:', error);
+      
+      // Add error message
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        type: 'system',
+        content: 'Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.',
+        timestamp: new Date().toISOString()
+      };
+
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Update section progress
+  const updateSectionProgress = async () => {
+    if (!sessionId) return;
+
+    try {
+      await api.updateSectionProgress(sessionId, section.id, {
+        status: 'in_progress',
+        interactions_count: chatMessages.filter(m => m.type === 'user').length + 1,
+        completion_percentage: Math.min(100, (chatMessages.length / 10) * 100) // Simple progress calculation
+      });
+    } catch (error) {
+      console.error('❌ Failed to update progress:', error);
+    }
+  };
+
+  // Handle input submission
+  const handleSubmit = () => {
+    if (chatInput.trim()) {
+      sendUserMessage(chatInput.trim());
+    }
+  };
+
+  // Handle Enter key
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  // Handle suggestion click
+  const handleSuggestionClick = (suggestion: string) => {
+    setChatInput(suggestion);
+    setChatSuggestions([]);
+  };
+
+  // Format timestamp for display
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('tr-TR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (messagesScrollRef.current) {
+      messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, isLoading]);
+
+  // Auto-scroll when new messages arrive
+  useEffect(() => {
+    if (messagesScrollRef.current) {
+      setTimeout(() => {
+        messagesScrollRef.current?.scrollTo({
+          top: messagesScrollRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
+    }
+  }, [chatMessages.length]);
 
   return (
-    <div className="w-full h-full bg-gray-900 flex flex-col">
+    <div className="flex flex-col h-full bg-gray-50">
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700 p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Avatar */}
-            <div className="w-12 h-12 rounded-full bg-white/30 backdrop-blur-sm border-2 border-white/50 flex items-center justify-center overflow-hidden shadow-lg">
-              {trainingAvatar?.image_url ? (
-                <img 
-                  src={trainingAvatar.image_url} 
-                  alt={trainingAvatar.name || 'AI Asistan'}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  {trainingAvatar?.name ? (
-                    <div className="text-lg font-bold text-white">
-                      {trainingAvatar.name.charAt(0).toUpperCase()}
-                    </div>
-                  ) : (
-                    <div className="text-xl">🤖</div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="text-white text-lg font-semibold">{trainingTitle}</div>
-              <div className="text-gray-300 text-sm">{section.title}</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <div className="text-white text-sm">LLM Etkileşim</div>
-          </div>
+      <div className="flex items-center justify-between p-4 bg-white border-b">
+        <div className="flex items-center space-x-3">
+          <h2 className="text-lg font-semibold text-gray-900">{section.title}</h2>
+          <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+            LLM Etkileşim
+          </span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onNavigatePrevious}
+            className="flex items-center space-x-1"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Önceki</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onNavigateNext}
+            className="flex items-center space-x-1"
+          >
+            <span>Sonraki</span>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
       {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {chatMessages.filter(m => m.type !== 'system').map((message, index) => (
-          <div key={index} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`${
-              message.type === 'user' 
-                ? 'bg-purple-600 text-white' 
-                : 'bg-gray-700 text-white'
-            } px-4 py-3 rounded-lg max-w-[80%] whitespace-pre-wrap shadow-lg`}>
-              {message.content}
+      <div 
+        ref={messagesScrollRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col"
+      >
+        {/* Spacer to push messages to bottom */}
+        <div className="flex-1"></div>
+        
+        {chatMessages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                message.type === 'user'
+                  ? 'bg-blue-600 text-white'
+                  : message.type === 'assistant'
+                  ? 'bg-white text-gray-900 border'
+                  : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              <p className="text-sm">{message.content}</p>
+              <p className={`text-xs mt-1 ${
+                message.type === 'user' 
+                  ? 'text-blue-100' 
+                  : 'text-gray-500'
+              }`}>
+                {formatTimestamp(message.timestamp)}
+              </p>
             </div>
           </div>
         ))}
-        
+
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-700 text-white px-4 py-3 rounded-lg">
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>Yanıt bekleniyor...</span>
+            <div className="bg-white border rounded-lg px-4 py-2">
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span className="text-sm text-gray-600">Yanıt hazırlanıyor...</span>
               </div>
             </div>
           </div>
         )}
-        
-        {/* Chat Suggestions */}
-        {chatSuggestions.length > 0 && (
-          <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-600">
-            <div className="text-sm text-gray-300 mb-2 font-medium">💡 Öneriler</div>
-            <div className="space-y-2">
-              {chatSuggestions.map((suggestion, index) => (
-                <button
-                  key={index}
-                  onClick={() => {
-                    sendUserMessage(suggestion);
-                    setChatSuggestions([]);
-                  }}
-                  className="w-full text-left px-3 py-2 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded border border-gray-600 transition-colors"
-                >
-                  {suggestion}
-                </button>
-              ))}
+
+        {!isInitialized && (
+          <div className="flex justify-center items-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Etkileşim oturumu başlatılıyor...</p>
             </div>
           </div>
         )}
       </div>
 
+      {/* Chat Suggestions */}
+      {chatSuggestions.length > 0 && (
+        <div className="p-4 bg-white border-t">
+          <p className="text-sm text-gray-600 mb-2">Öneriler:</p>
+          <div className="flex flex-wrap gap-2">
+            {chatSuggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                onClick={() => handleSuggestionClick(suggestion)}
+                className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+
       {/* Chat Input */}
-      <div className="bg-gray-800 border-t border-gray-700 p-4">
-        <div className="flex items-center gap-3">
+      <div className="p-4 bg-white border-t">
+        <div className="flex items-center space-x-2">
           <input
             type="text"
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendUserMessage(chatInput);
-              }
-            }}
+            onKeyPress={handleKeyPress}
             placeholder="Mesajınızı yazın..."
-            className="flex-1 px-4 py-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 outline-none"
-            disabled={isLoading}
+            disabled={isLoading || !isInitialized}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
           />
-          <button
-            onClick={() => sendUserMessage(chatInput)}
-            disabled={isLoading || !chatInput.trim()}
-            className="px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-          >
-            <Send size={20} />
-          </button>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="bg-gray-800 border-t border-gray-700 p-4">
-        <div className="flex justify-between items-center">
           <Button
-            onClick={onNavigatePrevious}
-            variant="outline"
-            className="flex items-center gap-2 text-white border-gray-600 hover:bg-gray-700"
+            onClick={handleSubmit}
+            disabled={!chatInput.trim() || isLoading || !isInitialized}
+            className="flex items-center space-x-1"
           >
-            <ArrowLeft size={16} />
-            <span>Önceki Bölüm</span>
-          </Button>
-          
-          <div className="text-gray-300 text-sm">
-            Etkileşim Bölümü
-          </div>
-          
-          <Button
-            onClick={onNavigateNext}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-          >
-            <span>Sonraki Bölüm</span>
-            <ArrowRight size={16} />
+            <Send className="w-4 h-4" />
           </Button>
         </div>
       </div>
     </div>
   );
 }
-

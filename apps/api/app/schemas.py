@@ -259,3 +259,125 @@ class AvatarResponse(BaseModel):
     company_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+
+# ===== INTERACTION SESSION SCHEMAS =====
+
+class InteractionSessionCreate(BaseModel):
+    training_id: str
+    user_id: str
+    access_code: str
+    current_section_id: Optional[str] = None
+
+
+class InteractionSessionUpdate(BaseModel):
+    current_section_id: Optional[str] = None
+    status: Optional[str] = None
+    current_phase: Optional[str] = None
+    total_time_spent: Optional[int] = None
+    interactions_count: Optional[int] = None
+    completion_percentage: Optional[float] = None
+
+
+class InteractionSessionResponse(BaseModel):
+    id: str
+    training_id: str
+    user_id: str
+    access_code: str
+    current_section_id: Optional[str] = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    last_activity_at: datetime
+    total_time_spent: int
+    interactions_count: int
+    completion_percentage: float
+    llm_context_json: str
+    current_phase: str
+    metadata_json: str
+
+
+# ===== INTERACTION MESSAGE SCHEMAS =====
+
+class InteractionMessageCreate(BaseModel):
+    session_id: str
+    message: str
+    message_type: str  # user|assistant|system
+
+
+class InteractionMessageResponse(BaseModel):
+    id: str
+    session_id: str
+    message: str
+    message_type: str
+    llm_context_json: Optional[str] = None
+    llm_response_json: Optional[str] = None
+    llm_model: Optional[str] = None
+    processing_time_ms: Optional[int] = None
+    suggestions_json: str
+    actions_json: str
+    timestamp: datetime
+    metadata_json: str
+
+
+class LLMMessageRequest(BaseModel):
+    message: str
+    message_type: str = "user"
+
+
+class LLMMessageResponse(BaseModel):
+    message: str
+    suggestions: list[str] = []
+    actions: list[dict] = []
+    session_id: str
+    timestamp: datetime
+    processing_time_ms: Optional[int] = None
+
+
+# ===== SECTION PROGRESS SCHEMAS =====
+
+class SectionProgressCreate(BaseModel):
+    session_id: str
+    section_id: str
+    user_id: str
+    status: str = "not_started"
+
+
+class SectionProgressUpdate(BaseModel):
+    status: Optional[str] = None
+    time_spent: Optional[int] = None
+    interactions_count: Optional[int] = None
+    completion_percentage: Optional[float] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+
+class SectionProgressResponse(BaseModel):
+    id: str
+    session_id: str
+    section_id: str
+    user_id: str
+    status: str
+    time_spent: int
+    interactions_count: int
+    completion_percentage: float
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    last_accessed_at: datetime
+    section_data_json: str
+
+
+# ===== TRAINING PROGRESS SCHEMAS =====
+
+class TrainingProgressResponse(BaseModel):
+    training_id: str
+    user_id: str
+    session_id: str
+    total_sections: int
+    completed_sections: int
+    current_section_id: Optional[str] = None
+    completion_percentage: float
+    total_time_spent: int
+    total_interactions: int
+    last_accessed_at: datetime
+    sections_progress: list[SectionProgressResponse] = []

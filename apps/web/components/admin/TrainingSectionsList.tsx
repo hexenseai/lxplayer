@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TrainingSectionModal } from './forms/TrainingSectionModal';
+import { TrainingForm } from './forms/TrainingForm';
 import type { TrainingSection } from '@/lib/api';
 import { api } from '@/lib/api';
 
@@ -15,9 +16,12 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<TrainingSection | undefined>();
+  const [training, setTraining] = useState<any>(null);
+  const [showTrainingEditModal, setShowTrainingEditModal] = useState(false);
 
   useEffect(() => {
     loadSections();
+    loadTraining();
   }, [trainingId]);
 
   const loadSections = async () => {
@@ -34,6 +38,15 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
     }
   };
 
+  const loadTraining = async () => {
+    try {
+      const trainingData = await api.getTraining(trainingId);
+      setTraining(trainingData);
+    } catch (error) {
+      console.error('Eğitim yüklenirken hata:', error);
+    }
+  };
+
   const handleAddSection = () => {
     setEditingSection(undefined);
     setIsModalOpen(true);
@@ -42,6 +55,10 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
   const handleEditSection = (section: TrainingSection) => {
     setEditingSection(section);
     setIsModalOpen(true);
+  };
+
+  const handleEditTraining = () => {
+    setShowTrainingEditModal(true);
   };
 
   const handleDeleteSection = async (sectionId: string) => {
@@ -149,7 +166,7 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleEditSection(section)}
+                        onClick={handleEditTraining}
                         className="px-3 py-1.5 text-sm bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors border border-emerald-200"
                       >
                         Düzenle
@@ -262,6 +279,32 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
         trainingId={trainingId}
         initialSection={editingSection}
       />
+
+      {/* Training Edit Modal */}
+      {showTrainingEditModal && training && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Eğitimi Düzenle</h2>
+              <button
+                onClick={() => setShowTrainingEditModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <TrainingForm 
+              initialTraining={training} 
+              onDone={() => {
+                setShowTrainingEditModal(false);
+                loadTraining();
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
