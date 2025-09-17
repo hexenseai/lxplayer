@@ -25,6 +25,8 @@ export default function LLMAgentTestPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingSections, setIsLoadingSections] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [microphonePermission, setMicrophonePermission] = useState<'unknown' | 'granted' | 'denied' | 'checking'>('unknown');
+  
   // WebSocket conversation hook
   const {
     startConversation,
@@ -40,6 +42,46 @@ export default function LLMAgentTestPage() {
 
   // ElevenLabs Agent ID - replace with your actual agent ID
   const agentId = 'agent_2901k5a3e15feg6sjmw44apewq20';
+  
+  // Check microphone permissions
+  const checkMicrophonePermission = async () => {
+    try {
+      setMicrophonePermission('checking');
+      
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('getUserMedia is not supported in this browser or context');
+      }
+      
+      // Request microphone permission
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Permission granted, clean up the stream
+      stream.getTracks().forEach(track => track.stop());
+      setMicrophonePermission('granted');
+      
+      return true;
+    } catch (err) {
+      console.error('Microphone permission error:', err);
+      setMicrophonePermission('denied');
+      
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError') {
+          setError('Mikrofon izni reddedildi. Lütfen tarayıcı ayarlarından mikrofon iznini etkinleştirin.');
+        } else if (err.name === 'NotFoundError') {
+          setError('Mikrofon bulunamadı. Lütfen bir mikrofon bağlı olduğundan emin olun.');
+        } else if (err.name === 'NotSupportedError') {
+          setError('Bu tarayıcı mikrofon erişimini desteklemiyor.');
+        } else {
+          setError(`Mikrofon hatası: ${err.message}`);
+        }
+      } else {
+        setError('Mikrofon erişimi sağlanamadı. HTTPS bağlantısı gerekli olabilir.');
+      }
+      
+      return false;
+    }
+  };
   
   // Voice chat only - no message display needed
 
@@ -112,6 +154,16 @@ export default function LLMAgentTestPage() {
       console.log('🚀 Starting WebSocket conversation with agent:', agentId);
       setError(null);
       
+      // First check microphone permission
+      console.log('🎤 Checking microphone permission...');
+      const hasPermission = await checkMicrophonePermission();
+      
+      if (!hasPermission) {
+        console.error('❌ Microphone permission not granted');
+        return;
+      }
+      
+      console.log('✅ Microphone permission granted, starting conversation...');
       await startConversation(agentId);
       
       // Send contextual update with section information after connection is established
@@ -310,9 +362,30 @@ export default function LLMAgentTestPage() {
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Bağlantı Durumu</h3>
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${getStatusColor(getConnectionStatus())}`}></div>
-              <span className="text-sm font-medium">{getStatusText(getConnectionStatus())}</span>
+            <div className="flex items-center gap-4">
+              {/* Microphone Status */}
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  microphonePermission === 'granted' ? 'bg-green-500' :
+                  microphonePermission === 'denied' ? 'bg-red-500' :
+                  microphonePermission === 'checking' ? 'bg-yellow-500' :
+                  'bg-gray-500'
+                }`}></div>
+                <span className="text-sm font-medium">
+                  Mikrofon: {
+                    microphonePermission === 'granted' ? 'İzinli' :
+                    microphonePermission === 'denied' ? 'Reddedildi' :
+                    microphonePermission === 'checking' ? 'Kontrol Ediliyor' :
+                    'Bilinmiyor'
+                  }
+                </span>
+              </div>
+              
+              {/* WebSocket Status */}
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${getStatusColor(getConnectionStatus())}`}></div>
+                <span className="text-sm font-medium">{getStatusText(getConnectionStatus())}</span>
+              </div>
             </div>
           </div>
           
@@ -322,11 +395,28 @@ export default function LLMAgentTestPage() {
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
+            {/* Microphone Test Button */}
+            {microphonePermission !== 'granted' && (
+              <Button
+                onClick={checkMicrophonePermission}
+                disabled={microphonePermission === 'checking'}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                {microphonePermission === 'checking' ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Mic className="w-4 h-4" />
+                )}
+                Mikrofon İznini Test Et
+              </Button>
+            )}
+            
             {!isConnected ? (
               <Button
                 onClick={handleStartSession}
-                disabled={isLoading}
+                disabled={isLoading || microphonePermission === 'denied'}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
               >
                 {isLoading ? (
@@ -421,12 +511,15 @@ export default function LLMAgentTestPage() {
             <p>Selected Section ID: {selectedSectionId}</p>
             <p>Section Type: {section?.type || 'N/A'}</p>
             <p>Section Agent ID: {section?.agent_id || 'N/A'}</p>
+            <p>Microphone Permission: {microphonePermission}</p>
             <p>WebSocket Connected: {isConnected ? 'Yes' : 'No'}</p>
             <p>Recording: {isRecording ? 'Yes' : 'No'}</p>
             <p>Playing: {isPlaying ? 'Yes' : 'No'}</p>
             <p>Voice Chat Mode: Active</p>
             <p>Trainings Loaded: {trainings.length}</p>
             <p>Sections Loaded: {sections.length}</p>
+            <p>getUserMedia Available: {typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function' ? 'Yes' : 'No'}</p>
+            <p>HTTPS: {location.protocol === 'https:' ? 'Yes' : 'No'}</p>
             {webSocketError && <p className="text-red-600">Error: {webSocketError}</p>}
           </div>
           
