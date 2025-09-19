@@ -665,8 +665,13 @@ VİDEO BÖLÜMÜ ÖZEL TALİMATLARI:
 - Bu bir video bölümü, video içeriği ile ilgili soruları yanıtla
 - Video oynatma, duraklama, tekrar etme gibi konularda yardım et
 - Video ile ilgili teknik sorunları çöz
-- Video bitiminde kullanıcıyı yönlendir
 - Video içeriği hakkında açıklamalar yap
+
+ÖNEMLİ: 
+- OTAMATİK OLARAK BÖLÜM DEĞİŞTİRME!
+- Kullanıcı açıkça "sonraki bölüme geç" veya "devam et" derse, o zaman navigate_next action'ı kullan
+- Sadece video ile ilgili soruları yanıtla, bölüm değişikliği yapma
+- Kullanıcı video hakkında soru sorduğunda sadece açıklama yap, bölüm değiştirme
 """
     
     # Karşılama bölümü için özel talimatlar

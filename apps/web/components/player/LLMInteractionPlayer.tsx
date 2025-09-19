@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { type TrainingSection } from '@/lib/api';
-import { Send, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Send, ArrowLeft, ArrowRight, Radio } from 'lucide-react';
 import { Button } from '@lxplayer/ui';
 import { api } from '@/lib/api';
 
@@ -35,7 +35,7 @@ export function LLMInteractionPlayer({
   userId, 
   sessionId,
   flowAnalysis,
-  onNavigateNext,
+  onNavigateNext, 
   onNavigatePrevious,
   onTrackUserMessage,
   onTrackAssistantMessage,
@@ -46,44 +46,31 @@ export function LLMInteractionPlayer({
   const [isLoading, setIsLoading] = useState(false);
   const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(false);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Load existing messages when session is ready
+  // Initialize LLM interaction section - start directly with opening sentence
   useEffect(() => {
     if (!sessionId || isInitialized) return;
 
-    const loadMessages = async () => {
+    const initializeSection = async () => {
       try {
-        console.log('📚 Loading existing messages for session:', sessionId);
+        console.log('🚀 Initializing LLM interaction section:', section.title);
         
-        // Load existing messages
-        const messages = await api.getSessionMessages(sessionId);
+        // Don't load chat history - start fresh with LLM opening sentence
+        setChatMessages([]);
         
-        const formattedMessages: ChatMessage[] = messages.map(msg => ({
-          id: msg.id,
-          type: msg.message_type === 'user' ? 'user' : 
-                msg.message_type === 'assistant' ? 'assistant' : 'system',
-          content: msg.message,
-          timestamp: msg.timestamp,
-          suggestions: msg.suggestions_json ? JSON.parse(msg.suggestions_json) : []
-        }));
-
-        setChatMessages(formattedMessages);
-        console.log('📚 Loaded messages:', formattedMessages.length);
-
-        // Send initial greeting if no messages exist
-        if (formattedMessages.length === 0) {
-          await sendInitialGreeting();
-        }
+        // Send initial greeting based on section purpose
+        await sendInitialGreeting();
 
         setIsInitialized(true);
       } catch (error) {
-        console.error('❌ Failed to load messages:', error);
+        console.error('❌ Failed to initialize section:', error);
         setIsInitialized(true); // Still mark as initialized to prevent infinite loop
       }
     };
 
-    loadMessages();
+    initializeSection();
   }, [sessionId, isInitialized]);
 
   // Send initial greeting
@@ -94,9 +81,21 @@ export function LLMInteractionPlayer({
       let initialMessage = '';
       
       if (section.description || section.script) {
-        initialMessage = `Bu etkileşim bölümünde yukarıdaki açıklama ve script içeriğini kullanarak benimle etkileşim kur. Bölümün özel amacına uygun şekilde başla.`;
+        initialMessage = `# ETKİLEŞİM BÖLÜMÜ BAŞLATMA
+
+**Eğitim:** ${trainingTitle}
+**Bölüm:** ${section.title}
+**Açıklama:** ${section.description || 'Açıklama yok'}
+**Script:** ${section.script || 'Script yok'}
+
+Bu bölümün amacına uygun şekilde kullanıcıya etkileşimli bir açılış cümlesi ile başla. Bölümün içeriğine göre uygun bir soru sor veya konuyu tanıt.`;
       } else {
-        initialMessage = 'Merhaba! Etkileşim bölümüne hoş geldiniz. Lütfen kendinizi tanıtın ve eğitim hakkındaki beklentilerinizi paylaşın.';
+        initialMessage = `# ETKİLEŞİM BÖLÜMÜ BAŞLATMA
+
+**Eğitim:** ${trainingTitle}
+**Bölüm:** ${section.title}
+
+Bu etkileşim bölümünde kullanıcıya hoş geldin ve bölümün amacını belirt. Uygun bir soru sor veya konuyu tanıt.`;
       }
 
       console.log('📤 Sending initial greeting...');
@@ -166,7 +165,9 @@ export function LLMInteractionPlayer({
       if (response.actions && response.actions.length > 0) {
         for (const action of response.actions) {
           console.log('🔄 Processing LLM action:', action);
-          await onLLMAction(action);
+          if (onLLMAction) {
+            await onLLMAction(action);
+          }
         }
       }
 
@@ -261,130 +262,147 @@ export function LLMInteractionPlayer({
   }, [chatMessages.length]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-white border-b">
-        <div className="flex items-center space-x-3">
-          <h2 className="text-lg font-semibold text-gray-900">{section.title}</h2>
-          <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-            LLM Etkileşim
-          </span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onNavigatePrevious}
-            className="flex items-center space-x-1"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Önceki</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onNavigateNext}
-            className="flex items-center space-x-1"
-          >
-            <span>Sonraki</span>
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
+    <div className="w-full h-full max-w-7xl mx-auto flex flex-col">
+       <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-4">
+         <div className="flex items-center justify-between">
+           <div className="flex items-center gap-3">
+             <span className="text-2xl">💬</span>
+             <div>
+               <h2 
+                 className="text-xl font-semibold text-white cursor-help" 
+                 title={section.description || ''}
+               >
+                 {section.title}
+               </h2>
+             </div>
+           </div>
+           <div className="flex items-center space-x-2">
+             <button
+               onClick={onNavigatePrevious}
+               className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+             >
+               <ArrowLeft className="w-3 h-3" />
+               <span>Önceki</span>
+             </button>
+             <button
+               onClick={onNavigateNext}
+               className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+             >
+               <span>Sonraki</span>
+               <ArrowRight className="w-3 h-3" />
+             </button>
+           </div>
+         </div>
+       </div>
 
-      {/* Chat Messages */}
-      <div 
-        ref={messagesScrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col"
-      >
-        {/* Spacer to push messages to bottom */}
-        <div className="flex-1"></div>
-        
-        {chatMessages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+      <div className="flex-1 overflow-hidden bg-slate-900 flex flex-col">
+        {/* Chat Messages Container */}
+        <div 
+          ref={messagesScrollRef}
+          className="flex-1 overflow-y-auto p-4 space-y-4"
+        >
+          {chatMessages.map((message) => (
             <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                message.type === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : message.type === 'assistant'
-                  ? 'bg-white text-gray-900 border'
-                  : 'bg-gray-100 text-gray-600'
-              }`}
+              key={message.id}
+              className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <p className="text-sm">{message.content}</p>
-              <p className={`text-xs mt-1 ${
-                message.type === 'user' 
-                  ? 'text-blue-100' 
-                  : 'text-gray-500'
-              }`}>
-                {formatTimestamp(message.timestamp)}
-              </p>
-            </div>
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white border rounded-lg px-4 py-2">
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                <span className="text-sm text-gray-600">Yanıt hazırlanıyor...</span>
+              <div
+                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                  message.type === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : message.type === 'assistant'
+                    ? 'bg-white text-gray-900 border'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className={`text-xs mt-1 ${
+                  message.type === 'user' 
+                    ? 'text-blue-100' 
+                    : 'text-gray-500'
+                }`}>
+                  {formatTimestamp(message.timestamp)}
+                </p>
               </div>
             </div>
-          </div>
-        )}
+          ))}
+          
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-white border rounded-lg px-4 py-2">
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <span className="text-sm text-gray-600">Yanıt hazırlanıyor...</span>
+                </div>
+              </div>
+            </div>
+          )}
 
-        {!isInitialized && (
-          <div className="flex justify-center items-center h-full">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Etkileşim oturumu başlatılıyor...</p>
+          {!isInitialized && (
+            <div className="flex justify-center items-center h-full">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Etkileşim oturumu başlatılıyor...</p>
+              </div>
+            </div>
+          )}
+        </div>
+          
+        {/* Chat Suggestions */}
+        {chatSuggestions.length > 0 && (
+          <div className="p-4 bg-slate-800 border-t border-slate-700">
+            <p className="text-sm text-slate-300 mb-2">Öneriler:</p>
+            <div className="flex flex-wrap gap-2">
+              {chatSuggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className="px-3 py-1 text-sm bg-slate-700 text-slate-200 rounded-full hover:bg-slate-600 transition-colors"
+                >
+                  {suggestion}
+                </button>
+              ))}
             </div>
           </div>
         )}
+
       </div>
 
-      {/* Chat Suggestions */}
-      {chatSuggestions.length > 0 && (
-        <div className="p-4 bg-white border-t">
-          <p className="text-sm text-gray-600 mb-2">Öneriler:</p>
-          <div className="flex flex-wrap gap-2">
-            {chatSuggestions.map((suggestion, index) => (
-              <button
-                key={index}
-                onClick={() => handleSuggestionClick(suggestion)}
-                className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-
-      {/* Chat Input */}
-      <div className="p-4 bg-white border-t">
+      <div className="bg-slate-800 border-t border-slate-700 p-4">
         <div className="flex items-center space-x-2">
-          <input
-            type="text"
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Mesajınızı yazın..."
-            disabled={isLoading || !isInitialized}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-          />
-          <Button
-            onClick={handleSubmit}
-            disabled={!chatInput.trim() || isLoading || !isInitialized}
-            className="flex items-center space-x-1"
+          {/* Message Input */}
+          <div className="flex-1 flex items-center space-x-2">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Mesajınızı yazın..."
+              disabled={isLoading || !isInitialized}
+              className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-600 disabled:cursor-not-allowed placeholder-slate-400"
+            />
+            <Button
+              onClick={handleSubmit}
+              disabled={!chatInput.trim() || isLoading || !isInitialized}
+              className="flex items-center space-x-1 bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+          
+          {/* Live Mode Toggle */}
+          <button
+            onClick={() => setIsLiveMode(!isLiveMode)}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-colors ${
+              isLiveMode 
+                ? 'bg-green-600 border-green-500 text-white' 
+                : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+            }`}
+            title={isLiveMode ? 'Canlı mod açık' : 'Canlı mod kapalı'}
           >
-            <Send className="w-4 h-4" />
-          </Button>
+            <Radio className="w-4 h-4" />
+            <span className="text-sm">Canlı</span>
+          </button>
         </div>
       </div>
     </div>

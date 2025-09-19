@@ -1,8 +1,14 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { VideoFrame } from './VideoFrame';
 import { OverlayManager, OverlayComponent } from './Overlay';
+// import { 
+//   SectionContainer, 
+//   SectionHeader, 
+//   SectionContent, 
+//   SectionControls 
+// } from './SectionContainer';
 import { type TrainingSection } from '@/lib/api';
-import { Play, Pause, Volume2, VolumeX, Send, MessageCircle } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Send, MessageCircle, ArrowLeft, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { type ActionPayload, type ActionResponse } from '@/lib/training-llm';
 import { api } from '@/lib/api';
@@ -40,7 +46,7 @@ function buildVideoUrl(section: TrainingSection): string | undefined {
     return fromObj(videoObject);
   }
 
-  const asset = section.asset as { kind?: string; uri?: string } | undefined;
+  const asset = (section as any).asset as { kind?: string; uri?: string } | undefined;
   if (asset?.kind === 'video' && asset.uri) {
     return fromObj(asset.uri);
   }
@@ -76,9 +82,9 @@ export function VideoSectionPlayer({
   const [currentFrameConfig, setCurrentFrameConfig] = useState<any>(null);
   const [playerVolume, setPlayerVolume] = useState<number>(1);
   
-  // Chat states
+  // Chat states - section-specific
   const [chatOpen, setChatOpen] = useState<boolean>(false);
-  const [chatMessages, setChatMessages] = useState<Array<{ type: 'user'|'ai'|'system'; content: string; ts: number }>>([]);
+  const [chatMessages, setChatMessages] = useState<Array<{ type: 'user'|'ai'|'system'; content: string; ts: number; section_id?: string }>>([]);
   const [chatInput, setChatInput] = useState<string>('');
   const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
   const [overlaySuggestions, setOverlaySuggestions] = useState<Array<{ overlay_id?: string; caption?: string; time_seconds?: number }>>([]);
@@ -99,6 +105,15 @@ export function VideoSectionPlayer({
     console.log('🎥 Video URL built:', { section, videoUrl: url });
     return url;
   }, [section]);
+
+  // Clear chat history when section changes
+  useEffect(() => {
+    console.log('🔄 Section changed, clearing chat history for section:', section.id);
+    setChatMessages([]);
+    setChatSuggestions([]);
+    setOverlaySuggestions([]);
+    setChatInput('');
+  }, [section.id]);
 
   // WebSocket URL utility
   const toWsUrl = (apiBase: string) => {
@@ -162,7 +177,7 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
               }
               
               if (assistantMessage && assistantMessage.trim()) {
-                setChatMessages(m => [...m, { type: 'ai', content: assistantMessage, ts: Date.now() }]);
+                setChatMessages(m => [...m, { type: 'ai', content: assistantMessage, ts: Date.now(), section_id: section.id }]);
                 onTrackAssistantMessage(assistantMessage);
                 
                 // Check if this is a video ended message
@@ -248,8 +263,8 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
     const msg = (text || '').trim();
     if (!msg) return;
     
-    // Add user message to chat
-    setChatMessages(m => [...m, { type: 'user', content: msg, ts: Date.now() }]);
+    // Add user message to chat with section_id
+    setChatMessages(m => [...m, { type: 'user', content: msg, ts: Date.now(), section_id: section.id }]);
     onTrackUserMessage(msg);
     setChatInput('');
     
@@ -273,11 +288,12 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
           try {
             const response = await api.sendMessageToLLM(sessionId, msg, 'user');
             
-            // Add LLM response to chat
+            // Add LLM response to chat with section_id
             setChatMessages(m => [...m, { 
               type: 'ai', 
               content: response.message, 
-              ts: Date.now() 
+              ts: Date.now(),
+              section_id: section.id
             }]);
             onTrackAssistantMessage(response.message);
             
@@ -302,11 +318,12 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
       try {
         const response = await api.sendMessageToLLM(sessionId, msg, 'user');
         
-        // Add LLM response to chat
+        // Add LLM response to chat with section_id
         setChatMessages(m => [...m, { 
           type: 'ai', 
           content: response.message, 
-          ts: Date.now() 
+          ts: Date.now(),
+          section_id: section.id
         }]);
         onTrackAssistantMessage(response.message);
         
@@ -371,8 +388,42 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
   }
 
   return (
-    <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-6xl relative" style={{ aspectRatio: '16/9' }}>
+    <div className="w-full h-full max-w-7xl mx-auto flex flex-col">
+       <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-4">
+         <div className="flex items-center justify-between">
+           <div className="flex items-center gap-3">
+             <span className="text-2xl">🎥</span>
+             <div>
+               <h2 
+                 className="text-xl font-semibold text-white cursor-help" 
+                 title={section.description || ''}
+               >
+                 {section.title}
+               </h2>
+             </div>
+           </div>
+           <div className="flex items-center space-x-2">
+             <button
+               onClick={onNavigatePrevious}
+               className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+             >
+               <ArrowLeft className="w-3 h-3" />
+               <span>Önceki</span>
+             </button>
+             <button
+               onClick={onNavigateNext}
+               className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+             >
+               <span>Sonraki</span>
+               <ArrowRight className="w-3 h-3" />
+             </button>
+           </div>
+         </div>
+       </div>
+      
+      <div className="flex-1 overflow-hidden bg-slate-900">
+        <div className="w-full h-full flex items-center justify-center p-4">
+          <div className="w-full max-w-6xl relative" style={{ aspectRatio: '16/9' }}>
         {/* Training Title Overlay - Show when chat is open */}
         {chatOpen && (
           <div className="absolute top-3 left-3 z-30 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 text-white">
@@ -380,6 +431,7 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
             <div className="text-xs text-gray-300">{section.title || ''}</div>
           </div>
         )}
+    
         
         {/* Video Player */}
         <VideoFrame
@@ -685,76 +737,79 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
+        </div>
       </div>
 
-      {/* Video Controls */}
-      <div className="w-full max-w-6xl flex items-center gap-3 bg-white/5 border border-white/10 rounded-lg p-3">
-        <button
-          onClick={async () => {
-            const newPlayingState = !isPlaying;
-            setIsPlaying(newPlayingState);
-            
-            // LLM sistemine action gönder
-            if (onLLMAction) {
-              await onLLMAction({
-                type: newPlayingState ? 'video_play' : 'video_pause',
-                data: {
-                  sectionId: section.id,
-                  currentTime: currentTime,
-                  isPlaying: newPlayingState
-                },
-                timestamp: Date.now()
-              });
-            }
-            
-            // Tracking
-            if (newPlayingState) {
-              onTrackVideoPlay();
-            } else {
-              onTrackVideoPause();
-            }
-          }}
-          className="p-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-          title={isPlaying ? 'Durdur' : 'Oynat'}
-        >
-          {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-        </button>
-        
-        {/* Volume control */}
-        <div className="flex items-center gap-2 text-white/80 text-xs">
-          <span>{playerVolume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}</span>
+      <div className="bg-slate-800 border-t border-slate-700 p-4">
+        {/* Video Controls */}
+        <div className="w-full max-w-6xl mx-auto flex items-center gap-3 bg-white/5 border border-white/10 rounded-lg p-3">
+          <button
+            onClick={async () => {
+              const newPlayingState = !isPlaying;
+              setIsPlaying(newPlayingState);
+              
+              // LLM sistemine action gönder
+              if (onLLMAction) {
+                await onLLMAction({
+                  type: newPlayingState ? 'video_play' : 'video_pause',
+                  data: {
+                    sectionId: section.id,
+                    currentTime: currentTime,
+                    isPlaying: newPlayingState
+                  },
+                  timestamp: Date.now()
+                });
+              }
+              
+              // Tracking
+              if (newPlayingState) {
+                onTrackVideoPlay();
+              } else {
+                onTrackVideoPause();
+              }
+            }}
+            className="p-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
+            title={isPlaying ? 'Durdur' : 'Oynat'}
+          >
+            {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+          </button>
+          
+          {/* Volume control */}
+          <div className="flex items-center gap-2 text-white/80 text-xs">
+            <span>{playerVolume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={playerVolume}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                setPlayerVolume(v);
+                try { playerRef.current?.setVolume?.(v); } catch {}
+              }}
+            />
+            <span className="w-10 text-right">{Math.round(playerVolume * 100)}%</span>
+          </div>
+          
           <input
             type="range"
             min={0}
-            max={1}
-            step={0.01}
-            value={playerVolume}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value);
-              setPlayerVolume(v);
-              try { playerRef.current?.setVolume?.(v); } catch {}
-            }}
+            max={duration || 100}
+            step={0.1}
+            value={currentTime}
+            onChange={(e) => handleSeek(parseFloat(e.target.value))}
+            className="flex-1"
           />
-          <span className="w-10 text-right">{Math.round(playerVolume * 100)}%</span>
-        </div>
-        
-        <input
-          type="range"
-          min={0}
-          max={duration || 100}
-          step={0.1}
-          value={currentTime}
-          onChange={(e) => handleSeek(parseFloat(e.target.value))}
-          className="flex-1"
-        />
-        
-        <div className="text-xs text-white/80 w-24 text-right">
-          {Math.floor(currentTime)}s {duration ? `/ ${duration}s` : ''}
+          
+          <div className="text-xs text-white/80 w-24 text-right">
+            {Math.floor(currentTime)}s {duration ? `/ ${duration}s` : ''}
+          </div>
         </div>
       </div>
-
     </div>
-  );
+    );
 
 }
 

@@ -12,7 +12,8 @@ import { api } from '@/lib/api';
 const Schema = z.object({ 
   title: z.string().min(1), 
   description: z.string().optional(),
-  avatar_id: z.string().optional()
+  avatar_id: z.string().optional(),
+  access_code: z.string().optional()
 });
 
 type FormValues = z.infer<typeof Schema>;
@@ -25,7 +26,8 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
   const defaultValues = initialTraining ? { 
     title: initialTraining.title, 
     description: initialTraining.description ?? undefined,
-    avatar_id: initialTraining.avatar_id ?? ''
+    avatar_id: initialTraining.avatar_id ?? '',
+    access_code: initialTraining.access_code ?? ''
   } : undefined;
   
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setError } = useForm<FormValues>({ 
@@ -54,7 +56,8 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
       const newValues = {
         title: initialTraining.title,
         description: initialTraining.description ?? undefined,
-        avatar_id: initialTraining.avatar_id ?? ''
+        avatar_id: initialTraining.avatar_id ?? '',
+        access_code: initialTraining.access_code ?? ''
       };
       console.log('🔄 Form reset values:', newValues);
       console.log('📋 Available avatars:', avatars.map(a => ({ id: a.id, name: a.name })));
@@ -80,7 +83,8 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
         await api.createTraining({
           title: values.title,
           description: values.description || undefined,
-          avatar_id: values.avatar_id || undefined
+          avatar_id: values.avatar_id || undefined,
+          access_code: values.access_code || undefined
         });
       }
       
@@ -114,6 +118,33 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
         />
         <p className="text-xs text-gray-500 mt-1">
           Eğitimin amacı, hedef kitlesi ve kapsamı hakkında detaylı bilgi verebilirsiniz.
+        </p>
+      </div>
+      
+      <div>
+        <Label htmlFor="access_code">Access Code</Label>
+        <div className="flex gap-2">
+          <Input 
+            id="access_code" 
+            {...register('access_code')} 
+            placeholder="Otomatik oluşturulacak"
+            className="flex-1"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const input = document.getElementById('access_code') as HTMLInputElement;
+              if (input) {
+                input.value = Math.random().toString(36).substring(2, 15);
+              }
+            }}
+            className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm whitespace-nowrap"
+          >
+            Oluştur
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          Interactive Player için erişim kodu
         </p>
       </div>
       

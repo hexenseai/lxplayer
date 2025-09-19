@@ -3,6 +3,8 @@ import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle } f
 import { LLMAgentPlayer } from './player/LLMAgentPlayer';
 import { LLMInteractionPlayer } from './player/LLMInteractionPlayer';
 import { VideoSectionPlayer } from './player/VideoSectionPlayer';
+import { TrainingStartPage } from './player/TrainingStartPage';
+import { TrainingEndPage } from './player/TrainingEndPage';
 import { api, type TrainingSection, type CompanyTraining } from '@/lib/api';
 import { useInteractionTracking } from '@/hooks/useInteractionTracking';
 // LLM System removed - using REST API instead
@@ -33,10 +35,15 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
 
   const [companyTraining, setCompanyTraining] = useState<CompanyTraining | null>(null);
   const [trainingTitle, setTrainingTitle] = useState<string>('');
+  const [trainingDescription, setTrainingDescription] = useState<string>('');
   const [sections, setSections] = useState<any[]>([]);
   const [trainingAvatar, setTrainingAvatar] = useState<any>(null);
   const [currentSection, setCurrentSection] = useState<any | null>(null);
   const [overlays, setOverlays] = useState<any[]>([]);
+
+  // Training flow state
+  const [viewState, setViewState] = useState<'start' | 'training' | 'end'>('start');
+  const [currentSectionIndex, setCurrentSectionIndex] = useState<number>(0);
 
   // REST API state
   const [isSessionReady, setIsSessionReady] = useState<boolean>(false);
@@ -184,6 +191,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
         if (training) {
           console.log('✅ Found training:', training.title);
           setTrainingTitle(training.title);
+          setTrainingDescription(training.description || '');
           
           // Load sections
           const sectionsResponse = await api.listTrainingSections(training.id);
@@ -193,10 +201,8 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             setSections(sortedSections);
             sectionsRef.current = sortedSections;
             
-            if (sortedSections.length > 0) {
-              updateCurrentSection(sortedSections[0]);
-              console.log('📚 Set current section:', sortedSections[0].title);
-            }
+            // Don't automatically set current section - let start page handle it
+            console.log('📚 Sections loaded, staying on start page');
           }
         } else {
           // Fallback: Check company trainings
@@ -208,6 +214,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             console.log('✅ Found company training:', companyTraining);
             const trainingData = await api.getTraining(companyTraining.training_id);
             setTrainingTitle(trainingData.title);
+            setTrainingDescription(trainingData.description || '');
             setCompanyTraining(companyTraining);
             setTrainingAvatar(trainingData.avatar || null);
             
@@ -232,9 +239,8 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
               setSections(sortedSections);
               sectionsRef.current = sortedSections;
               
-              if (sortedSections.length > 0) {
-                updateCurrentSection(sortedSections[0]);
-              }
+              // Don't automatically set current section - let start page handle it
+              console.log('📚 Company training sections loaded, staying on start page');
             }
           } else {
             console.error('Training not found for access code:', accessCode);
@@ -306,47 +312,85 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     }
   };
 
-  // Navigation functions with REST API integration
-  const safeNavigateNext = async (reason?: string) => {
-    const idx = sectionsRef.current.findIndex(s => s.id === currentSectionRef.current?.id);
-    if (idx >= 0 && idx < sectionsRef.current.length - 1) {
-      const next = sectionsRef.current[idx + 1];
-      
-      // Current section'ı tamamlandı olarak işaretle
-      if (interactionSessionId && currentSectionRef.current) {
-        try {
-          await api.updateSectionProgress(interactionSessionId, currentSectionRef.current.id, {
-            status: 'completed',
-            completed_at: new Date().toISOString()
-          });
-        } catch (error) {
-          console.error('❌ Failed to update section progress:', error);
-        }
-      }
-      
-      updateCurrentSection(next);
-      trackSectionChange(next.id, next.title);
-      trackNavigation('navigate_next', next.id, reason);
+  // Training flow navigation functions
+  const startTraining = () => {
+    console.log('🚀 Starting training from beginning');
+    if (sectionsRef.current.length > 0) {
+      setCurrentSectionIndex(0);
+      updateCurrentSection(sectionsRef.current[0]);
+      setViewState('training');
+      trackTrainingStart();
     }
   };
 
-  const safeNavigatePrevious = async (reason?: string) => {
-    const idx = sectionsRef.current.findIndex(s => s.id === currentSectionRef.current?.id);
-    if (idx > 0) {
-      const prev = sectionsRef.current[idx - 1];
-      
-      // Current section'ı tamamlandı olarak işaretle
-      if (interactionSessionId && currentSectionRef.current) {
-        try {
-          await api.updateSectionProgress(interactionSessionId, currentSectionRef.current.id, {
-            status: 'completed',
-            completed_at: new Date().toISOString()
-          });
-        } catch (error) {
-          console.error('❌ Failed to update section progress:', error);
-        }
+  const resumeTraining = (sectionIndex: number) => {
+    console.log('🔄 Resuming training from section:', sectionIndex);
+    if (sectionsRef.current.length > sectionIndex) {
+      setCurrentSectionIndex(sectionIndex);
+      updateCurrentSection(sectionsRef.current[sectionIndex]);
+      setViewState('training');
+      trackTrainingResume();
+    }
+  };
+
+  const completeTraining = () => {
+    console.log('🎉 Training completed');
+    setViewState('end');
+    trackTrainingEnd();
+  };
+
+  const restartTraining = () => {
+    console.log('🔄 Restarting training');
+    startTraining();
+  };
+
+  const goHome = () => {
+    console.log('🏠 Going home');
+    // This would typically navigate to the home page
+    window.location.href = '/';
+  };
+
+  // Navigation functions with REST API integration
+  const safeNavigateNext = async (reason?: string) => {
+    const currentIdx = currentSectionIndex;
+    
+    // Current section'ı tamamlandı olarak işaretle
+    if (interactionSessionId && currentSectionRef.current) {
+      try {
+        await api.updateSectionProgress(interactionSessionId, currentSectionRef.current.id, {
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('❌ Failed to update section progress:', error);
       }
+    }
+
+    // Check if this is the last section
+    if (currentIdx >= sectionsRef.current.length - 1) {
+      console.log('🎉 Last section completed, showing end page');
+      completeTraining();
+      return;
+    }
+    
+    // Navigate to next section
+    const nextIdx = currentIdx + 1;
+    const next = sectionsRef.current[nextIdx];
+    
+    setCurrentSectionIndex(nextIdx);
+    updateCurrentSection(next);
+    trackSectionChange(next.id, next.title);
+    trackNavigation('navigate_next', next.id, reason);
+  };
+
+  const safeNavigatePrevious = async (reason?: string) => {
+    const currentIdx = currentSectionIndex;
+    
+    if (currentIdx > 0) {
+      const prevIdx = currentIdx - 1;
+      const prev = sectionsRef.current[prevIdx];
       
+      setCurrentSectionIndex(prevIdx);
       updateCurrentSection(prev);
       trackSectionChange(prev.id, prev.title);
       trackNavigation('navigate_previous', prev.id, reason);
@@ -397,12 +441,58 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     }
   };
 
+  // Show loading while sections are being loaded
+  if (sections.length === 0) {
+    return (
+      <div className="w-full h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <div className="text-white text-lg">Eğitim yükleniyor...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show start page
+  if (viewState === 'start') {
+    return (
+      <TrainingStartPage
+        trainingTitle={trainingTitle}
+        trainingDescription={trainingDescription}
+        trainingAvatar={trainingAvatar}
+        accessCode={accessCode}
+        userId={userId}
+        totalSections={sections.length}
+        onStartTraining={startTraining}
+        onResumeTraining={resumeTraining}
+      />
+    );
+  }
+
+  // Show end page
+  if (viewState === 'end') {
+    return (
+      <TrainingEndPage
+        trainingTitle={trainingTitle}
+        trainingDescription={trainingDescription}
+        trainingAvatar={trainingAvatar}
+        accessCode={accessCode}
+        userId={userId}
+        totalSections={sections.length}
+        sessionId={interactionSessionId || undefined}
+        onRestartTraining={restartTraining}
+        onGoHome={goHome}
+      />
+    );
+  }
+
+  // Show training content - require current section
   if (!currentSection) {
     return (
       <div className="w-full h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <div className="text-white text-lg">Oynatıcı yükleniyor...</div>
+          <div className="text-white text-lg">Bölüm yükleniyor...</div>
         </div>
       </div>
     );
@@ -430,7 +520,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
                 });
               }
               
-              safeNavigateNext('LLM Agent completed');
+              await safeNavigateNext('LLM Agent completed');
             }}
             onNavigateNext={() => safeNavigateNext('User requested next section')}
             onNavigatePrevious={() => safeNavigatePrevious('User requested previous section')}
@@ -446,7 +536,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             trainingAvatar={trainingAvatar}
             accessCode={accessCode}
             userId={userId}
-            sessionId={interactionSessionId}
+            sessionId={interactionSessionId || undefined}
             flowAnalysis={flowAnalysis}
             onNavigateNext={() => safeNavigateNext('User requested next section')}
             onNavigatePrevious={() => safeNavigatePrevious('User requested previous section')}
@@ -473,7 +563,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             onTrackUserMessage={trackUserMessage}
             onTrackAssistantMessage={trackAssistantMessage}
             onLLMAction={handleLLMAction}
-            sessionId={interactionSessionId}
+            sessionId={interactionSessionId || undefined}
             accessCode={accessCode}
             userId={userId}
           />
