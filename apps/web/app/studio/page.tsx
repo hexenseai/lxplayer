@@ -471,12 +471,6 @@ export default function StudioPage() {
                 >
                   Bölümleri Yönet →
                 </button>
-                <button
-                  onClick={() => router.push(`/llm-agent-test?trainingId=${training.id}`)}
-                  className="text-green-600 hover:text-green-800 text-sm font-medium"
-                >
-                  🤖 Agent Test
-                </button>
               </div>
               <div className="text-xs text-gray-500">
                 ID: {training.id.substring(0, 8)}...

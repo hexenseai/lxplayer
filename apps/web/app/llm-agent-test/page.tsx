@@ -17,13 +17,12 @@ interface AgentMessage {
 export default function LLMAgentTestPage() {
   const searchParams = useSearchParams();
   
-  const [trainings, setTrainings] = useState<Training[]>([]);
-  const [selectedTrainingId, setSelectedTrainingId] = useState<string>('');
-  const [sections, setSections] = useState<TrainingSection[]>([]);
-  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
+  const trainingId = searchParams.get('trainingId');
+  const sectionId = searchParams.get('sectionId');
+  
   const [section, setSection] = useState<TrainingSection | null>(null);
+  const [training, setTraining] = useState<Training | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingSections, setIsLoadingSections] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [microphonePermission, setMicrophonePermission] = useState<'unknown' | 'granted' | 'denied' | 'checking'>('unknown');
   
@@ -40,8 +39,8 @@ export default function LLMAgentTestPage() {
     error: webSocketError
   } = useAgentConversation();
 
-  // ElevenLabs Agent ID - replace with your actual agent ID
-  const agentId = 'agent_2901k5a3e15feg6sjmw44apewq20';
+  // Agent ID from section data
+  const agentId = section?.agent_id || 'agent_2901k5a3e15feg6sjmw44apewq20';
   
   // Check microphone permissions
   const checkMicrophonePermission = async () => {
@@ -85,68 +84,43 @@ export default function LLMAgentTestPage() {
   
   // Voice chat only - no message display needed
 
-  // Load trainings on component mount
+  // Load training and section data from URL parameters
   useEffect(() => {
-    const fetchTrainings = async () => {
+    const loadData = async () => {
+      if (!trainingId || !sectionId) {
+        setError('Training ID ve Section ID gerekli');
+        setIsLoading(false);
+        return;
+      }
+
       try {
         setIsLoading(true);
-        const trainingsList = await api.listTrainings();
-        setTrainings(trainingsList);
         
-        // Auto-select first training if available
-        if (trainingsList.length > 0) {
-          setSelectedTrainingId(trainingsList[0].id);
+        // Load training and section data in parallel
+        const [trainingData, sectionData] = await Promise.all([
+          api.getTraining(trainingId),
+          api.getTrainingSection(trainingId, sectionId)
+        ]);
+        
+        setTraining(trainingData);
+        setSection(sectionData as TrainingSection);
+        
+        // Check if section is llm_agent type
+        if (sectionData.type !== 'llm_agent') {
+          setError('Bu bölüm LLM Agent türünde değil');
+          return;
         }
+        
       } catch (err) {
-        console.error('Error fetching trainings:', err);
-        setError('Failed to load trainings');
+        console.error('Error loading data:', err);
+        setError('Veri yüklenirken hata oluştu');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchTrainings();
-  }, []);
-
-  // Load sections when training is selected
-  useEffect(() => {
-    const fetchSections = async () => {
-      if (!selectedTrainingId) return;
-      
-      try {
-        setIsLoadingSections(true);
-        const sectionsList = await api.listTrainingSections(selectedTrainingId);
-        setSections(sectionsList as TrainingSection[]);
-        
-        // Auto-select first llm_agent section if available
-        const llmAgentSection = sectionsList.find(s => s.type === 'llm_agent');
-        if (llmAgentSection) {
-          setSelectedSectionId(llmAgentSection.id);
-          setSection(llmAgentSection as TrainingSection);
-        } else if (sectionsList.length > 0) {
-          setSelectedSectionId(sectionsList[0].id);
-          setSection(sectionsList[0] as TrainingSection);
-        }
-      } catch (err) {
-        console.error('Error fetching sections:', err);
-        setError('Failed to load sections');
-      } finally {
-        setIsLoadingSections(false);
-      }
-    };
-
-    fetchSections();
-  }, [selectedTrainingId]);
-
-  // Update section when section is selected
-  useEffect(() => {
-    if (selectedSectionId && sections.length > 0) {
-      const foundSection = sections.find(s => s.id === selectedSectionId);
-      if (foundSection) {
-        setSection(foundSection);
-      }
-    }
-  }, [selectedSectionId, sections]);
+    loadData();
+  }, [trainingId, sectionId]);
 
 
   const handleStartSession = async () => {
@@ -276,56 +250,16 @@ export default function LLMAgentTestPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Training and Section Selection */}
+        {/* Training and Section Info */}
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">Training ve Section Seçimi</h2>
+          <h2 className="text-lg font-semibold mb-4">Eğitim ve Bölüm Bilgileri</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {/* Training Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Training Seçin
-              </label>
-              <select
-                value={selectedTrainingId}
-                onChange={(e) => setSelectedTrainingId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={isLoading}
-              >
-                <option value="">Training seçin...</option>
-                {trainings.map((training) => (
-                  <option key={training.id} value={training.id}>
-                    {training.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Section Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Section Seçin
-              </label>
-              <select
-                value={selectedSectionId}
-                onChange={(e) => setSelectedSectionId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                disabled={isLoadingSections || !selectedTrainingId}
-              >
-                <option value="">Section seçin...</option>
-                {sections.map((sec) => (
-                  <option key={sec.id} value={sec.id}>
-                    {sec.title} {sec.type === 'llm_agent' ? '(LLM Agent)' : `(${sec.type})`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {isLoadingSections && (
-            <div className="flex items-center gap-2 text-blue-600 mb-4">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Section'lar yükleniyor...</span>
+          {training && (
+            <div className="bg-blue-50 rounded-lg p-4 mb-4">
+              <h3 className="font-medium text-blue-900 mb-1">📚 {training.title}</h3>
+              {training.description && (
+                <p className="text-sm text-blue-700">{training.description}</p>
+              )}
             </div>
           )}
         </div>
@@ -507,8 +441,8 @@ export default function LLMAgentTestPage() {
           <h4 className="font-medium mb-2">Debug Bilgileri</h4>
           <div className="text-xs text-gray-600 space-y-1">
             <p>Agent ID: {agentId}</p>
-            <p>Selected Training ID: {selectedTrainingId}</p>
-            <p>Selected Section ID: {selectedSectionId}</p>
+            <p>Training ID: {trainingId}</p>
+            <p>Section ID: {sectionId}</p>
             <p>Section Type: {section?.type || 'N/A'}</p>
             <p>Section Agent ID: {section?.agent_id || 'N/A'}</p>
             <p>Microphone Permission: {microphonePermission}</p>
@@ -516,8 +450,6 @@ export default function LLMAgentTestPage() {
             <p>Recording: {isRecording ? 'Yes' : 'No'}</p>
             <p>Playing: {isPlaying ? 'Yes' : 'No'}</p>
             <p>Voice Chat Mode: Active</p>
-            <p>Trainings Loaded: {trainings.length}</p>
-            <p>Sections Loaded: {sections.length}</p>
             <p>getUserMedia Available: {typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function' ? 'Yes' : 'No'}</p>
             <p>HTTPS: {location.protocol === 'https:' ? 'Yes' : 'No'}</p>
             {webSocketError && <p className="text-red-600">Error: {webSocketError}</p>}

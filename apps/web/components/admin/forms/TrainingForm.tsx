@@ -30,7 +30,7 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
     access_code: initialTraining.access_code ?? ''
   } : undefined;
   
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setError } = useForm<FormValues>({ 
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setError, setValue } = useForm<FormValues>({ 
     resolver: zodResolver(Schema), 
     defaultValues 
   });
@@ -75,7 +75,7 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
           description: values.description || undefined,
           flow_id: initialTraining.flow_id,
           ai_flow: initialTraining.ai_flow,
-          access_code: initialTraining.access_code,
+          access_code: values.access_code || undefined,
           avatar_id: values.avatar_id || undefined,
           company_id: initialTraining.organization_id
         });
@@ -133,10 +133,8 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
           <button
             type="button"
             onClick={() => {
-              const input = document.getElementById('access_code') as HTMLInputElement;
-              if (input) {
-                input.value = Math.random().toString(36).substring(2, 15);
-              }
+              const newAccessCode = Math.random().toString(36).substring(2, 15);
+              setValue('access_code', newAccessCode);
             }}
             className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm whitespace-nowrap"
           >
