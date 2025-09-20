@@ -11,6 +11,8 @@ import zipfile
 import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
+import re
+from openai import OpenAI
 from ..db import get_session
 from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar
 from ..auth import hash_password, get_current_user, is_super_admin, is_admin, check_company_access
@@ -1794,3 +1796,381 @@ def download_scorm_package(training_id: str, session: Session = Depends(get_sess
         
     except Exception as e:
         raise HTTPException(500, f"Error creating SCORM package: {str(e)}")
+
+
+# LLM Overlay Management endpoints
+class LLMOverlayRequest(BaseModel):
+    command: str  # LLM command/prompt
+    section_script: str | None = None  # SRT format script for context
+
+
+class LLMOverlayResponse(BaseModel):
+    success: bool
+    message: str
+    actions: list[dict] = []  # Actions performed (created, updated, deleted overlays)
+    warnings: list[str] = []  # Any warnings or issues
+
+
+def parse_srt_content(srt_content: str) -> list[dict]:
+    """Parse SRT content and return list of segments with timing"""
+    segments = []
+    
+    # Split by double newlines to get individual subtitle blocks
+    blocks = re.split(r'\n\s*\n', srt_content.strip())
+    
+    for block in blocks:
+        lines = block.strip().split('\n')
+        if len(lines) >= 3:
+            try:
+                # Parse sequence number
+                seq_num = int(lines[0])
+                
+                # Parse timing line
+                timing_line = lines[1]
+                if ' --> ' in timing_line:
+                    start_str, end_str = timing_line.split(' --> ')
+                    
+                    # Convert SRT time format to seconds
+                    start_seconds = srt_time_to_seconds(start_str.strip())
+                    end_seconds = srt_time_to_seconds(end_str.strip())
+                    
+                    # Get text content (can be multiple lines)
+                    text = '\n'.join(lines[2:]).strip()
+                    
+                    segments.append({
+                        'id': seq_num,
+                        'start': start_seconds,
+                        'end': end_seconds,
+                        'text': text
+                    })
+            except (ValueError, IndexError) as e:
+                print(f"Error parsing SRT block: {block} - {e}")
+                continue
+    
+    return segments
+
+
+def srt_time_to_seconds(time_str: str) -> float:
+    """Convert SRT time format (HH:MM:SS,mmm) to seconds"""
+    try:
+        # Replace comma with dot for milliseconds
+        time_str = time_str.replace(',', '.')
+        
+        # Split by colon
+        parts = time_str.split(':')
+        if len(parts) == 3:
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            seconds = float(parts[2])
+            
+            return hours * 3600 + minutes * 60 + seconds
+        else:
+            return 0.0
+    except (ValueError, IndexError):
+        return 0.0
+
+
+def build_llm_overlay_system_prompt() -> str:
+    """Build system prompt for LLM overlay management"""
+    return """Sen bir video eğitim overlay yönetim asistanısın. Kullanıcının komutlarına göre video üzerinde overlay'ler oluştur, düzenle veya sil.
+
+## Overlay Veri Yapısı
+Overlay'ler aşağıdaki özelliklere sahiptir:
+- time_stamp (float): Video'da görüneceği saniye (zorunlu)
+- type (string): Overlay tipi (zorunlu)
+  * "label": Basit metin etiketi
+  * "button_link": Tıklanabilir link butonu
+  * "button_message": Mesaj gösteren buton
+  * "button_content": İçerik gösteren buton
+  * "content": İçerik gösterimi
+  * "frame_set": Frame değiştirme
+  * "llm_interaction": LLM etkileşimi
+- caption (string): Görünecek metin (opsiyonel)
+- position (string): Ekrandaki konum (opsiyonel)
+  * "bottom_middle", "bottom_left", "bottom_right"
+  * "top_left", "top_middle", "top_right"
+  * "center", "left_content", "right_content"
+  * "left_half_content", "right_half_content"
+- animation (string): Animasyon tipi (opsiyonel)
+  * "fade_in", "slide_in_left", "slide_in_right", "scale_in"
+- duration (float): Görünme süresi saniye cinsinden (varsayılan: 2.0)
+- frame (string): Video frame tipi (opsiyonel)
+  * "wide", "face_left", "face_right", "face_middle", "face_close"
+- pause_on_show (boolean): Gösterilirken videoyu duraklat (varsayılan: false)
+
+## Komut Örnekleri ve Yanıtları
+1. "5. saniyede 'Dikkat!' yazısı ekle"
+   -> {"action": "create", "time_stamp": 5.0, "type": "label", "caption": "Dikkat!", "position": "center"}
+
+2. "10-15 saniye arası tüm overlay'leri sil"
+   -> {"action": "delete_range", "start_time": 10.0, "end_time": 15.0}
+
+3. "Script'te 'önemli' kelimesi geçen yerlere vurgu ekle"
+   -> SRT script'ini analiz et, "önemli" kelimesinin geçtiği zaman dilimlerini bul
+   -> Her biri için: {"action": "create", "time_stamp": X, "type": "label", "caption": "⚠️ Önemli", "position": "top_middle"}
+
+4. "25. saniyedeki örneği maddeleyerek ekrana yaz"
+   -> SRT script'ten 25. saniye civarındaki metni al, maddelere ayır
+   -> {"action": "create", "time_stamp": 25.0, "type": "content", "caption": "• Madde 1\n• Madde 2", "position": "right_content"}
+
+## Yanıt Formatı
+Yanıtın JSON formatında olmalı ve şu yapıda:
+{
+  "success": true/false,
+  "message": "Açıklayıcı mesaj",
+  "actions": [
+    {
+      "action": "create|update|delete|delete_range",
+      "overlay_id": "sadece update/delete için",
+      "time_stamp": 5.0,
+      "type": "label",
+      "caption": "Metin",
+      "position": "center",
+      "animation": "fade_in",
+      "duration": 2.0,
+      "pause_on_show": false
+    }
+  ],
+  "warnings": ["Uyarı mesajları"]
+}
+
+## Kurallar
+1. time_stamp her zaman float olarak belirt
+2. Belirsiz komutlarda kullanıcıdan netleştirme iste
+3. SRT script'i varsa zaman bilgilerini kullan
+4. Overlay'lerin çakışmamasına dikkat et
+5. Mantıklı pozisyon ve animasyon seç"""
+
+
+@router.post("/{training_id}/sections/{section_id}/llm-overlay", operation_id="llm_manage_overlays")
+def llm_manage_overlays(
+    training_id: str, 
+    section_id: str, 
+    request: LLMOverlayRequest, 
+    session: Session = Depends(get_session)
+):
+    """LLM ile overlay yönetimi"""
+    
+    # Verify training and section exist
+    training = session.get(Training, training_id)
+    if not training:
+        raise HTTPException(404, "Training not found")
+    
+    section = session.get(TrainingSection, section_id)
+    if not section or section.training_id != training_id:
+        raise HTTPException(404, "Training section not found")
+    
+    # Get OpenAI API key
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        raise HTTPException(500, "OpenAI API key not configured")
+    
+    try:
+        # Get current overlays for context
+        current_overlays = session.exec(
+            select(Overlay)
+            .where(Overlay.training_section_id == section_id)
+            .order_by(Overlay.time_stamp)
+        ).all()
+        
+        # Prepare context
+        context = {
+            "section_title": section.title,
+            "section_duration": section.duration or 0,
+            "current_overlays": [
+                {
+                    "id": overlay.id,
+                    "time_stamp": overlay.time_stamp,
+                    "type": overlay.type,
+                    "caption": overlay.caption,
+                    "position": overlay.position,
+                    "animation": overlay.animation,
+                    "duration": overlay.duration
+                } for overlay in current_overlays
+            ]
+        }
+        
+        # Parse SRT script if provided
+        srt_segments = []
+        if request.section_script:
+            if '-->' in request.section_script:
+                srt_segments = parse_srt_content(request.section_script)
+                context["srt_segments"] = srt_segments
+            else:
+                return LLMOverlayResponse(
+                    success=False,
+                    message="Script SRT formatında değil. Lütfen SRT formatında (zaman etiketli) script sağlayın.",
+                    warnings=["Script formatı SRT olmalı: '00:00:05,000 --> 00:00:08,000' formatında"]
+                )
+        
+        # Build LLM prompt
+        system_prompt = build_llm_overlay_system_prompt()
+        user_message = f"""
+Komut: {request.command}
+
+Mevcut Bağlam:
+- Bölüm: {section.title}
+- Süre: {section.duration or 0} saniye
+- Mevcut Overlay Sayısı: {len(current_overlays)}
+
+{f"SRT Script Segmentleri ({len(srt_segments)} adet):" if srt_segments else "SRT Script: Yok"}
+{chr(10).join([f"{seg['start']:.1f}s-{seg['end']:.1f}s: {seg['text']}" for seg in srt_segments[:10]]) if srt_segments else ""}
+{f"... ve {len(srt_segments)-10} segment daha" if len(srt_segments) > 10 else ""}
+
+Mevcut Overlay'ler:
+{chr(10).join([f"- {ov.time_stamp}s: {ov.type} - {ov.caption}" for ov in current_overlays]) if current_overlays else "Henüz overlay yok"}
+
+Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
+"""
+        
+        # Call OpenAI API
+        client = OpenAI(api_key=openai_api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.3,
+            max_tokens=1500
+        )
+        
+        llm_response = response.choices[0].message.content
+        
+        # Parse LLM response
+        try:
+            llm_data = json.loads(llm_response)
+        except json.JSONDecodeError:
+            # Try to extract JSON from response if it's wrapped in text
+            json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
+            if json_match:
+                llm_data = json.loads(json_match.group())
+            else:
+                raise HTTPException(500, f"LLM yanıtı JSON formatında değil: {llm_response}")
+        
+        if not llm_data.get("success", False):
+            return LLMOverlayResponse(
+                success=False,
+                message=llm_data.get("message", "LLM komutu işleyemedi"),
+                warnings=llm_data.get("warnings", [])
+            )
+        
+        # Execute actions
+        executed_actions = []
+        warnings = llm_data.get("warnings", [])
+        
+        for action in llm_data.get("actions", []):
+            try:
+                action_type = action.get("action")
+                
+                if action_type == "create":
+                    # Create new overlay
+                    overlay_data = {
+                        "training_id": training_id,
+                        "training_section_id": section_id,
+                        "time_stamp": int(action.get("time_stamp", 0)),
+                        "type": action.get("type", "label"),
+                        "caption": action.get("caption"),
+                        "position": action.get("position"),
+                        "animation": action.get("animation"),
+                        "duration": action.get("duration", 2.0),
+                        "pause_on_show": action.get("pause_on_show", False),
+                        "frame": action.get("frame")
+                    }
+                    
+                    # Remove None values
+                    overlay_data = {k: v for k, v in overlay_data.items() if v is not None}
+                    
+                    new_overlay = Overlay(**overlay_data)
+                    session.add(new_overlay)
+                    session.commit()
+                    session.refresh(new_overlay)
+                    
+                    executed_actions.append({
+                        "action": "create",
+                        "overlay_id": new_overlay.id,
+                        "time_stamp": new_overlay.time_stamp,
+                        "type": new_overlay.type,
+                        "caption": new_overlay.caption
+                    })
+                
+                elif action_type == "delete":
+                    # Delete specific overlay
+                    overlay_id = action.get("overlay_id")
+                    if overlay_id:
+                        overlay = session.get(Overlay, overlay_id)
+                        if overlay and overlay.training_section_id == section_id:
+                            session.delete(overlay)
+                            session.commit()
+                            executed_actions.append({
+                                "action": "delete",
+                                "overlay_id": overlay_id
+                            })
+                
+                elif action_type == "delete_range":
+                    # Delete overlays in time range
+                    start_time = action.get("start_time", 0)
+                    end_time = action.get("end_time", 0)
+                    
+                    overlays_to_delete = session.exec(
+                        select(Overlay)
+                        .where(Overlay.training_section_id == section_id)
+                        .where(Overlay.time_stamp >= start_time)
+                        .where(Overlay.time_stamp <= end_time)
+                    ).all()
+                    
+                    for overlay in overlays_to_delete:
+                        session.delete(overlay)
+                        executed_actions.append({
+                            "action": "delete",
+                            "overlay_id": overlay.id,
+                            "time_stamp": overlay.time_stamp
+                        })
+                    
+                    session.commit()
+                
+                elif action_type == "update":
+                    # Update existing overlay
+                    overlay_id = action.get("overlay_id")
+                    if overlay_id:
+                        overlay = session.get(Overlay, overlay_id)
+                        if overlay and overlay.training_section_id == section_id:
+                            # Update fields
+                            if "time_stamp" in action:
+                                overlay.time_stamp = int(action["time_stamp"])
+                            if "type" in action:
+                                overlay.type = action["type"]
+                            if "caption" in action:
+                                overlay.caption = action["caption"]
+                            if "position" in action:
+                                overlay.position = action["position"]
+                            if "animation" in action:
+                                overlay.animation = action["animation"]
+                            if "duration" in action:
+                                overlay.duration = action["duration"]
+                            if "pause_on_show" in action:
+                                overlay.pause_on_show = action["pause_on_show"]
+                            
+                            session.commit()
+                            executed_actions.append({
+                                "action": "update",
+                                "overlay_id": overlay_id,
+                                "time_stamp": overlay.time_stamp
+                            })
+            
+            except Exception as e:
+                warnings.append(f"Aksiyon hatası: {str(e)}")
+        
+        return LLMOverlayResponse(
+            success=True,
+            message=llm_data.get("message", f"{len(executed_actions)} overlay işlemi tamamlandı"),
+            actions=executed_actions,
+            warnings=warnings
+        )
+        
+    except Exception as e:
+        return LLMOverlayResponse(
+            success=False,
+            message=f"LLM overlay yönetimi hatası: {str(e)}",
+            warnings=[str(e)]
+        )

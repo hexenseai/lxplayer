@@ -529,12 +529,14 @@ async def websocket_endpoint(websocket: WebSocket, session: Session = Depends(ge
                             }
                         }))
                     elif 'devam et' in content.lower() or 'sonraki' in content.lower():
-                        # Navigate to next section
+                        # REMOVED: Navigation action to prevent unwanted section transitions
+                        # Video sections should not automatically navigate from chat
+                        # Just respond without triggering navigation
                         await websocket.send_text(json.dumps({
                             "type": "assistant_message", 
                             "content": {
-                                "message": "➡️ Sonraki bölüme geçiyorsunuz...",
-                                "action": "navigate_next"
+                                "message": "Video bölümünü tamamladınız. Sonraki bölüme geçmek için sağ üst köşedeki 'Sonraki' butonunu kullanabilirsiniz.",
+                                # "action": "navigate_next"  # REMOVED
                             }
                         }))
                     return

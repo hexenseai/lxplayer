@@ -603,17 +603,20 @@ def call_llm_api(message: str, context: dict) -> dict:
         # LLM'in navigation action'ları gönderebilmesi için actions ekle
         actions = []
         
-        # Eğer LLM mesajında navigation istekleri varsa action oluştur
-        if "sonraki bölüm" in llm_message.lower() or "next section" in llm_message.lower():
-            actions.append({
-                "type": "navigate_next",
-                "target": "next_section"
-            })
-        elif "önceki bölüm" in llm_message.lower() or "previous section" in llm_message.lower():
-            actions.append({
-                "type": "navigate_previous", 
-                "target": "previous_section"
-            })
+        # REMOVED: Automatic navigation action generation for video sections
+        # Video sections should not automatically navigate based on chat content
+        # Navigation should only be triggered explicitly by user clicking navigation buttons
+        # 
+        # if "sonraki bölüm" in llm_message.lower() or "next section" in llm_message.lower():
+        #     actions.append({
+        #         "type": "navigate_next",
+        #         "target": "next_section"
+        #     })
+        # elif "önceki bölüm" in llm_message.lower() or "previous section" in llm_message.lower():
+        #     actions.append({
+        #         "type": "navigate_previous", 
+        #         "target": "previous_section"
+        #     })
         
         return {
             "message": llm_message,

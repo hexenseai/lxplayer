@@ -195,9 +195,11 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
                         setChatOpen(false);
                       }
                     }, 2000);
-                  } else if (data.content?.action === 'navigate_next') {
-                    onNavigateNext();
                   }
+                  // REMOVED: WebSocket navigation action processing to prevent unwanted transitions
+                  // else if (data.content?.action === 'navigate_next') {
+                  //   onNavigateNext();
+                  // }
                 }
               }
               
@@ -268,7 +270,7 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
     onTrackUserMessage(msg);
     setChatInput('');
     
-    // Check if this is a video ended response
+    // Check if this is a video ended response - but DON'T trigger navigation
     const isVideoEndedResponse = msg.toLowerCase().includes('devam et') || 
                                  msg.toLowerCase().includes('tekrar et') ||
                                  msg.toLowerCase().includes('sonraki');
@@ -283,7 +285,9 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
         }
         return;
       } else if (msg.toLowerCase().includes('devam et') || msg.toLowerCase().includes('sonraki')) {
-        // Use LLM API for navigation
+        // REMOVED: Navigation actions from video section chat
+        // Video sections should not automatically navigate to next section from chat
+        // Just respond with LLM without processing navigation actions
         if (sessionId) {
           try {
             const response = await api.sendMessageToLLM(sessionId, msg, 'user');
@@ -297,14 +301,14 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
             }]);
             onTrackAssistantMessage(response.message);
             
-            // Handle LLM actions
-            if (response.actions && response.actions.length > 0) {
-              for (const action of response.actions) {
-                if (onLLMAction) {
-                  await onLLMAction(action);
-                }
-              }
-            }
+            // REMOVED: LLM action processing to prevent unwanted navigation
+            // if (response.actions && response.actions.length > 0) {
+            //   for (const action of response.actions) {
+            //     if (onLLMAction) {
+            //       await onLLMAction(action);
+            //     }
+            //   }
+            // }
           } catch (error) {
             console.error('❌ Failed to send message to LLM:', error);
           }
@@ -330,14 +334,15 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
         // Update suggestions
         setChatSuggestions(response.suggestions || []);
         
-        // Handle LLM actions
-        if (response.actions && response.actions.length > 0) {
-          for (const action of response.actions) {
-            if (onLLMAction) {
-              await onLLMAction(action);
-            }
-          }
-        }
+        // REMOVED: LLM action processing to prevent unwanted navigation from video section chats
+        // Video sections should not process navigation actions from chat interactions
+        // if (response.actions && response.actions.length > 0) {
+        //   for (const action of response.actions) {
+        //     if (onLLMAction) {
+        //       await onLLMAction(action);
+        //     }
+        //   }
+        // }
       } catch (error) {
         console.error('❌ Failed to send message to LLM:', error);
         // Fallback to old WebSocket system if LLM fails
@@ -749,18 +754,19 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
               const newPlayingState = !isPlaying;
               setIsPlaying(newPlayingState);
               
-              // LLM sistemine action gönder
-              if (onLLMAction) {
-                await onLLMAction({
-                  type: newPlayingState ? 'video_play' : 'video_pause',
-                  data: {
-                    sectionId: section.id,
-                    currentTime: currentTime,
-                    isPlaying: newPlayingState
-                  },
-                  timestamp: Date.now()
-                });
-              }
+              // REMOVED: LLM action sending to prevent unwanted navigation triggers
+              // Video controls should not send actions to LLM system that could cause navigation
+              // if (onLLMAction) {
+              //   await onLLMAction({
+              //     type: newPlayingState ? 'video_play' : 'video_pause',
+              //     data: {
+              //       sectionId: section.id,
+              //       currentTime: currentTime,
+              //       isPlaying: newPlayingState
+              //     },
+              //     timestamp: Date.now()
+              //   });
+              // }
               
               // Tracking
               if (newPlayingState) {

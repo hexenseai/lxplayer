@@ -371,6 +371,27 @@ export const api = {
     is_srt_format: z.boolean()
   }), { method: 'POST' }),
 
+  // LLM overlay management
+  llmManageOverlays: (trainingId: string, sectionId: string, command: string, sectionScript?: string) => 
+    request(`/trainings/${trainingId}/sections/${sectionId}/llm-overlay`, z.object({
+      success: z.boolean(),
+      message: z.string(),
+      actions: z.array(z.object({
+        action: z.string(),
+        overlay_id: z.string().optional(),
+        time_stamp: z.number().optional(),
+        type: z.string().optional(),
+        caption: z.string().optional()
+      })),
+      warnings: z.array(z.string())
+    }), { 
+      method: 'POST', 
+      body: JSON.stringify({ 
+        command, 
+        section_script: sectionScript 
+      }) 
+    }),
+
   // section overlays
   listSectionOverlays: (trainingId: string, sectionId: string) => request(`/trainings/${trainingId}/sections/${sectionId}/overlays`, z.array(Overlay)),
   getSectionOverlay: (trainingId: string, sectionId: string, overlayId: string) => request(`/trainings/${trainingId}/sections/${sectionId}/overlays/${overlayId}`, Overlay),

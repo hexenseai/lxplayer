@@ -9,6 +9,7 @@ import { OverlayManager, OverlayComponent } from '@/components/player/Overlay';
 import OverlaysList from '@/components/admin/OverlaysList';
 import OverlayTimeline from '@/components/admin/OverlayTimeline';
 import OverlayModal from '@/components/admin/forms/OverlayModal';
+import { LLMOverlayWidget } from '@/components/admin/LLMOverlayWidget';
 
 function buildVideoUrl(section: TrainingSection): string | undefined {
   const cdn = process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer';
@@ -299,13 +300,32 @@ export default function SectionPreviewPage() {
         </div>
       </div>
 
-      {/* Overlay CRUD panel below controls */}
-      <div className="bg-white border rounded-lg p-3">
-        <div className="text-sm font-medium mb-2">Overlay Yönetimi</div>
-        <OverlaysList
+      {/* Overlay Management Panel - Split 50/50 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left: Traditional Overlay List */}
+        <div className="bg-white border rounded-lg p-3">
+          <div className="text-sm font-medium mb-2">Overlay Listesi</div>
+          <OverlaysList
+            trainingId={trainingId}
+            sectionId={sectionId}
+            onChanged={(data) => setOverlays(data)}
+          />
+        </div>
+
+        {/* Right: LLM Overlay Widget */}
+        <LLMOverlayWidget
           trainingId={trainingId}
           sectionId={sectionId}
-          onChanged={(data) => setOverlays(data)}
+          section={section}
+          onOverlaysChanged={async () => {
+            // Refresh overlays after LLM operations
+            try {
+              const updatedOverlays = await api.listSectionOverlays(trainingId, sectionId);
+              setOverlays(updatedOverlays);
+            } catch (error) {
+              console.error('Failed to refresh overlays:', error);
+            }
+          }}
         />
       </div>
 
