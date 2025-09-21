@@ -19,7 +19,7 @@ const overlaySchema = z.object({
   icon_style_id: z.string().optional(), // Yeni: Icon için ayrı stil
   frame: z.string().optional(),
   animation: z.string().optional(),
-  duration: z.number().min(0.1, 'Süre en az 0.1 saniye olmalı').max(10, 'Süre en fazla 10 saniye olabilir').optional(),
+  duration: z.number().min(0.1, 'Süre en az 0.1 saniye olmalı').optional(),
   position: z.string().optional(),
   icon: z.string().optional(),
   pause_on_show: z.boolean().optional(),
@@ -466,7 +466,6 @@ export default function OverlayForm({ trainingId, sectionId, overlayId, onSucces
                   type="number"
                   step="0.1"
                   min="0.1"
-                  max="10"
                   {...register('duration', { valueAsNumber: true })}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   placeholder="2"

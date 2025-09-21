@@ -795,6 +795,24 @@ def create_section_overlay(training_id: str, section_id: str, overlay: OverlayIn
     if 'duration' not in overlay_data or overlay_data['duration'] is None:
         overlay_data['duration'] = 2.0
     
+    # Validate overlay duration against video duration
+    if section.asset_id:
+        asset = session.get(Asset, section.asset_id)
+        if asset and asset.kind == 'video':
+            video_duration = get_video_duration(asset.uri)
+            overlay_start_time = overlay_data['time_stamp']
+            overlay_duration = overlay_data['duration']
+            
+            # Check if overlay extends beyond video duration
+            if overlay_start_time + overlay_duration > video_duration:
+                # Adjust overlay duration to fit within video
+                max_allowed_duration = video_duration - overlay_start_time
+                if max_allowed_duration > 0:
+                    overlay_data['duration'] = max_allowed_duration
+                    print(f"DEBUG: Adjusted overlay duration from {overlay_duration} to {max_allowed_duration} to fit video duration")
+                else:
+                    raise HTTPException(400, f"Overlay başlangıç zamanı ({overlay_start_time}s) video süresinden ({video_duration}s) büyük olamaz")
+    
     overlay_data["training_id"] = training_id
     overlay_data["training_section_id"] = section_id
     
@@ -845,6 +863,24 @@ def update_section_overlay(training_id: str, section_id: str, overlay_id: str, o
     # Set default duration if not provided
     if 'duration' not in overlay_data or overlay_data['duration'] is None:
         overlay_data['duration'] = 2.0
+    
+    # Validate overlay duration against video duration
+    if section.asset_id:
+        asset = session.get(Asset, section.asset_id)
+        if asset and asset.kind == 'video':
+            video_duration = get_video_duration(asset.uri)
+            overlay_start_time = overlay_data['time_stamp']
+            overlay_duration = overlay_data['duration']
+            
+            # Check if overlay extends beyond video duration
+            if overlay_start_time + overlay_duration > video_duration:
+                # Adjust overlay duration to fit within video
+                max_allowed_duration = video_duration - overlay_start_time
+                if max_allowed_duration > 0:
+                    overlay_data['duration'] = max_allowed_duration
+                    print(f"DEBUG: Adjusted overlay duration from {overlay_duration} to {max_allowed_duration} to fit video duration")
+                else:
+                    raise HTTPException(400, f"Overlay başlangıç zamanı ({overlay_start_time}s) video süresinden ({video_duration}s) büyük olamaz")
     
     print(f"DEBUG: Processed data: {overlay_data}")
     
@@ -1353,6 +1389,58 @@ def create_scorm_html(training, sections, overlays):
 </html>'''
     
     return html_template.format(training_title=training.title)
+
+
+def get_video_duration(asset_uri: str) -> float:
+    """Get video duration in seconds from asset URI"""
+    try:
+        # Check if ffmpeg is available
+        ffmpeg_paths = [
+            'ffprobe',  # PATH'te varsa
+            r'C:\ffmpeg\bin\ffprobe.exe',  # Tam yol
+            r'C:\Program Files\ffmpeg\bin\ffprobe.exe',  # Program Files
+        ]
+        
+        ffprobe_found = False
+        ffprobe_cmd = None
+        
+        for path in ffmpeg_paths:
+            try:
+                result = subprocess.run([path, '-version'], capture_output=True, text=True, check=True)
+                ffprobe_found = True
+                ffprobe_cmd = path
+                break
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                continue
+        
+        if not ffprobe_found:
+            print("FFprobe not found, using default video duration")
+            return 300.0  # Default 5 minutes
+        
+        # Prepare video URL
+        video_url = asset_uri
+        if not video_url.startswith('http'):
+            cdn_url = os.getenv('CDN_URL', 'http://minio:9000/lxplayer')
+            video_url = f"{cdn_url}/{video_url}"
+        
+        # Use ffprobe to get duration
+        ffprobe_cmd = [
+            ffprobe_cmd, '-v', 'quiet', '-show_entries', 
+            'format=duration', '-of', 'csv=p=0', video_url
+        ]
+        
+        result = subprocess.run(ffprobe_cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            duration = float(result.stdout.strip())
+            print(f"Video duration: {duration} seconds")
+            return duration
+        else:
+            print(f"Could not get video duration, using default: 300 seconds")
+            return 300.0
+            
+    except Exception as e:
+        print(f"Error getting video duration: {e}, using default: 300 seconds")
+        return 300.0
 
 
 def create_scorm_css():
@@ -1936,6 +2024,7 @@ def build_llm_overlay_system_prompt(available_styles: list, available_frames: li
 
 ## Overlay Veri Yapısı
 Overlay sistemi çakışmaları otomatik olarak yönetir - aynı zamanda birden fazla overlay gösterebilir ve farklı pozisyonlarda yerleştirir.
+
 Overlay'ler aşağıdaki özelliklere sahiptir:
 - time_stamp (integer): Video'da görüneceği saniye (zorunlu) - SADECE TAM SAYI KULLAN
 - type (string): Overlay tipi (zorunlu)
@@ -2011,7 +2100,17 @@ Yanıtın JSON formatında olmalı ve şu yapıda:
 3. SRT script'i varsa zaman bilgilerini kullan ve tam sayıya yuvarla
 4. Overlay'lerin aynı zamanda görünmesi sorun değil - sistem otomatik olarak farklı pozisyonlarda yerleştirir
 5. Mantıklı pozisyon ve animasyon seç
-6. ÖNEMLİ: Tüm zaman değerleri sadece tam sayı olmalı (1, 5, 10, 25 gibi)"""
+6. ÖNEMLİ: Tüm zaman değerleri sadece tam sayı olmalı (1, 5, 10, 25 gibi)
+
+## Akıllı Öneriler
+Kullanıcının isteğine göre uygun overlay türlerini seç:
+- Soru istiyorsa: button_message ile düşündürücü sorular
+- Kaynak istiyorsa: button_link ile ilgili web kaynakları  
+- Açıklama istiyorsa: content ile detaylı bilgi
+- Vurgu istiyorsa: label ile görsel vurgular
+- Etkileşim istiyorsa: llm_interaction ile AI sohbeti
+
+Kendi zekanı kullanarak en uygun overlay türünü ve içeriği öner."""
 
 
 @router.post("/{training_id}/sections/{section_id}/llm-overlay-preview", operation_id="llm_preview_overlays")

@@ -24,6 +24,8 @@ interface StyleSettings {
   paddingLeft?: string;
   width?: string;
   height?: string;
+  fixedWidth?: boolean;
+  fixedHeight?: boolean;
   textAlign?: 'left' | 'center' | 'right' | 'justify';
 }
 
@@ -118,6 +120,36 @@ const stylePresets = [
       color: '#495057',
       lineHeight: '1.6'
     }
+  },
+  {
+    name: 'Sabit Boyut Kutu',
+    style: {
+      width: '300px',
+      height: '150px',
+      fixedWidth: true,
+      fixedHeight: true,
+      backgroundColor: '#f8f9fa',
+      borderColor: '#dee2e6',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderRadius: '8px',
+      padding: '15px',
+      textAlign: 'center'
+    }
+  },
+  {
+    name: 'Sabit Genişlik Banner',
+    style: {
+      width: '500px',
+      fixedWidth: true,
+      backgroundColor: '#007bff',
+      color: '#ffffff',
+      padding: '10px 20px',
+      borderRadius: '4px',
+      fontSize: '16px',
+      fontWeight: 'bold',
+      textAlign: 'center'
+    }
   }
 ];
 
@@ -136,9 +168,9 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
     }
   }, [value]);
 
-  const updateSetting = (key: keyof StyleSettings, newValue: string) => {
+  const updateSetting = (key: keyof StyleSettings, newValue: string | boolean) => {
     const newSettings = { ...settings };
-    if (newValue === '') {
+    if (newValue === '' || newValue === false) {
       delete newSettings[key];
     } else {
       newSettings[key] = newValue as any;
@@ -529,6 +561,18 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
                   placeholder="200px"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                 />
+                <div className="mt-2 flex items-center">
+                  <input
+                    type="checkbox"
+                    id="fixedWidth"
+                    checked={settings.fixedWidth || false}
+                    onChange={(e) => updateSetting('fixedWidth', e.target.checked)}
+                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                  <label htmlFor="fixedWidth" className="ml-2 text-sm text-gray-700">
+                    Sabit genişlik (opsiyonel)
+                  </label>
+                </div>
               </div>
 
               <div>
@@ -542,6 +586,18 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
                   placeholder="100px"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                 />
+                <div className="mt-2 flex items-center">
+                  <input
+                    type="checkbox"
+                    id="fixedHeight"
+                    checked={settings.fixedHeight || false}
+                    onChange={(e) => updateSetting('fixedHeight', e.target.checked)}
+                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                  <label htmlFor="fixedHeight" className="ml-2 text-sm text-gray-700">
+                    Sabit yükseklik (opsiyonel)
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -630,12 +686,29 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
       {/* Preview */}
       {Object.keys(settings).length > 0 && (
         <div className="px-4 py-3 bg-gray-100 border-t border-gray-300">
-          <div className="text-xs font-medium text-gray-700 mb-2">Önizleme:</div>
+          <div className="text-xs font-medium text-gray-700 mb-2">
+            Önizleme:
+            {(settings.fixedWidth || settings.fixedHeight) && (
+              <span className="ml-2 text-xs text-blue-600 font-medium">
+                🔒 Sabit boyut
+              </span>
+            )}
+          </div>
           <div
             className="p-3 border border-gray-300 rounded text-sm"
-            style={settings}
+            style={{
+              ...settings,
+              // Apply fixed dimensions with !important if marked as fixed
+              width: settings.fixedWidth && settings.width ? `${settings.width} !important` : settings.width,
+              height: settings.fixedHeight && settings.height ? `${settings.height} !important` : settings.height,
+            }}
           >
             Bu bir örnek metindir
+            {(settings.fixedWidth || settings.fixedHeight) && (
+              <div className="mt-2 text-xs text-blue-600">
+                🔒 Bu boyutlar sabit olarak ayarlanmıştır
+              </div>
+            )}
           </div>
         </div>
       )}
