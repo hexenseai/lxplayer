@@ -2110,6 +2110,12 @@ Kullanıcının isteğine göre uygun overlay türlerini seç:
 - Vurgu istiyorsa: label ile görsel vurgular
 - Etkileşim istiyorsa: llm_interaction ile AI sohbeti
 
+## Video Süresi Kullanımı
+- Video süresinin TAMAMINI kullan - sadece başlangıçta değil!
+- Overlay'leri 0'dan video sonuna kadar yayarak yerleştir
+- SRT script'teki zaman bilgilerini kullanarak uygun yerlerde overlay'ler öner
+- Video uzunsa daha fazla overlay, kısaysa daha az overlay öner
+
 Kendi zekanı kullanarak en uygun overlay türünü ve içeriği öner."""
 
 
@@ -2228,12 +2234,19 @@ def llm_preview_overlays(
         # Build LLM prompt
         system_prompt = build_llm_overlay_system_prompt(styles_data, frames_data)
         
+        # Calculate video duration from SRT segments
+        video_duration = 0
+        if srt_segments:
+            video_duration = max(seg['end'] for seg in srt_segments)
+        else:
+            video_duration = section.duration or 300  # fallback to 5 minutes
+        
         user_message = f"""
 Komut: {request.command.replace('{', '{{').replace('}', '}}')}
 
 Mevcut Bağlam:
 - Bölüm: {section.title.replace('{', '{{').replace('}', '}}') if section.title else 'Başlık yok'}
-- Süre: {section.duration or 0} saniye
+- Video Süresi: {video_duration:.1f} saniye (TÜM BU SÜREYİ KULLAN!)
 - Mevcut Overlay Sayısı: {len(current_overlays)}
 
 {f"SRT Script Segmentleri ({len(srt_segments)} adet):" if srt_segments else "SRT Script: Yok"}
@@ -2242,6 +2255,8 @@ Mevcut Bağlam:
 
 Mevcut Overlay'ler:
 {chr(10).join([f"- {ov.time_stamp}s: {ov.type} - {ov.caption.replace('{', '{{').replace('}', '}}') if ov.caption else 'Caption yok'}" for ov in current_overlays]) if current_overlays else "Henüz overlay yok"}
+
+ÖNEMLİ: Overlay zamanlarını 0-{int(video_duration)} saniye aralığına yayarak öner. Sadece başlangıçta değil, video süresinin tamamını kullan!
 
 Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
 """
@@ -2408,12 +2423,20 @@ def llm_manage_overlays(
         
         # Build LLM prompt
         system_prompt = build_llm_overlay_system_prompt(styles_data, frames_data)
+        
+        # Calculate video duration from SRT segments
+        video_duration = 0
+        if srt_segments:
+            video_duration = max(seg['end'] for seg in srt_segments)
+        else:
+            video_duration = section.duration or 300  # fallback to 5 minutes
+        
         user_message = f"""
 Komut: {request.command.replace('{', '{{').replace('}', '}}')}
 
 Mevcut Bağlam:
 - Bölüm: {section.title.replace('{', '{{').replace('}', '}}') if section.title else 'Başlık yok'}
-- Süre: {section.duration or 0} saniye
+- Video Süresi: {video_duration:.1f} saniye (TÜM BU SÜREYİ KULLAN!)
 - Mevcut Overlay Sayısı: {len(current_overlays)}
 
 {f"SRT Script Segmentleri ({len(srt_segments)} adet):" if srt_segments else "SRT Script: Yok"}
@@ -2422,6 +2445,8 @@ Mevcut Bağlam:
 
 Mevcut Overlay'ler:
 {chr(10).join([f"- {ov.time_stamp}s: {ov.type} - {ov.caption.replace('{', '{{').replace('}', '}}') if ov.caption else 'Caption yok'}" for ov in current_overlays]) if current_overlays else "Henüz overlay yok"}
+
+ÖNEMLİ: Overlay zamanlarını 0-{int(video_duration)} saniye aralığına yayarak öner. Sadece başlangıçta değil, video süresinin tamamını kullan!
 
 Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
 """
