@@ -14,7 +14,7 @@ from datetime import datetime
 import re
 from openai import OpenAI
 from ..db import get_session
-from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar
+from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar, FrameConfig, GlobalFrameConfig
 from ..auth import hash_password, get_current_user, is_super_admin, is_admin, check_company_access
 from ..storage import get_minio
 
@@ -1870,9 +1870,24 @@ def srt_time_to_seconds(time_str: str) -> float:
         return 0.0
 
 
-def build_llm_overlay_system_prompt() -> str:
+def build_llm_overlay_system_prompt(available_styles: list, available_frames: list) -> str:
     """Build system prompt for LLM overlay management"""
-    return """Sen bir video eğitim overlay yönetim asistanısın. Kullanıcının komutlarına göre video üzerinde overlay'ler oluştur, düzenle veya sil.
+    
+    # Format available styles
+    styles_text = ""
+    if available_styles:
+        styles_text = "\n## Mevcut Stiller\nBu stil ID'lerini style_id alanında kullanabilirsin:\n"
+        for style in available_styles:
+            styles_text += f"- {style['id']}: {style['name']} - {style.get('description', 'Açıklama yok')}\n"
+    
+    # Format available frame configs
+    frames_text = ""
+    if available_frames:
+        frames_text = "\n## Mevcut Frame Konfigürasyonları\nBu frame config ID'lerini frame_config_id alanında kullanabilirsin:\n"
+        for frame in available_frames:
+            frames_text += f"- {frame['id']}: {frame['name']} - {frame.get('description', 'Açıklama yok')}\n"
+    
+    return f"""Sen bir video eğitim overlay yönetim asistanısın. Kullanıcının komutlarına göre video üzerinde overlay'ler oluştur, düzenle veya sil.
 
 ## Overlay Veri Yapısı
 Overlay'ler aşağıdaki özelliklere sahiptir:
@@ -1897,6 +1912,8 @@ Overlay'ler aşağıdaki özelliklere sahiptir:
 - frame (string): Video frame tipi (opsiyonel)
   * "wide", "face_left", "face_right", "face_middle", "face_close"
 - pause_on_show (boolean): Gösterilirken videoyu duraklat (varsayılan: false)
+- style_id (string): Stil ID'si (opsiyonel) - Aşağıdaki mevcut stillerden seçebilirsin
+- frame_config_id (string): Frame konfigürasyonu ID'si (opsiyonel) - Aşağıdaki mevcut frame'lerden seçebilirsin{styles_text}{frames_text}
 
 ## Komut Örnekleri ve Yanıtları
 1. "5. saniyede 'Dikkat!' yazısı ekle"
@@ -1913,6 +1930,12 @@ Overlay'ler aşağıdaki özelliklere sahiptir:
    -> SRT script'ten 25. saniye civarındaki metni al, maddelere ayır
    -> {"action": "create", "time_stamp": 25.0, "type": "content", "caption": "• Madde 1\n• Madde 2", "position": "right_content"}
 
+5. "Kırmızı stille uyarı ekle" (stil kullanımı)
+   -> Mevcut stillerden uygun olanı seç: {"action": "create", "time_stamp": X, "type": "label", "caption": "Uyarı", "style_id": "STIL_ID"}
+
+6. "Yakın çekim frame'i ile 10. saniyede başlık ekle" (frame kullanımı)
+   -> Mevcut frame'lerden uygun olanı seç: {"action": "create", "time_stamp": 10.0, "type": "label", "caption": "Başlık", "frame_config_id": "FRAME_ID"}
+
 ## Yanıt Formatı
 Yanıtın JSON formatında olmalı ve şu yapıda:
 {
@@ -1928,7 +1951,9 @@ Yanıtın JSON formatında olmalı ve şu yapıda:
       "position": "center",
       "animation": "fade_in",
       "duration": 2.0,
-      "pause_on_show": false
+      "pause_on_show": false,
+      "style_id": "stil_id_buraya",
+      "frame_config_id": "frame_id_buraya"
     }
   ],
   "warnings": ["Uyarı mesajları"]
@@ -1973,6 +1998,28 @@ def llm_manage_overlays(
             .order_by(Overlay.time_stamp)
         ).all()
         
+        # Get available styles
+        available_styles = session.exec(
+            select(Style).where(Style.is_default == True).order_by(Style.name)
+        ).all()
+        
+        # Get available frame configs for this section
+        available_frame_configs = session.exec(
+            select(FrameConfig)
+            .where(FrameConfig.training_section_id == section_id)
+            .order_by(FrameConfig.name)
+        ).all()
+        
+        # Also get global frame configs
+        global_frame_configs = session.exec(
+            select(GlobalFrameConfig)
+            .where(GlobalFrameConfig.is_active == True)
+            .order_by(GlobalFrameConfig.name)
+        ).all()
+        
+        # Combine frame configs
+        all_frame_configs = list(available_frame_configs) + list(global_frame_configs)
+        
         # Prepare context
         context = {
             "section_title": section.title,
@@ -2003,8 +2050,26 @@ def llm_manage_overlays(
                     warnings=["Script formatı SRT olmalı: '00:00:05,000 --> 00:00:08,000' formatında"]
                 )
         
+        # Prepare style and frame data for LLM
+        styles_data = [
+            {
+                "id": style.id,
+                "name": style.name,
+                "description": style.description
+            } for style in available_styles
+        ]
+        
+        frames_data = [
+            {
+                "id": frame.id,
+                "name": frame.name,
+                "description": frame.description,
+                "type": "section" if hasattr(frame, 'training_section_id') else "global"
+            } for frame in all_frame_configs
+        ]
+        
         # Build LLM prompt
-        system_prompt = build_llm_overlay_system_prompt()
+        system_prompt = build_llm_overlay_system_prompt(styles_data, frames_data)
         user_message = f"""
 Komut: {request.command}
 
@@ -2075,7 +2140,9 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
                         "animation": action.get("animation"),
                         "duration": action.get("duration", 2.0),
                         "pause_on_show": action.get("pause_on_show", False),
-                        "frame": action.get("frame")
+                        "frame": action.get("frame"),
+                        "style_id": action.get("style_id"),
+                        "frame_config_id": action.get("frame_config_id")
                     }
                     
                     # Remove None values
@@ -2150,6 +2217,10 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
                                 overlay.duration = action["duration"]
                             if "pause_on_show" in action:
                                 overlay.pause_on_show = action["pause_on_show"]
+                            if "style_id" in action:
+                                overlay.style_id = action["style_id"]
+                            if "frame_config_id" in action:
+                                overlay.frame_config_id = action["frame_config_id"]
                             
                             session.commit()
                             executed_actions.append({

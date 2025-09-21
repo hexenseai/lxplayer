@@ -86,6 +86,8 @@ export function LLMOverlayWidget({
     "Script'te 'önemli' kelimesi geçen yerlere vurgu ekle",
     "10-15 saniye arası overlay'leri sil",
     "25. saniyedeki konuyu maddeleyerek sağ tarafa yaz",
+    "Kırmızı stille uyarı mesajı ekle",
+    "Yakın çekim frame'i ile başlık ekle",
     "Tüm overlay'leri temizle"
   ];
 
