@@ -227,7 +227,6 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
       padding: '0.75em 1em',
       borderRadius: '0.75em',
       boxShadow: '0 0.5em 1.5em rgba(0, 0, 0, 0.5)',
-      backdropFilter: 'blur(0.75em)',
       border: '0.125em solid rgba(255, 255, 255, 0.2)',
       // Font size scales with viewport width but stays in a sensible range
       fontSize: 'min(1.6vw, 18px)',
@@ -275,6 +274,33 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
           : color.startsWith('rgb')
           ? color.replace('rgb', 'rgba').replace(')', `, ${opacity})`)
           : hexToRgba(color, opacity);
+      }
+      
+      // Handle fixed dimensions - override base width/maxWidth settings
+      const hasFixedWidth = customStyles.fixedWidth && customStyles.width;
+      const hasFixedHeight = customStyles.fixedHeight && customStyles.height;
+      
+      if (hasFixedWidth || hasFixedHeight) {
+        // Override the base styles that allow expansion
+        if (hasFixedWidth) {
+          processedStyles.width = customStyles.width;
+          processedStyles.maxWidth = customStyles.width;
+        }
+        if (hasFixedHeight) {
+          processedStyles.height = customStyles.height;
+          processedStyles.maxHeight = customStyles.height;
+        }
+        // Change display to block for fixed dimensions to prevent content expansion
+        processedStyles.display = 'block';
+        processedStyles.overflow = 'hidden';
+      }
+      
+      // Handle backdrop blur - only apply if explicitly enabled
+      if (customStyles.backdropBlur && customStyles.backdropBlurAmount) {
+        processedStyles.backdropFilter = `blur(${customStyles.backdropBlurAmount}px)`;
+      } else {
+        // Remove backdrop filter if not explicitly set
+        processedStyles.backdropFilter = 'none';
       }
       
       return { ...baseStyles, ...processedStyles };
@@ -650,7 +676,11 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
           isInPositionContainer
             ? ((overlay.position === 'fullscreen' || overlay.position === 'fullscreen_cover' || overlay.position === 'fullscreen_dark')
                 ? { position: 'absolute', inset: 0, width: '100%', height: '100%', padding: 0, border: 'none', borderRadius: 0, boxShadow: 'none', backdropFilter: 'none', backgroundColor: 'transparent' }
-                : { ...contentStyles, display: 'block', width: 'fit-content', maxWidth: '100%' })
+                : { 
+                    ...contentStyles, 
+                    // Only apply default width/maxWidth if no fixed dimensions are set
+                    ...(contentStyles.width && contentStyles.maxWidth ? {} : { display: 'block', width: 'fit-content', maxWidth: '100%' })
+                  })
             : { ...getPositionStyles(), ...contentStyles }
         }
         {...getAnimationProps()}

@@ -27,6 +27,8 @@ interface StyleSettings {
   fixedWidth?: boolean;
   fixedHeight?: boolean;
   textAlign?: 'left' | 'center' | 'right' | 'justify';
+  backdropBlur?: boolean;
+  backdropBlurAmount?: string;
 }
 
 interface StyleEditorProps {
@@ -184,6 +186,49 @@ const stylePresets = [
       textAlign: 'center',
       fontSize: '18px'
     }
+  },
+  {
+    name: 'Şeffaf Buzlu Cam',
+    style: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      borderColor: 'rgba(255, 255, 255, 0.3)',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderRadius: '12px',
+      padding: '15px',
+      backdropBlur: true,
+      backdropBlurAmount: '15',
+      color: '#ffffff',
+      fontSize: '16px',
+      fontWeight: '500',
+      textShadow: '1px 1px 2px rgba(0,0,0,0.3)'
+    }
+  },
+  {
+    name: 'Tam Şeffaf',
+    style: {
+      backgroundColor: 'rgba(0, 0, 0, 0)',
+      color: '#ffffff',
+      fontSize: '16px',
+      fontWeight: '600',
+      textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+      padding: '10px'
+    }
+  },
+  {
+    name: 'Koyu Buzlu Cam',
+    style: {
+      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+      borderColor: 'rgba(255, 255, 255, 0.2)',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderRadius: '8px',
+      padding: '12px',
+      backdropBlur: true,
+      backdropBlurAmount: '20',
+      color: '#ffffff',
+      fontSize: '14px'
+    }
   }
 ];
 
@@ -313,6 +358,40 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
                 onChange={(e) => updateSetting('backgroundColorOpacity', e.target.value)}
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
               />
+            </div>
+
+            <div>
+              <div className="flex items-center space-x-2 mb-2">
+                <input
+                  type="checkbox"
+                  id="backdropBlur"
+                  checked={settings.backdropBlur || false}
+                  onChange={(e) => updateSetting('backdropBlur', e.target.checked)}
+                  className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                />
+                <label htmlFor="backdropBlur" className="text-sm font-medium text-gray-700">
+                  Buzlu Cam Efekti (Backdrop Blur)
+                </label>
+              </div>
+              {settings.backdropBlur && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Blur Miktarı: {settings.backdropBlurAmount || '12'}px
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="50"
+                    value={settings.backdropBlurAmount || '12'}
+                    onChange={(e) => updateSetting('backdropBlurAmount', e.target.value)}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Şeffaf</span>
+                    <span>Çok Bulanık</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
