@@ -482,18 +482,82 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
           const isFullscreen = isFullscreenAuto || isFullscreenCover || isFullscreenDark;
           const src = resolveAssetUri(overlay.content_asset.uri);
           if (overlay.content_asset.kind === 'image') {
+            // Check if style has fixed dimensions
+            let imageStyle: React.CSSProperties = {};
+            let imageClassName = isFullscreenCover ? 'w-full h-full object-cover' : isFullscreen ? 'w-full h-full object-contain' : 'max-w-full h-auto';
+            
+            if (styleData && !isFullscreen) {
+              try {
+                const customStyles = JSON.parse(styleData.style_json);
+                // Apply fixed dimensions if specified
+                if (customStyles.fixedWidth && customStyles.width) {
+                  imageStyle.width = customStyles.width;
+                  imageStyle.maxWidth = customStyles.width;
+                  imageClassName = 'h-auto object-contain';
+                }
+                if (customStyles.fixedHeight && customStyles.height) {
+                  imageStyle.height = customStyles.height;
+                  imageStyle.maxHeight = customStyles.height;
+                  imageClassName = 'w-auto object-contain';
+                }
+                // If both width and height are fixed, use object-fit cover
+                if (customStyles.fixedWidth && customStyles.width && customStyles.fixedHeight && customStyles.height) {
+                  imageStyle.width = customStyles.width;
+                  imageStyle.height = customStyles.height;
+                  imageStyle.maxWidth = customStyles.width;
+                  imageStyle.maxHeight = customStyles.height;
+                  imageClassName = 'object-cover';
+                }
+              } catch (error) {
+                console.error('Error parsing style for image dimensions:', error);
+              }
+            }
+            
             return (
               <img
                 src={src}
                 alt={overlay.content_asset.title || ''}
-                className={isFullscreenCover ? 'w-full h-full object-cover' : isFullscreen ? 'w-full h-full object-contain' : 'max-w-full h-auto'}
+                className={imageClassName}
+                style={imageStyle}
               />
             );
           } else if (overlay.content_asset.kind === 'video') {
+            // Check if style has fixed dimensions
+            let videoStyle: React.CSSProperties = {};
+            let videoClassName = isFullscreenCover ? 'w-full h-full object-cover' : isFullscreen ? 'w-full h-full object-contain' : 'max-w-full h-auto';
+            
+            if (styleData && !isFullscreen) {
+              try {
+                const customStyles = JSON.parse(styleData.style_json);
+                // Apply fixed dimensions if specified
+                if (customStyles.fixedWidth && customStyles.width) {
+                  videoStyle.width = customStyles.width;
+                  videoStyle.maxWidth = customStyles.width;
+                  videoClassName = 'h-auto object-contain';
+                }
+                if (customStyles.fixedHeight && customStyles.height) {
+                  videoStyle.height = customStyles.height;
+                  videoStyle.maxHeight = customStyles.height;
+                  videoClassName = 'w-auto object-contain';
+                }
+                // If both width and height are fixed, use object-fit cover
+                if (customStyles.fixedWidth && customStyles.width && customStyles.fixedHeight && customStyles.height) {
+                  videoStyle.width = customStyles.width;
+                  videoStyle.height = customStyles.height;
+                  videoStyle.maxWidth = customStyles.width;
+                  videoStyle.maxHeight = customStyles.height;
+                  videoClassName = 'object-cover';
+                }
+              } catch (error) {
+                console.error('Error parsing style for video dimensions:', error);
+              }
+            }
+            
             return (
               <video
                 src={src}
-                className={isFullscreenCover ? 'w-full h-full object-cover' : isFullscreen ? 'w-full h-full object-contain' : 'max-w-full h-auto'}
+                className={videoClassName}
+                style={videoStyle}
                 controls={false}
                 autoPlay
                 playsInline
@@ -501,16 +565,48 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
               />
             );
           } else if (overlay.content_asset.kind === 'doc' || overlay.content_asset.kind === 'html' || overlay.content_asset.kind === 'pdf') {
+            // Check if style has fixed dimensions
+            let contentStyle: React.CSSProperties = isFullscreen ? {} : { width: '80vw', height: '60vh' };
+            let contentClassName = isFullscreen ? 'w-full h-full overflow-auto bg-white' : 'bg-white max-w-full';
+            let iframeClassName = isFullscreen ? 'w-full h-full' : 'max-w-full';
+            
+            if (styleData && !isFullscreen) {
+              try {
+                const customStyles = JSON.parse(styleData.style_json);
+                // Apply fixed dimensions if specified
+                if (customStyles.fixedWidth && customStyles.width) {
+                  contentStyle.width = customStyles.width;
+                  contentStyle.maxWidth = customStyles.width;
+                  contentClassName = 'bg-white overflow-auto';
+                }
+                if (customStyles.fixedHeight && customStyles.height) {
+                  contentStyle.height = customStyles.height;
+                  contentStyle.maxHeight = customStyles.height;
+                  contentClassName = 'bg-white overflow-auto';
+                }
+                // If both width and height are fixed
+                if (customStyles.fixedWidth && customStyles.width && customStyles.fixedHeight && customStyles.height) {
+                  contentStyle.width = customStyles.width;
+                  contentStyle.height = customStyles.height;
+                  contentStyle.maxWidth = customStyles.width;
+                  contentStyle.maxHeight = customStyles.height;
+                  contentClassName = 'bg-white overflow-auto';
+                }
+              } catch (error) {
+                console.error('Error parsing style for content dimensions:', error);
+              }
+            }
+            
             return (
               overlay.content_asset.html_content ? (
-                <div className={isFullscreen ? 'w-full h-full overflow-auto bg-white' : 'bg-white max-w-full'} style={isFullscreen ? {} : { width: '80vw', height: '60vh' }}>
+                <div className={contentClassName} style={contentStyle}>
                   <div dangerouslySetInnerHTML={{ __html: rewriteHtmlAssetUrls(overlay.content_asset.html_content || '') }} />
                 </div>
               ) : (
                 <iframe
                   src={src}
-                  className={isFullscreen ? 'w-full h-full' : 'max-w-full'}
-                  style={isFullscreen ? {} : { width: '80vw', height: '60vh' }}
+                  className={iframeClassName}
+                  style={contentStyle}
                   sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
                 />
               )

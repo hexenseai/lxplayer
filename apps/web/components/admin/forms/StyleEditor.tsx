@@ -150,6 +150,40 @@ const stylePresets = [
       fontWeight: 'bold',
       textAlign: 'center'
     }
+  },
+  {
+    name: 'Küçük Sabit Kutu',
+    style: {
+      width: '200px',
+      height: '100px',
+      fixedWidth: true,
+      fixedHeight: true,
+      backgroundColor: '#e3f2fd',
+      borderColor: '#2196f3',
+      borderWidth: '2px',
+      borderStyle: 'solid',
+      borderRadius: '8px',
+      padding: '10px',
+      textAlign: 'center',
+      fontSize: '14px'
+    }
+  },
+  {
+    name: 'Büyük Sabit Kutu',
+    style: {
+      width: '400px',
+      height: '250px',
+      fixedWidth: true,
+      fixedHeight: true,
+      backgroundColor: '#f3e5f5',
+      borderColor: '#9c27b0',
+      borderWidth: '2px',
+      borderStyle: 'solid',
+      borderRadius: '12px',
+      padding: '20px',
+      textAlign: 'center',
+      fontSize: '18px'
+    }
   }
 ];
 
@@ -173,7 +207,19 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
     if (newValue === '' || newValue === false) {
       delete newSettings[key];
     } else {
-      newSettings[key] = newValue as any;
+      // For fixed dimensions, ensure values are in 50px increments
+      if ((key === 'width' || key === 'height') && typeof newValue === 'string') {
+        const numericValue = parseFloat(newValue.replace('px', ''));
+        if (!isNaN(numericValue)) {
+          // Round to nearest 50px increment
+          const roundedValue = Math.round(numericValue / 50) * 50;
+          newSettings[key] = `${roundedValue}px`;
+        } else {
+          newSettings[key] = newValue as any;
+        }
+      } else {
+        newSettings[key] = newValue as any;
+      }
     }
     setSettings(newSettings);
     onChange(JSON.stringify(newSettings, null, 2));
@@ -555,10 +601,12 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
                   Genişlik
                 </label>
                 <input
-                  type="text"
-                  value={settings.width || ''}
-                  onChange={(e) => updateSetting('width', e.target.value)}
-                  placeholder="200px"
+                  type="number"
+                  step="50"
+                  min="50"
+                  value={settings.width ? parseFloat(settings.width.replace('px', '')) || '' : ''}
+                  onChange={(e) => updateSetting('width', e.target.value ? `${e.target.value}px` : '')}
+                  placeholder="200"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                 />
                 <div className="mt-2 flex items-center">
@@ -570,8 +618,23 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
                     className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                   />
                   <label htmlFor="fixedWidth" className="ml-2 text-sm text-gray-700">
-                    Sabit genişlik (opsiyonel)
+                    Sabit genişlik (50px katları)
                   </label>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Sabit boyutlar 50px katlarında olmalıdır (50, 100, 150, 200...)
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {[100, 150, 200, 250, 300, 350, 400, 450, 500].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => updateSetting('width', `${size}px`)}
+                      className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded"
+                    >
+                      {size}px
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -580,10 +643,12 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
                   Yükseklik
                 </label>
                 <input
-                  type="text"
-                  value={settings.height || ''}
-                  onChange={(e) => updateSetting('height', e.target.value)}
-                  placeholder="100px"
+                  type="number"
+                  step="50"
+                  min="50"
+                  value={settings.height ? parseFloat(settings.height.replace('px', '')) || '' : ''}
+                  onChange={(e) => updateSetting('height', e.target.value ? `${e.target.value}px` : '')}
+                  placeholder="100"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                 />
                 <div className="mt-2 flex items-center">
@@ -595,8 +660,23 @@ export default function StyleEditor({ value, onChange }: StyleEditorProps) {
                     className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                   />
                   <label htmlFor="fixedHeight" className="ml-2 text-sm text-gray-700">
-                    Sabit yükseklik (opsiyonel)
+                    Sabit yükseklik (50px katları)
                   </label>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Sabit boyutlar 50px katlarında olmalıdır (50, 100, 150, 200...)
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {[100, 150, 200, 250, 300, 350, 400, 450, 500].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => updateSetting('height', `${size}px`)}
+                      className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded"
+                    >
+                      {size}px
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
