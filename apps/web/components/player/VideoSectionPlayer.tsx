@@ -106,13 +106,27 @@ export function VideoSectionPlayer({
     return url;
   }, [section]);
 
-  // Clear chat history when section changes
+  // Clear chat history and reset video state when section changes
   useEffect(() => {
-    console.log('🔄 Section changed, clearing chat history for section:', section.id);
+    console.log('🔄 Section changed, clearing chat history and resetting video state for section:', section.id);
     setChatMessages([]);
     setChatSuggestions([]);
     setOverlaySuggestions([]);
     setChatInput('');
+    
+    // Reset video state for new section
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(undefined);
+    setChatOpen(false);
+    setOverlayPaused(false);
+    setPausedByOverlayId(null);
+    setModalContentOverlay(null);
+    
+    // Reset video ended flag - CRITICAL for fixing play issues
+    videoEndedRef.current = false;
+    suppressNextPauseRef.current = false;
+    lastOverlayIdRef.current = null;
   }, [section.id]);
 
   // WebSocket URL utility
@@ -450,8 +464,13 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
           onDurationChange={handleDurationChange}
           onPlay={() => {
             if (videoEndedRef.current) {
-              setIsPlaying(false);
-              playerRef.current?.pauseVideo?.();
+              // Video bittiğinde oynatmaya çalışırsa, videoyu başa al ve oynat
+              videoEndedRef.current = false;
+              playerRef.current?.seekTo?.(0);
+              setCurrentTime(0);
+              setIsPlaying(true);
+              setChatOpen(false);
+              onTrackVideoPlay();
               return;
             }
             setIsPlaying(true);
@@ -751,6 +770,17 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
         <div className="w-full max-w-6xl mx-auto flex items-center gap-3 bg-white/5 border border-white/10 rounded-lg p-3">
           <button
             onClick={async () => {
+              // Video bittiğinde play tuşuna basılırsa videoyu başa al
+              if (videoEndedRef.current && !isPlaying) {
+                videoEndedRef.current = false;
+                playerRef.current?.seekTo?.(0);
+                setCurrentTime(0);
+                setIsPlaying(true);
+                setChatOpen(false);
+                onTrackVideoPlay();
+                return;
+              }
+              
               const newPlayingState = !isPlaying;
               setIsPlaying(newPlayingState);
               

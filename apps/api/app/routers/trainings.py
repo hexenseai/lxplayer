@@ -2240,8 +2240,9 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
         )
         
     except Exception as e:
+        error_message = str(e).replace("{", "{{").replace("}", "}}")
         return LLMOverlayResponse(
             success=False,
-            message=f"LLM overlay yönetimi hatası: {str(e)}",
+            message=f"LLM overlay yönetimi hatası: {error_message}",
             warnings=[str(e)]
         )
