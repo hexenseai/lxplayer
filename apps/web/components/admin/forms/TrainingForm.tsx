@@ -72,6 +72,14 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
       const isUpdate = Boolean(initialTraining?.id);
       
       if (isUpdate) {
+        // Debug: Log the training data to see what we have
+        console.log('🔍 DEBUG initialTraining:', initialTraining);
+        console.log('🔍 DEBUG company_id from training:', (initialTraining as any).company_id);
+        console.log('🔍 DEBUG user company_id:', user?.company_id);
+        
+        const companyId = (initialTraining as any).company_id || user?.company_id || undefined;
+        console.log('🔍 DEBUG final company_id to send:', companyId);
+        
         await api.updateTraining(initialTraining!.id, {
           title: values.title,
           description: values.description || undefined,
@@ -79,7 +87,7 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
           ai_flow: initialTraining.ai_flow,
           access_code: values.access_code || undefined,
           avatar_id: values.avatar_id || undefined,
-          company_id: (initialTraining as any).company_id
+          company_id: companyId
         });
       } else {
         await api.createTraining({
