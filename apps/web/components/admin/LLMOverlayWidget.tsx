@@ -11,16 +11,25 @@ interface LLMOverlayWidgetProps {
   onOverlaysChanged: () => void; // Callback to refresh overlays
 }
 
+interface LLMAction {
+  action: string;
+  overlay_id?: string;
+  time_stamp?: number;
+  type?: string;
+  caption?: string;
+  position?: string;
+  animation?: string;
+  duration?: number;
+  pause_on_show?: boolean;
+  frame?: string;
+  style_id?: string;
+  frame_config_id?: string;
+}
+
 interface LLMResponse {
   success: boolean;
   message: string;
-  actions: Array<{
-    action: string;
-    overlay_id?: string;
-    time_stamp?: number;
-    type?: string;
-    caption?: string;
-  }>;
+  actions: LLMAction[];
   warnings: string[];
 }
 
@@ -32,48 +41,113 @@ export function LLMOverlayWidget({
 }: LLMOverlayWidgetProps) {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [lastResponse, setLastResponse] = useState<LLMResponse | null>(null);
-  const [showResponse, setShowResponse] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [previewResponse, setPreviewResponse] = useState<LLMResponse | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Check if section script is in SRT format
   const isSRTFormat = section?.script && section.script.includes('-->');
   const hasScript = section?.script && section.script.trim().length > 0;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePreview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || isLoading) return;
 
     setIsLoading(true);
-    setLastResponse(null);
+    setPreviewResponse(null);
 
     try {
-      const response = await api.llmManageOverlays(
+      const response = await api.llmPreviewOverlays(
         trainingId, 
         sectionId, 
         prompt.trim(),
         hasScript ? section!.script : undefined
       );
       
-      setLastResponse(response);
-      setShowResponse(true);
-      
-      // If successful, refresh overlays and clear prompt
-      if (response.success) {
-        onOverlaysChanged();
-        setPrompt('');
-      }
+      setPreviewResponse(response);
+      setShowPreview(true);
       
     } catch (error) {
-      console.error('LLM overlay management error:', error);
-      setLastResponse({
+      console.error('LLM overlay preview error:', error);
+      setPreviewResponse({
         success: false,
         message: `Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
         actions: [],
         warnings: []
       });
-      setShowResponse(true);
+      setShowPreview(true);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const executeActions = async () => {
+    if (!previewResponse?.actions.length || isExecuting) return;
+
+    setIsExecuting(true);
+    
+    try {
+      // Execute actions one by one using normal overlay endpoints
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const action of previewResponse.actions) {
+        try {
+          if (action.action === 'create') {
+            await api.createSectionOverlay(trainingId, sectionId, {
+              time_stamp: action.time_stamp || 0,
+              type: action.type || 'label',
+              caption: action.caption,
+              position: action.position,
+              animation: action.animation,
+              pause_on_show: action.pause_on_show || false,
+              frame: action.frame,
+              style_id: action.style_id,
+              frame_config_id: action.frame_config_id
+            });
+            successCount++;
+          } else if (action.action === 'delete' && action.overlay_id) {
+            await api.deleteSectionOverlay(trainingId, sectionId, action.overlay_id);
+            successCount++;
+          } else if (action.action === 'update' && action.overlay_id) {
+            await api.updateSectionOverlay(trainingId, sectionId, action.overlay_id, {
+              time_stamp: action.time_stamp,
+              type: action.type,
+              caption: action.caption,
+              position: action.position,
+              animation: action.animation,
+              pause_on_show: action.pause_on_show,
+              frame: action.frame,
+              style_id: action.style_id,
+              frame_config_id: action.frame_config_id
+            });
+            successCount++;
+          }
+        } catch (error) {
+          console.error('Action execution error:', error);
+          errorCount++;
+        }
+      }
+
+      // Update preview response with execution results
+      setPreviewResponse({
+        ...previewResponse,
+        message: `${successCount} aksiyon başarıyla yürütüldü${errorCount > 0 ? `, ${errorCount} hata` : ''}`,
+        success: successCount > 0
+      });
+
+      // Refresh overlays and clear form if successful
+      if (successCount > 0) {
+        onOverlaysChanged();
+        setPrompt('');
+        setShowPreview(false);
+        setPreviewResponse(null);
+      }
+
+    } catch (error) {
+      console.error('Execute actions error:', error);
+    } finally {
+      setIsExecuting(false);
     }
   };
 
@@ -116,7 +190,7 @@ export function LLMOverlayWidget({
       </div>
 
       {/* Prompt Form */}
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={handlePreview} className="space-y-3">
         <div>
           <textarea
             value={prompt}
@@ -124,20 +198,20 @@ export function LLMOverlayWidget({
             placeholder="Overlay komutunuzu yazın... Örn: '10. saniyede dikkat yazısı ekle' veya 'önemli noktalara vurgu ekle'"
             className="w-full p-3 border border-gray-300 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             rows={3}
-            disabled={isLoading}
+            disabled={isLoading || isExecuting}
           />
         </div>
         
         <div className="flex items-center justify-between">
           <button
             type="submit"
-            disabled={!prompt.trim() || isLoading}
+            disabled={!prompt.trim() || isLoading || isExecuting}
             className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isLoading && (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             )}
-            {isLoading ? 'İşleniyor...' : 'Uygula'}
+            {isLoading ? 'Analiz Ediliyor...' : 'Önizle'}
           </button>
 
           <div className="text-xs text-gray-500">
@@ -163,47 +237,90 @@ export function LLMOverlayWidget({
         </div>
       </div>
 
-      {/* Response Display */}
-      {showResponse && lastResponse && (
-        <div className="mt-4 p-3 rounded-md border">
-          <div className="flex items-center justify-between mb-2">
-            <div className={`text-sm font-medium ${lastResponse.success ? 'text-green-700' : 'text-red-700'}`}>
-              {lastResponse.success ? '✅ Başarılı' : '❌ Hata'}
+      {/* Preview Display */}
+      {showPreview && previewResponse && (
+        <div className="mt-4 p-4 rounded-md border bg-gray-50">
+          <div className="flex items-center justify-between mb-3">
+            <div className={`text-sm font-medium ${previewResponse.success ? 'text-blue-700' : 'text-red-700'}`}>
+              {previewResponse.success ? '🔍 Önizleme' : '❌ Hata'}
             </div>
             <button
-              onClick={() => setShowResponse(false)}
+              onClick={() => setShowPreview(false)}
               className="text-gray-400 hover:text-gray-600 text-xs"
             >
               ✕
             </button>
           </div>
           
-          <div className="text-sm text-gray-700 mb-2">
-            {lastResponse.message}
+          <div className="text-sm text-gray-700 mb-3">
+            {previewResponse.message}
           </div>
 
-          {/* Actions Summary */}
-          {lastResponse.actions.length > 0 && (
-            <div className="text-xs text-gray-600 mb-2">
-              <div className="font-medium mb-1">Gerçekleştirilen İşlemler:</div>
-              <ul className="list-disc list-inside space-y-1">
-                {lastResponse.actions.map((action, index) => (
-                  <li key={index}>
-                    {action.action === 'create' && `${action.time_stamp}s'de ${action.type} oluşturuldu: "${action.caption}"`}
-                    {action.action === 'update' && `Overlay güncellendi: ${action.overlay_id}`}
-                    {action.action === 'delete' && `Overlay silindi: ${action.overlay_id}`}
-                  </li>
+          {/* Actions Preview */}
+          {previewResponse.success && previewResponse.actions.length > 0 && (
+            <div className="mb-4">
+              <div className="text-xs font-medium text-gray-700 mb-2">Yapılacak İşlemler ({previewResponse.actions.length} adet):</div>
+              <div className="space-y-2">
+                {previewResponse.actions.map((action, index) => (
+                  <div key={index} className="bg-white p-3 rounded border text-xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        action.action === 'create' ? 'bg-green-100 text-green-700' :
+                        action.action === 'update' ? 'bg-blue-100 text-blue-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {action.action === 'create' ? '➕ Oluştur' :
+                         action.action === 'update' ? '✏️ Güncelle' :
+                         '🗑️ Sil'}
+                      </span>
+                      {action.time_stamp && (
+                        <span className="text-gray-500">{action.time_stamp}s</span>
+                      )}
+                    </div>
+                    
+                    <div className="text-gray-700">
+                      {action.action === 'create' && (
+                        <>
+                          <div><strong>Tür:</strong> {action.type}</div>
+                          {action.caption && <div><strong>Metin:</strong> "{action.caption}"</div>}
+                          {action.position && <div><strong>Konum:</strong> {action.position}</div>}
+                          {action.animation && <div><strong>Animasyon:</strong> {action.animation}</div>}
+                          {action.duration && <div><strong>Süre:</strong> {action.duration}s</div>}
+                        </>
+                      )}
+                      {action.action === 'delete' && (
+                        <div><strong>Silinecek ID:</strong> {action.overlay_id}</div>
+                      )}
+                      {action.action === 'update' && (
+                        <div><strong>Güncellenecek ID:</strong> {action.overlay_id}</div>
+                      )}
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
+              
+              {/* Execute Button */}
+              <div className="mt-4 flex justify-center">
+                <button
+                  onClick={executeActions}
+                  disabled={isExecuting}
+                  className="px-6 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isExecuting && (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                  {isExecuting ? 'Yürütülüyor...' : '✅ Yürüt'}
+                </button>
+              </div>
             </div>
           )}
 
           {/* Warnings */}
-          {lastResponse.warnings.length > 0 && (
+          {previewResponse.warnings.length > 0 && (
             <div className="text-xs text-orange-600">
               <div className="font-medium mb-1">Uyarılar:</div>
               <ul className="list-disc list-inside space-y-1">
-                {lastResponse.warnings.map((warning, index) => (
+                {previewResponse.warnings.map((warning, index) => (
                   <li key={index}>{warning}</li>
                 ))}
               </ul>

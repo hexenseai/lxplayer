@@ -372,6 +372,33 @@ export const api = {
   }), { method: 'POST' }),
 
   // LLM overlay management
+  llmPreviewOverlays: (trainingId: string, sectionId: string, command: string, sectionScript?: string) => 
+    request(`/trainings/${trainingId}/sections/${sectionId}/llm-overlay-preview`, z.object({
+      success: z.boolean(),
+      message: z.string(),
+      actions: z.array(z.object({
+        action: z.string(),
+        overlay_id: z.string().optional(),
+        time_stamp: z.number().optional(),
+        type: z.string().optional(),
+        caption: z.string().optional(),
+        position: z.string().optional(),
+        animation: z.string().optional(),
+        duration: z.number().optional(),
+        pause_on_show: z.boolean().optional(),
+        frame: z.string().optional(),
+        style_id: z.string().optional(),
+        frame_config_id: z.string().optional()
+      })),
+      warnings: z.array(z.string())
+    }), { 
+      method: 'POST', 
+      body: JSON.stringify({ 
+        command, 
+        section_script: sectionScript 
+      }) 
+    }),
+
   llmManageOverlays: (trainingId: string, sectionId: string, command: string, sectionScript?: string) => 
     request(`/trainings/${trainingId}/sections/${sectionId}/llm-overlay`, z.object({
       success: z.boolean(),

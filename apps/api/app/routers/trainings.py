@@ -1967,6 +1967,160 @@ Yanıtın JSON formatında olmalı ve şu yapıda:
 5. Mantıklı pozisyon ve animasyon seç"""
 
 
+@router.post("/{training_id}/sections/{section_id}/llm-overlay-preview", operation_id="llm_preview_overlays")
+def llm_preview_overlays(
+    training_id: str, 
+    section_id: str, 
+    request: LLMOverlayRequest, 
+    session: Session = Depends(get_session)
+):
+    """LLM ile overlay aksiyonlarını önizle (yürütmeden)"""
+    
+    # Verify training and section exist
+    training = session.get(Training, training_id)
+    if not training:
+        raise HTTPException(404, "Training not found")
+    
+    section = session.get(TrainingSection, section_id)
+    if not section or section.training_id != training_id:
+        raise HTTPException(404, "Training section not found")
+    
+    # Get OpenAI API key
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        raise HTTPException(500, "OpenAI API key not configured")
+    
+    try:
+        # Get current overlays for context
+        current_overlays = session.exec(
+            select(Overlay)
+            .where(Overlay.training_section_id == section_id)
+            .order_by(Overlay.time_stamp)
+        ).all()
+        
+        # Get available styles and frame configs
+        available_styles = session.exec(select(Style)).all()
+        
+        # Get both global and section-specific frame configs
+        global_frame_configs = session.exec(
+            select(FrameConfig).where(FrameConfig.training_section_id.is_(None))
+        ).all()
+        
+        section_frame_configs = session.exec(
+            select(FrameConfig).where(FrameConfig.training_section_id == section_id)
+        ).all()
+        
+        all_frame_configs = list(global_frame_configs) + list(section_frame_configs)
+        
+        context = {
+            "training_title": training.title,
+            "section_title": section.title,
+            "section_duration": section.duration,
+            "current_overlays": [
+                {
+                    "id": ov.id,
+                    "time_stamp": ov.time_stamp,
+                    "type": ov.type,
+                    "caption": ov.caption,
+                    "position": ov.position
+                } for ov in current_overlays
+            ]
+        }
+
+        
+        # Parse SRT script if provided
+        srt_segments = []
+        if request.section_script:
+            if '-->' in request.section_script:
+                srt_segments = parse_srt_content(request.section_script)
+                context["srt_segments"] = srt_segments
+            else:
+                return LLMOverlayResponse(
+                    success=False,
+                    message="Script SRT formatında değil. Lütfen SRT formatında (zaman etiketli) script sağlayın.",
+                    warnings=["Script formatı SRT olmalı: '00:00:05,000 --> 00:00:08,000' formatında"]
+                )
+        
+        # Prepare style and frame data for LLM
+        styles_data = [
+            {
+                "id": style.id,
+                "name": style.name,
+                "description": style.description
+            } for style in available_styles
+        ]
+        
+        frames_data = [
+            {
+                "id": frame.id,
+                "name": frame.name,
+                "description": frame.description,
+                "type": "section" if hasattr(frame, 'training_section_id') else "global"
+            } for frame in all_frame_configs
+        ]
+        
+        # Build LLM prompt
+        system_prompt = build_llm_overlay_system_prompt(styles_data, frames_data)
+        user_message = f"""
+Komut: {request.command}
+
+Mevcut Bağlam:
+- Bölüm: {section.title}
+- Süre: {section.duration or 0} saniye
+- Mevcut Overlay Sayısı: {len(current_overlays)}
+
+{f"SRT Script Segmentleri ({len(srt_segments)} adet):" if srt_segments else "SRT Script: Yok"}
+{chr(10).join([f"{seg['start']:.1f}s-{seg['end']:.1f}s: {seg['text']}" for seg in srt_segments[:10]]) if srt_segments else ""}
+{f"... ve {len(srt_segments)-10} segment daha" if len(srt_segments) > 10 else ""}
+
+Mevcut Overlay'ler:
+{chr(10).join([f"- {ov.time_stamp}s: {ov.type} - {ov.caption}" for ov in current_overlays]) if current_overlays else "Henüz overlay yok"}
+
+Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
+"""
+        
+        # Call OpenAI API
+        client = OpenAI(api_key=openai_api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.3,
+            max_tokens=1500
+        )
+        
+        llm_response = response.choices[0].message.content
+        
+        # Parse LLM response
+        try:
+            llm_data = json.loads(llm_response)
+        except json.JSONDecodeError:
+            # Try to extract JSON from response if it's wrapped in text
+            json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
+            if json_match:
+                llm_data = json.loads(json_match.group())
+            else:
+                raise HTTPException(500, f"LLM yanıtı JSON formatında değil: {llm_response}")
+        
+        # Return preview without executing actions
+        return LLMOverlayResponse(
+            success=True,
+            message=llm_data.get("message", "Aksiyonlar hazır"),
+            actions=llm_data.get("actions", []),
+            warnings=llm_data.get("warnings", [])
+        )
+        
+    except Exception as e:
+        error_message = str(e).replace("{", "{{").replace("}", "}}")
+        return LLMOverlayResponse(
+            success=False,
+            message=f"LLM overlay önizleme hatası: {error_message}",
+            warnings=[str(e)]
+        )
+
+
 @router.post("/{training_id}/sections/{section_id}/llm-overlay", operation_id="llm_manage_overlays")
 def llm_manage_overlays(
     training_id: str, 
