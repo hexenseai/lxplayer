@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import type { Training } from '@/lib/api';
 import type { Avatar } from '@/lib/types';
 import { api } from '@/lib/api';
+import { useUser } from '@/hooks/useUser';
 
 const Schema = z.object({ 
   title: z.string().min(1), 
@@ -20,6 +21,7 @@ type FormValues = z.infer<typeof Schema>;
 
 export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Training; onDone?: () => void }) {
   const router = useRouter();
+  const { user } = useUser();
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [loadingAvatars, setLoadingAvatars] = useState(true);
   
@@ -77,14 +79,15 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
           ai_flow: initialTraining.ai_flow,
           access_code: values.access_code || undefined,
           avatar_id: values.avatar_id || undefined,
-          company_id: initialTraining.organization_id
+          company_id: (initialTraining as any).company_id
         });
       } else {
         await api.createTraining({
           title: values.title,
           description: values.description || undefined,
           avatar_id: values.avatar_id || undefined,
-          access_code: values.access_code || undefined
+          access_code: values.access_code || undefined,
+          company_id: user?.company_id || undefined
         });
       }
       

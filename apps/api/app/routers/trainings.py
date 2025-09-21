@@ -225,6 +225,8 @@ def copy_training(
             video_object=source_section.video_object,
             asset_id=new_asset_id,
             order_index=source_section.order_index,
+            type=source_section.type,  # Bölüm tipini kopyala (video, llm_interaction, llm_agent)
+            agent_id=source_section.agent_id,  # ElevenLabs Agent ID'sini kopyala
             language=source_section.language,
             target_audience=source_section.target_audience,
             audio_asset_id=new_audio_asset_id,
