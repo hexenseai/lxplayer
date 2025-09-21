@@ -94,7 +94,7 @@ def list_trainings(
                 training_dict['company'] = {
                     'id': company.id,
                     'name': company.name,
-                    'display_name': company.display_name
+                    'display_name': company.name  # Company modelinde display_name yok, name kullanıyoruz
                 }
         else:
             # Sistem eğitimi (SuperAdmin)
@@ -359,7 +359,7 @@ def get_training(
             training_dict['company'] = {
                 'id': company.id,
                 'name': company.name,
-                'display_name': company.display_name
+                'display_name': company.name  # Company modelinde display_name yok, name kullanıyoruz
             }
     else:
         # Sistem eğitimi (SuperAdmin)
