@@ -14,7 +14,7 @@ from datetime import datetime
 import re
 from openai import OpenAI
 from ..db import get_session
-from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar, FrameConfig, GlobalFrameConfig
+from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar, FrameConfig, GlobalFrameConfig, Company
 from ..auth import hash_password, get_current_user, is_super_admin, is_admin, check_company_access
 from ..storage import get_minio
 
@@ -76,14 +76,34 @@ def list_trainings(
             select(Training).where(Training.company_id == current_user.company_id)
         ).all()
     
-    # Avatar bilgilerini ekle
+    # Avatar ve Company bilgilerini ekle
     result = []
     for training in trainings:
         training_dict = training.model_dump()
+        
+        # Avatar bilgilerini ekle
         if training.avatar_id:
             avatar = session.get(Avatar, training.avatar_id)
             if avatar:
                 training_dict['avatar'] = avatar.model_dump()
+        
+        # Company bilgilerini ekle
+        if training.company_id:
+            company = session.get(Company, training.company_id)
+            if company:
+                training_dict['company'] = {
+                    'id': company.id,
+                    'name': company.name,
+                    'display_name': company.display_name
+                }
+        else:
+            # Sistem eğitimi (SuperAdmin)
+            training_dict['company'] = {
+                'id': None,
+                'name': 'System',
+                'display_name': 'Sistem Eğitimi'
+            }
+        
         result.append(training_dict)
     
     return result
@@ -323,12 +343,31 @@ def get_training(
     if not check_company_access(current_user, training.company_id):
         raise HTTPException(403, "Access denied")
     
-    # Avatar bilgilerini ekle
+    # Avatar ve Company bilgilerini ekle
     training_dict = training.model_dump()
+    
+    # Avatar bilgilerini ekle
     if training.avatar_id:
         avatar = session.get(Avatar, training.avatar_id)
         if avatar:
             training_dict['avatar'] = avatar.model_dump()
+    
+    # Company bilgilerini ekle
+    if training.company_id:
+        company = session.get(Company, training.company_id)
+        if company:
+            training_dict['company'] = {
+                'id': company.id,
+                'name': company.name,
+                'display_name': company.display_name
+            }
+    else:
+        # Sistem eğitimi (SuperAdmin)
+        training_dict['company'] = {
+            'id': None,
+            'name': 'System',
+            'display_name': 'Sistem Eğitimi'
+        }
     
     return training_dict
 
@@ -1878,14 +1917,18 @@ def build_llm_overlay_system_prompt(available_styles: list, available_frames: li
     if available_styles:
         styles_text = "\n## Mevcut Stiller\nBu stil ID'lerini style_id alanında kullanabilirsin:\n"
         for style in available_styles:
-            styles_text += f"- {style['id']}: {style['name']} - {style.get('description', 'Açıklama yok')}\n"
+            safe_name = style['name'].replace('{', '{{').replace('}', '}}') if style['name'] else 'İsim yok'
+            safe_desc = style.get('description', 'Açıklama yok').replace('{', '{{').replace('}', '}}') if style.get('description') else 'Açıklama yok'
+            styles_text += f"- {style['id']}: {safe_name} - {safe_desc}\n"
     
     # Format available frame configs
     frames_text = ""
     if available_frames:
         frames_text = "\n## Mevcut Frame Konfigürasyonları\nBu frame config ID'lerini frame_config_id alanında kullanabilirsin:\n"
         for frame in available_frames:
-            frames_text += f"- {frame['id']}: {frame['name']} - {frame.get('description', 'Açıklama yok')}\n"
+            safe_name = frame['name'].replace('{', '{{').replace('}', '}}') if frame['name'] else 'İsim yok'
+            safe_desc = frame.get('description', 'Açıklama yok').replace('{', '{{').replace('}', '}}') if frame.get('description') else 'Açıklama yok'
+            frames_text += f"- {frame['id']}: {safe_name} - {safe_desc}\n"
     
     return f"""Sen bir video eğitim overlay yönetim asistanısın. Kullanıcının komutlarına göre video üzerinde overlay'ler oluştur, düzenle veya sil.
 
@@ -1917,32 +1960,32 @@ Overlay'ler aşağıdaki özelliklere sahiptir:
 
 ## Komut Örnekleri ve Yanıtları
 1. "5. saniyede 'Dikkat!' yazısı ekle"
-   -> {"action": "create", "time_stamp": 5.0, "type": "label", "caption": "Dikkat!", "position": "center"}
+   -> {{"action": "create", "time_stamp": 5.0, "type": "label", "caption": "Dikkat!", "position": "center"}}
 
 2. "10-15 saniye arası tüm overlay'leri sil"
-   -> {"action": "delete_range", "start_time": 10.0, "end_time": 15.0}
+   -> {{"action": "delete_range", "start_time": 10.0, "end_time": 15.0}}
 
 3. "Script'te 'önemli' kelimesi geçen yerlere vurgu ekle"
    -> SRT script'ini analiz et, "önemli" kelimesinin geçtiği zaman dilimlerini bul
-   -> Her biri için: {"action": "create", "time_stamp": X, "type": "label", "caption": "⚠️ Önemli", "position": "top_middle"}
+   -> Her biri için: {{"action": "create", "time_stamp": X, "type": "label", "caption": "⚠️ Önemli", "position": "top_middle"}}
 
 4. "25. saniyedeki örneği maddeleyerek ekrana yaz"
    -> SRT script'ten 25. saniye civarındaki metni al, maddelere ayır
-   -> {"action": "create", "time_stamp": 25.0, "type": "content", "caption": "• Madde 1\n• Madde 2", "position": "right_content"}
+   -> {{"action": "create", "time_stamp": 25.0, "type": "content", "caption": "• Madde 1\\n• Madde 2", "position": "right_content"}}
 
 5. "Kırmızı stille uyarı ekle" (stil kullanımı)
-   -> Mevcut stillerden uygun olanı seç: {"action": "create", "time_stamp": X, "type": "label", "caption": "Uyarı", "style_id": "STIL_ID"}
+   -> Mevcut stillerden uygun olanı seç: {{"action": "create", "time_stamp": X, "type": "label", "caption": "Uyarı", "style_id": "STIL_ID"}}
 
 6. "Yakın çekim frame'i ile 10. saniyede başlık ekle" (frame kullanımı)
-   -> Mevcut frame'lerden uygun olanı seç: {"action": "create", "time_stamp": 10.0, "type": "label", "caption": "Başlık", "frame_config_id": "FRAME_ID"}
+   -> Mevcut frame'lerden uygun olanı seç: {{"action": "create", "time_stamp": 10.0, "type": "label", "caption": "Başlık", "frame_config_id": "FRAME_ID"}}
 
 ## Yanıt Formatı
 Yanıtın JSON formatında olmalı ve şu yapıda:
-{
+{{
   "success": true/false,
   "message": "Açıklayıcı mesaj",
   "actions": [
-    {
+    {{
       "action": "create|update|delete|delete_range",
       "overlay_id": "sadece update/delete için",
       "time_stamp": 5.0,
@@ -1954,10 +1997,10 @@ Yanıtın JSON formatında olmalı ve şu yapıda:
       "pause_on_show": false,
       "style_id": "stil_id_buraya",
       "frame_config_id": "frame_id_buraya"
-    }
+    }}
   ],
   "warnings": ["Uyarı mesajları"]
-}
+}}
 
 ## Kurallar
 1. time_stamp her zaman float olarak belirt
@@ -1975,42 +2018,56 @@ def llm_preview_overlays(
     session: Session = Depends(get_session)
 ):
     """LLM ile overlay aksiyonlarını önizle (yürütmeden)"""
+    print(f"🔍 DEBUG: llm_preview_overlays called for training {training_id}, section {section_id}")
+    print(f"🔍 DEBUG: Command: {request.command}")
     
     # Verify training and section exist
     training = session.get(Training, training_id)
     if not training:
+        print("🔍 DEBUG: Training not found!")
         raise HTTPException(404, "Training not found")
     
     section = session.get(TrainingSection, section_id)
     if not section or section.training_id != training_id:
+        print("🔍 DEBUG: Section not found!")
         raise HTTPException(404, "Training section not found")
+    
+    print("🔍 DEBUG: Training and section verified")
     
     # Get OpenAI API key
     openai_api_key = os.getenv("OPENAI_API_KEY")
+    print(f"🔍 DEBUG: OpenAI API key present: {bool(openai_api_key)}")
     if not openai_api_key:
+        print("🔍 DEBUG: OpenAI API key missing!")
         raise HTTPException(500, "OpenAI API key not configured")
     
     try:
+        print("🔍 DEBUG: Starting overlay processing...")
         # Get current overlays for context
         current_overlays = session.exec(
             select(Overlay)
             .where(Overlay.training_section_id == section_id)
             .order_by(Overlay.time_stamp)
         ).all()
+        print(f"🔍 DEBUG: Found {len(current_overlays)} existing overlays")
         
         # Get available styles and frame configs
         available_styles = session.exec(select(Style)).all()
+        print(f"🔍 DEBUG: Found {len(available_styles)} styles")
         
         # Get both global and section-specific frame configs
         global_frame_configs = session.exec(
             select(FrameConfig).where(FrameConfig.training_section_id.is_(None))
         ).all()
+        print(f"🔍 DEBUG: Found {len(global_frame_configs)} global frame configs")
         
         section_frame_configs = session.exec(
             select(FrameConfig).where(FrameConfig.training_section_id == section_id)
         ).all()
+        print(f"🔍 DEBUG: Found {len(section_frame_configs)} section frame configs")
         
         all_frame_configs = list(global_frame_configs) + list(section_frame_configs)
+        print("🔍 DEBUG: Creating context...")
         
         context = {
             "training_title": training.title,
@@ -2026,20 +2083,26 @@ def llm_preview_overlays(
                 } for ov in current_overlays
             ]
         }
+        print("🔍 DEBUG: Context created successfully")
 
         
         # Parse SRT script if provided
+        print("🔍 DEBUG: Parsing SRT script...")
         srt_segments = []
         if request.section_script:
             if '-->' in request.section_script:
                 srt_segments = parse_srt_content(request.section_script)
                 context["srt_segments"] = srt_segments
+                print(f"🔍 DEBUG: Parsed {len(srt_segments)} SRT segments")
             else:
+                print("🔍 DEBUG: Script not in SRT format")
                 return LLMOverlayResponse(
                     success=False,
                     message="Script SRT formatında değil. Lütfen SRT formatında (zaman etiketli) script sağlayın.",
                     warnings=["Script formatı SRT olmalı: '00:00:05,000 --> 00:00:08,000' formatında"]
                 )
+        else:
+            print("🔍 DEBUG: No script provided")
         
         # Prepare style and frame data for LLM
         styles_data = [
@@ -2061,25 +2124,27 @@ def llm_preview_overlays(
         
         # Build LLM prompt
         system_prompt = build_llm_overlay_system_prompt(styles_data, frames_data)
+        
         user_message = f"""
-Komut: {request.command}
+Komut: {request.command.replace('{', '{{').replace('}', '}}')}
 
 Mevcut Bağlam:
-- Bölüm: {section.title}
+- Bölüm: {section.title.replace('{', '{{').replace('}', '}}') if section.title else 'Başlık yok'}
 - Süre: {section.duration or 0} saniye
 - Mevcut Overlay Sayısı: {len(current_overlays)}
 
 {f"SRT Script Segmentleri ({len(srt_segments)} adet):" if srt_segments else "SRT Script: Yok"}
-{chr(10).join([f"{seg['start']:.1f}s-{seg['end']:.1f}s: {seg['text']}" for seg in srt_segments[:10]]) if srt_segments else ""}
+{chr(10).join([f"{seg['start']:.1f}s-{seg['end']:.1f}s: {seg['text'].replace('{', '{{').replace('}', '}}')}" for seg in srt_segments[:10]]) if srt_segments else ""}
 {f"... ve {len(srt_segments)-10} segment daha" if len(srt_segments) > 10 else ""}
 
 Mevcut Overlay'ler:
-{chr(10).join([f"- {ov.time_stamp}s: {ov.type} - {ov.caption}" for ov in current_overlays]) if current_overlays else "Henüz overlay yok"}
+{chr(10).join([f"- {ov.time_stamp}s: {ov.type} - {ov.caption.replace('{', '{{').replace('}', '}}') if ov.caption else 'Caption yok'}" for ov in current_overlays]) if current_overlays else "Henüz overlay yok"}
 
 Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
 """
         
         # Call OpenAI API
+        print("🔍 DEBUG: Calling OpenAI API...")
         client = OpenAI(api_key=openai_api_key)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -2092,19 +2157,31 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
         )
         
         llm_response = response.choices[0].message.content
+        print(f"🔍 DEBUG: LLM Response: {llm_response[:200]}...")
         
         # Parse LLM response
         try:
             llm_data = json.loads(llm_response)
-        except json.JSONDecodeError:
+            print(f"🔍 DEBUG: JSON parsed successfully")
+        except json.JSONDecodeError as e:
+            print(f"🔍 DEBUG: JSON parse failed: {e}")
             # Try to extract JSON from response if it's wrapped in text
             json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
             if json_match:
-                llm_data = json.loads(json_match.group())
+                try:
+                    llm_data = json.loads(json_match.group())
+                    print(f"🔍 DEBUG: JSON extracted successfully")
+                except json.JSONDecodeError as e2:
+                    print(f"🔍 DEBUG: JSON extraction also failed: {e2}")
+                    safe_response = str(llm_response).replace("{", "{{").replace("}", "}}")
+                    raise HTTPException(500, f"LLM yanıtı JSON formatında değil: {safe_response}")
             else:
-                raise HTTPException(500, f"LLM yanıtı JSON formatında değil: {llm_response}")
+                print("🔍 DEBUG: No JSON found in response")
+                safe_response = str(llm_response).replace("{", "{{").replace("}", "}}")
+                raise HTTPException(500, f"LLM yanıtı JSON formatında değil: {safe_response}")
         
         # Return preview without executing actions
+        print(f"🔍 DEBUG: Returning preview with {len(llm_data.get('actions', []))} actions")
         return LLMOverlayResponse(
             success=True,
             message=llm_data.get("message", "Aksiyonlar hazır"),
@@ -2113,11 +2190,13 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
         )
         
     except Exception as e:
+        print(f"🔍 DEBUG: Exception caught in preview: {e}")
+        print(f"🔍 DEBUG: Exception type: {type(e)}")
         error_message = str(e).replace("{", "{{").replace("}", "}}")
         return LLMOverlayResponse(
             success=False,
             message=f"LLM overlay önizleme hatası: {error_message}",
-            warnings=[str(e)]
+            warnings=[error_message]
         )
 
 
@@ -2129,6 +2208,8 @@ def llm_manage_overlays(
     session: Session = Depends(get_session)
 ):
     """LLM ile overlay yönetimi"""
+    print(f"⚙️ DEBUG: llm_manage_overlays called for training {training_id}, section {section_id}")
+    print(f"⚙️ DEBUG: Command: {request.command}")
     
     # Verify training and section exist
     training = session.get(Training, training_id)
@@ -2225,19 +2306,19 @@ def llm_manage_overlays(
         # Build LLM prompt
         system_prompt = build_llm_overlay_system_prompt(styles_data, frames_data)
         user_message = f"""
-Komut: {request.command}
+Komut: {request.command.replace('{', '{{').replace('}', '}}')}
 
 Mevcut Bağlam:
-- Bölüm: {section.title}
+- Bölüm: {section.title.replace('{', '{{').replace('}', '}}') if section.title else 'Başlık yok'}
 - Süre: {section.duration or 0} saniye
 - Mevcut Overlay Sayısı: {len(current_overlays)}
 
 {f"SRT Script Segmentleri ({len(srt_segments)} adet):" if srt_segments else "SRT Script: Yok"}
-{chr(10).join([f"{seg['start']:.1f}s-{seg['end']:.1f}s: {seg['text']}" for seg in srt_segments[:10]]) if srt_segments else ""}
+{chr(10).join([f"{seg['start']:.1f}s-{seg['end']:.1f}s: {seg['text'].replace('{', '{{').replace('}', '}}')}" for seg in srt_segments[:10]]) if srt_segments else ""}
 {f"... ve {len(srt_segments)-10} segment daha" if len(srt_segments) > 10 else ""}
 
 Mevcut Overlay'ler:
-{chr(10).join([f"- {ov.time_stamp}s: {ov.type} - {ov.caption}" for ov in current_overlays]) if current_overlays else "Henüz overlay yok"}
+{chr(10).join([f"- {ov.time_stamp}s: {ov.type} - {ov.caption.replace('{', '{{').replace('}', '}}') if ov.caption else 'Caption yok'}" for ov in current_overlays]) if current_overlays else "Henüz overlay yok"}
 
 Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
 """
@@ -2265,7 +2346,8 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
             if json_match:
                 llm_data = json.loads(json_match.group())
             else:
-                raise HTTPException(500, f"LLM yanıtı JSON formatında değil: {llm_response}")
+                safe_response = str(llm_response).replace("{", "{{").replace("}", "}}")
+                raise HTTPException(500, f"LLM yanıtı JSON formatında değil: {safe_response}")
         
         if not llm_data.get("success", False):
             return LLMOverlayResponse(
@@ -2384,7 +2466,8 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
                             })
             
             except Exception as e:
-                warnings.append(f"Aksiyon hatası: {str(e)}")
+                error_message = str(e).replace("{", "{{").replace("}", "}}")
+                warnings.append(f"Aksiyon hatası: {error_message}")
         
         return LLMOverlayResponse(
             success=True,
@@ -2398,5 +2481,5 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
         return LLMOverlayResponse(
             success=False,
             message=f"LLM overlay yönetimi hatası: {error_message}",
-            warnings=[str(e)]
+            warnings=[error_message]
         )
