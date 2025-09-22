@@ -66,7 +66,7 @@ app.include_router(imports.router)
 app.include_router(avatars.router)
 app.include_router(interactions.router, prefix="/interactions")
 app.include_router(llm_agent.router, prefix="/chat/llm-agent")
-app.include_router(interaction_sessions.router, prefix="/api")
+app.include_router(interaction_sessions.router)
 
 #print([ (r.path, r.name) for r in app.routes if "/trainings" in getattr(r, "path", "") ])
 

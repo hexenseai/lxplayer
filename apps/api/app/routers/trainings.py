@@ -337,71 +337,107 @@ def get_training_by_access_code(
     session: Session = Depends(get_session)
 ):
     """Public endpoint to get training by access code - no authentication required"""
-    training = session.exec(
-        select(Training).where(Training.access_code == access_code)
-    ).first()
-    
-    if not training:
-        raise HTTPException(status_code=404, detail="Training not found")
-    
-    # Get training sections with overlays
-    sections = session.exec(
-        select(TrainingSection)
-        .where(TrainingSection.training_id == training.id)
-        .order_by(TrainingSection.order_index)
-    ).all()
-    
-    # Build training data with sections and overlays
-    training_dict = training.model_dump()
-    
-    # Add sections with overlays
-    sections_data = []
-    for section in sections:
-        section_dict = section.model_dump()
+    try:
+        print(f"🔍 Looking for training with access_code: {access_code}")
         
-        # Get overlays for this section
-        overlays = session.exec(
-            select(Overlay)
-            .where(Overlay.section_id == section.id)
-            .order_by(Overlay.time_stamp)
+        training = session.exec(
+            select(Training).where(Training.access_code == access_code)
+        ).first()
+        
+        if not training:
+            print(f"❌ Training not found for access_code: {access_code}")
+            raise HTTPException(status_code=404, detail="Training not found")
+        
+        print(f"✅ Found training: {training.title} (ID: {training.id})")
+        
+        # Get training sections with overlays
+        sections = session.exec(
+            select(TrainingSection)
+            .where(TrainingSection.training_id == training.id)
+            .order_by(TrainingSection.order_index)
         ).all()
         
-        # Get asset information
-        if section.asset_id:
-            asset = session.get(Asset, section.asset_id)
-            if asset:
-                section_dict['asset'] = asset.model_dump()
+        print(f"📚 Found {len(sections)} sections")
         
-        # Add overlays to section
-        section_dict['overlays'] = [overlay.model_dump() for overlay in overlays]
-        sections_data.append(section_dict)
-    
-    training_dict['sections'] = sections_data
-    
-    # Avatar bilgilerini ekle
-    if training.avatar_id:
-        avatar = session.get(Avatar, training.avatar_id)
-        if avatar:
-            training_dict['avatar'] = avatar.model_dump()
-    
-    # Company bilgilerini ekle
-    if training.company_id:
-        company = session.get(Company, training.company_id)
-        if company:
+        # Build training data with sections and overlays
+        training_dict = training.model_dump()
+        
+        # Add sections with overlays
+        sections_data = []
+        for section in sections:
+            try:
+                section_dict = section.model_dump()
+                
+                # Get overlays for this section
+                overlays = session.exec(
+                    select(Overlay)
+                    .where(Overlay.section_id == section.id)
+                    .order_by(Overlay.time_stamp)
+                ).all()
+                
+                # Get asset information
+                if section.asset_id:
+                    asset = session.get(Asset, section.asset_id)
+                    if asset:
+                        section_dict['asset'] = asset.model_dump()
+                
+                # Add overlays to section
+                section_dict['overlays'] = [overlay.model_dump() for overlay in overlays]
+                sections_data.append(section_dict)
+                
+            except Exception as e:
+                print(f"❌ Error processing section {section.id}: {e}")
+                # Add section without overlays if there's an error
+                try:
+                    section_dict = section.model_dump()
+                    section_dict['overlays'] = []
+                    sections_data.append(section_dict)
+                except Exception as e2:
+                    print(f"❌ Error even with basic section dump: {e2}")
+                    continue
+        
+        training_dict['sections'] = sections_data
+        
+        # Avatar bilgilerini ekle
+        if training.avatar_id:
+            try:
+                avatar = session.get(Avatar, training.avatar_id)
+                if avatar:
+                    training_dict['avatar'] = avatar.model_dump()
+            except Exception as e:
+                print(f"❌ Error loading avatar: {e}")
+        
+        # Company bilgilerini ekle
+        if training.company_id:
+            try:
+                company = session.get(Company, training.company_id)
+                if company:
+                    training_dict['company'] = {
+                        'id': company.id,
+                        'name': company.name,
+                        'display_name': company.name
+                    }
+            except Exception as e:
+                print(f"❌ Error loading company: {e}")
+        else:
+            # Sistem eğitimi (SuperAdmin)
             training_dict['company'] = {
-                'id': company.id,
-                'name': company.name,
-                'display_name': company.name
+                'id': None,
+                'name': 'System',
+                'display_name': 'Sistem Eğitimi'
             }
-    else:
-        # Sistem eğitimi (SuperAdmin)
-        training_dict['company'] = {
-            'id': None,
-            'name': 'System',
-            'display_name': 'Sistem Eğitimi'
-        }
-    
-    return training_dict
+        
+        print(f"✅ Successfully built training data with {len(sections_data)} sections")
+        return training_dict
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error in get_training_by_access_code: {e}")
+        print(f"❌ Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.get("/{training_id}", operation_id="get_training")

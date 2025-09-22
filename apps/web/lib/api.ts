@@ -787,6 +787,12 @@ export const api = {
 
   // ===== INTERACTION SESSION API =====
   
+  listSessions: () => {
+    // For anonymous access, return empty array since we don't have user sessions
+    console.log('🔄 listSessions called - returning empty array for anonymous access');
+    return Promise.resolve([]);
+  },
+
   createInteractionSession: (data: {
     training_id: string;
     user_id: string;
@@ -847,7 +853,7 @@ export const api = {
     interactions_count?: number;
     completion_percentage?: number;
   }) => request(
-    `/api/interaction-sessions/${sessionId}`,
+    `/interaction-sessions/${sessionId}`,
     z.object({
       id: z.string(),
       training_id: z.string(),
@@ -873,7 +879,7 @@ export const api = {
   ),
 
   sendMessageToLLM: (sessionId: string, message: string, messageType: string = 'user') => request(
-    `/api/interaction-sessions/${sessionId}/messages`,
+    `/interaction-sessions/${sessionId}/messages`,
     z.object({
       message: z.string(),
       suggestions: z.array(z.string()),
@@ -890,7 +896,7 @@ export const api = {
   ),
 
   getSessionMessages: (sessionId: string, limit?: number, offset?: number) => request(
-    `/api/interaction-sessions/${sessionId}/messages?limit=${limit || 50}&offset=${offset || 0}`,
+    `/interaction-sessions/${sessionId}/messages?limit=${limit || 50}&offset=${offset || 0}`,
     z.array(z.object({
       id: z.string(),
       session_id: z.string(),
@@ -908,7 +914,7 @@ export const api = {
   ),
 
   getSessionProgress: (sessionId: string) => request(
-    `/api/interaction-sessions/${sessionId}/progress`,
+    `/interaction-sessions/${sessionId}/progress`,
     z.object({
       training_id: z.string(),
       user_id: z.string(),
@@ -945,7 +951,7 @@ export const api = {
     started_at?: string;
     completed_at?: string;
   }) => request(
-    `/api/interaction-sessions/${sessionId}/sections/${sectionId}/progress`,
+    `/interaction-sessions/${sessionId}/sections/${sectionId}/progress`,
     z.object({
       id: z.string(),
       session_id: z.string(),
