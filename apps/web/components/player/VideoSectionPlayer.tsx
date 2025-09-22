@@ -34,23 +34,37 @@ interface VideoSectionPlayerProps {
 }
 
 function buildVideoUrl(section: TrainingSection): string | undefined {
+  console.log('🔍 buildVideoUrl called for section:', section.title, 'type:', section.type);
+  
   if (!section || section.type === 'llm_interaction' || section.type === 'llm_agent') {
+    console.log('❌ Section is not a video type, returning undefined');
     return undefined;
   }
 
   const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer').replace(/\/+$/, '');
+  console.log('🌐 CDN URL:', cdn);
+  
   const fromObj = (value?: string) => value ? (value.startsWith('http') ? value : `${cdn}/${encodeURIComponent(value)}`) : undefined;
 
   const videoObject = section.video_object as string | undefined;
+  console.log('🎥 video_object:', videoObject);
+  
   if (videoObject) {
-    return fromObj(videoObject);
+    const url = fromObj(videoObject);
+    console.log('✅ Built video URL from video_object:', url);
+    return url;
   }
 
   const asset = (section as any).asset as { kind?: string; uri?: string } | undefined;
+  console.log('📁 asset:', asset);
+  
   if (asset?.kind === 'video' && asset.uri) {
-    return fromObj(asset.uri);
+    const url = fromObj(asset.uri);
+    console.log('✅ Built video URL from asset:', url);
+    return url;
   }
 
+  console.log('❌ No video source found, returning undefined');
   return undefined;
 }
 

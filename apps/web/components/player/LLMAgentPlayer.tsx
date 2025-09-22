@@ -36,6 +36,8 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
   const agentId = section.agent_id || 'agent_2901k5a3e15feg6sjmw44apewq20';
 
   console.log('🎭 LLMAgentPlayer rendered for section:', section.title);
+  console.log('🤖 Section agent_id:', section.agent_id);
+  console.log('🤖 Using agentId:', agentId);
 
   // Check microphone permissions
   const checkMicrophonePermission = async () => {

@@ -757,7 +757,12 @@ export const api = {
         order_index: z.number(),
         script: z.string().nullable().optional(),
         duration: z.number().nullable().optional(),
+        video_object: z.string().nullable().optional(),
         asset_id: z.string().nullable().optional(),
+        agent_id: z.string().nullable().optional(),
+        language: z.string().nullable().optional(),
+        target_audience: z.string().nullable().optional(),
+        audio_asset_id: z.string().nullable().optional(),
         asset: z.object({
           id: z.string(),
           name: z.string(),
@@ -766,13 +771,26 @@ export const api = {
         }).nullable().optional(),
         overlays: z.array(z.object({
           id: z.string(),
+          training_id: z.string(),
+          training_section_id: z.string().nullable().optional(),
+          time_stamp: z.number(),
           type: z.string(),
           caption: z.string().nullable().optional(),
-          time_stamp: z.number(),
+          content_id: z.string().nullable().optional(),
+          style_id: z.string().nullable().optional(),
+          frame: z.string().nullable().optional(),
+          animation: z.string().nullable().optional(),
           duration: z.number().nullable().optional(),
           position: z.string().nullable().optional(),
-          animation: z.string().nullable().optional(),
-          style_id: z.string().nullable().optional(),
+          icon: z.string().nullable().optional(),
+          pause_on_show: z.boolean().nullable().optional(),
+          frame_config_id: z.string().nullable().optional(),
+          content_asset: z.object({
+            id: z.string(),
+            name: z.string(),
+            uri: z.string(),
+            kind: z.string()
+          }).nullable().optional(),
           style: z.any().nullable().optional()
         }))
       })),

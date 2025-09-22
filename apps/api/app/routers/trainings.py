@@ -367,6 +367,7 @@ def get_training_by_access_code(
         for section in sections:
             try:
                 section_dict = section.model_dump()
+                print(f"🔍 Section {section.id} ({section.title}): type={section.type}, agent_id={section.agent_id}, video_object={section.video_object}")
                 
                 # Get overlays for this section
                 overlays = session.exec(
@@ -375,14 +376,37 @@ def get_training_by_access_code(
                     .order_by(Overlay.time_stamp)
                 ).all()
                 
-                # Get asset information
+                # Get asset information for section
                 if section.asset_id:
                     asset = session.get(Asset, section.asset_id)
                     if asset:
                         section_dict['asset'] = asset.model_dump()
                 
+                # Process overlays with their asset information
+                overlays_data = []
+                for overlay in overlays:
+                    try:
+                        overlay_dict = overlay.model_dump()
+                        
+                        # Get content asset for overlay
+                        if overlay.content_asset_id:
+                            content_asset = session.get(Asset, overlay.content_asset_id)
+                            if content_asset:
+                                overlay_dict['content_asset'] = content_asset.model_dump()
+                        
+                        overlays_data.append(overlay_dict)
+                    except Exception as e:
+                        print(f"❌ Error processing overlay {overlay.id}: {e}")
+                        # Add overlay without content_asset if there's an error
+                        try:
+                            overlay_dict = overlay.model_dump()
+                            overlays_data.append(overlay_dict)
+                        except Exception as e2:
+                            print(f"❌ Error even with basic overlay dump: {e2}")
+                            continue
+                
                 # Add overlays to section
-                section_dict['overlays'] = [overlay.model_dump() for overlay in overlays]
+                section_dict['overlays'] = overlays_data
                 sections_data.append(section_dict)
                 
             except Exception as e:
