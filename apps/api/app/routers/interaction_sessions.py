@@ -42,7 +42,7 @@ async def create_interaction_session(
     request: Request,
     db: Session = Depends(get_session)
 ):
-    """Create a new interaction session"""
+    """Create a new interaction session - supports anonymous access"""
     try:
         # Raw body'yi al ve parse et
         body = await request.body()
@@ -57,8 +57,29 @@ async def create_interaction_session(
         session_data = InteractionSessionCreate(**session_data_dict)
         print(f"🔍 Session data object: {session_data}")
         
-        # Verify training exists and user has access
-        training = db.get(Training, session_data.training_id)
+        # Verify training exists by access code
+        training = db.exec(
+            select(Training).where(Training.access_code == session_data.access_code)
+        ).first()
+        
+        if not training:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Training not found"
+            )
+        
+        # Update training_id from the found training
+        session_data.training_id = training.id
+        
+        # For anonymous users, create a temporary user or use anonymous
+        user = None
+        if session_data.user_id and session_data.user_id != 'anonymous':
+            user = db.get(User, session_data.user_id)
+        
+        # If user not found or is anonymous, use anonymous user_id
+        if not user:
+            session_data.user_id = 'anonymous'
+            
     except Exception as e:
         print(f"❌ Error in create_interaction_session: {e}")
         print(f"❌ Error type: {type(e)}")
@@ -66,18 +87,6 @@ async def create_interaction_session(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Validation error: {str(e)}"
-        )
-    if not training:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Training not found"
-        )
-    
-    user = db.get(User, session_data.user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
         )
     
     # Check if user already has an active session for this training
@@ -144,7 +153,7 @@ def get_interaction_session(
     session_id: str,
     db: Session = Depends(get_session)
 ):
-    """Get interaction session by ID"""
+    """Get interaction session by ID - supports anonymous access"""
     
     session = db.get(InteractionSession, session_id)
     if not session:
@@ -455,7 +464,7 @@ def get_flow_analysis(
     session_id: str,
     db: Session = Depends(get_session)
 ):
-    """Get flow analysis for current session"""
+    """Get flow analysis for current session - supports anonymous access"""
     
     # Verify session exists
     session = db.get(InteractionSession, session_id)

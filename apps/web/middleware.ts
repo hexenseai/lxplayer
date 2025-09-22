@@ -18,6 +18,7 @@ export async function middleware(request: NextRequest) {
   
   if (
     PUBLIC_PATHS.includes(pathname) ||
+    pathname.startsWith('/player/') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
     pathname.startsWith('/assets') ||

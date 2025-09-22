@@ -331,6 +331,79 @@ def copy_training(
     }
 
 
+@router.get("/public/access-code/{access_code}", operation_id="get_training_by_access_code")
+def get_training_by_access_code(
+    access_code: str, 
+    session: Session = Depends(get_session)
+):
+    """Public endpoint to get training by access code - no authentication required"""
+    training = session.exec(
+        select(Training).where(Training.access_code == access_code)
+    ).first()
+    
+    if not training:
+        raise HTTPException(status_code=404, detail="Training not found")
+    
+    # Get training sections with overlays
+    sections = session.exec(
+        select(TrainingSection)
+        .where(TrainingSection.training_id == training.id)
+        .order_by(TrainingSection.order_index)
+    ).all()
+    
+    # Build training data with sections and overlays
+    training_dict = training.model_dump()
+    
+    # Add sections with overlays
+    sections_data = []
+    for section in sections:
+        section_dict = section.model_dump()
+        
+        # Get overlays for this section
+        overlays = session.exec(
+            select(Overlay)
+            .where(Overlay.section_id == section.id)
+            .order_by(Overlay.time_stamp)
+        ).all()
+        
+        # Get asset information
+        if section.asset_id:
+            asset = session.get(Asset, section.asset_id)
+            if asset:
+                section_dict['asset'] = asset.model_dump()
+        
+        # Add overlays to section
+        section_dict['overlays'] = [overlay.model_dump() for overlay in overlays]
+        sections_data.append(section_dict)
+    
+    training_dict['sections'] = sections_data
+    
+    # Avatar bilgilerini ekle
+    if training.avatar_id:
+        avatar = session.get(Avatar, training.avatar_id)
+        if avatar:
+            training_dict['avatar'] = avatar.model_dump()
+    
+    # Company bilgilerini ekle
+    if training.company_id:
+        company = session.get(Company, training.company_id)
+        if company:
+            training_dict['company'] = {
+                'id': company.id,
+                'name': company.name,
+                'display_name': company.name
+            }
+    else:
+        # Sistem eğitimi (SuperAdmin)
+        training_dict['company'] = {
+            'id': None,
+            'name': 'System',
+            'display_name': 'Sistem Eğitimi'
+        }
+    
+    return training_dict
+
+
 @router.get("/{training_id}", operation_id="get_training")
 def get_training(
     training_id: str, 

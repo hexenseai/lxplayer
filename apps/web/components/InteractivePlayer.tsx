@@ -77,7 +77,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     sessionCreateInFlightRef.current = true;
     try {
       const response = await api.createSession({
-        user_id: userId || '',
+        user_id: userId || 'anonymous',
         training_id: trainingId,
         company_id: 'default-company',
         status: 'active'
@@ -184,68 +184,43 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
       }
       
       try {
-        // Load training data
-        const trainings = await api.listTrainings();
-        const training = trainings.find(t => t.access_code === accessCode);
+        // Use public API to get training by access code
+        console.log('🔄 Loading training data using public API...');
+        const trainingData = await api.getTrainingByAccessCode(accessCode);
         
-        if (training) {
-          console.log('✅ Found training:', training.title);
-          setTrainingTitle(training.title);
-          setTrainingDescription(training.description || '');
-          
-          // Load sections
-          const sectionsResponse = await api.listTrainingSections(training.id);
-          if (sectionsResponse && Array.isArray(sectionsResponse)) {
-            const sortedSections = sectionsResponse.sort((a, b) => a.order_index - b.order_index);
-            console.log('📚 Loaded sections:', sortedSections.length, sortedSections);
-            setSections(sortedSections);
-            sectionsRef.current = sortedSections;
-            
-            // Don't automatically set current section - let start page handle it
-            console.log('📚 Sections loaded, staying on start page');
-          }
-        } else {
-          // Fallback: Check company trainings
-          console.log('🔍 Training not found in main table, checking company trainings...');
-          const companyTrainings = await api.listAllCompanyTrainings();
-          const companyTraining = companyTrainings.find(ct => ct.access_code === accessCode);
-          
-          if (companyTraining) {
-            console.log('✅ Found company training:', companyTraining);
-            const trainingData = await api.getTraining(companyTraining.training_id);
-            setTrainingTitle(trainingData.title);
-            setTrainingDescription(trainingData.description || '');
-            setCompanyTraining(companyTraining);
-            setTrainingAvatar(trainingData.avatar || null);
-            
-            // Test avatar if none exists
-            if (!trainingData.avatar) {
-              setTrainingAvatar({
-                id: 'test',
-                name: 'Test Avatar',
-                personality: 'Test Kişilik',
-                elevenlabs_voice_id: '21m00Tcm4TlvDq8ikWAM',
-                image_url: null,
-                is_default: false,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              });
-            }
-            
-            // Load sections for company training
-            const sectionsResponse = await api.listTrainingSections(trainingData.id);
-            if (sectionsResponse && Array.isArray(sectionsResponse)) {
-              const sortedSections = sectionsResponse.sort((a, b) => a.order_index - b.order_index);
-              setSections(sortedSections);
-              sectionsRef.current = sortedSections;
-              
-              // Don't automatically set current section - let start page handle it
-              console.log('📚 Company training sections loaded, staying on start page');
-            }
-          } else {
-            console.error('Training not found for access code:', accessCode);
-          }
+        console.log('✅ Found training:', trainingData.title);
+        setTrainingTitle(trainingData.title);
+        setTrainingDescription(trainingData.description || '');
+        setTrainingAvatar(trainingData.avatar || null);
+        
+        // Set training ID for session creation
+        setTrainingId(trainingData.id);
+        
+        // Test avatar if none exists
+        if (!trainingData.avatar) {
+          setTrainingAvatar({
+            id: 'test',
+            name: 'Test Avatar',
+            personality: 'Test Kişilik',
+            elevenlabs_voice_id: '21m00Tcm4TlvDq8ikWAM',
+            image_url: null,
+            is_default: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
         }
+        
+        // Use sections from the public API response
+        if (trainingData.sections && Array.isArray(trainingData.sections)) {
+          const sortedSections = trainingData.sections.sort((a, b) => a.order_index - b.order_index);
+          console.log('📚 Loaded sections:', sortedSections.length, sortedSections);
+          setSections(sortedSections);
+          sectionsRef.current = sortedSections;
+          
+          // Don't automatically set current section - let start page handle it
+          console.log('📚 Sections loaded, staying on start page');
+        }
+        
       } catch (error) {
         console.error('Error loading training data:', error);
       } finally {
@@ -263,22 +238,19 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     
     const loadSectionOverlays = async () => {
       try {
-        let trainingId: string;
-        if (companyTraining) {
-          trainingId = companyTraining.training_id;
-        } else {
-          const trainings = await api.listTrainings();
-          const training = trainings.find(t => t.access_code === accessCode);
-          if (!training) return;
-          trainingId = training.id;
+        // Use the training ID that was already set from the public API
+        const trainingIdToUse = trainingId;
+        if (!trainingIdToUse) {
+          console.error('No training ID available');
+          return;
         }
         
         // Load overlays for current section
-        const overlays = await api.listSectionOverlays(trainingId, currentSection.id);
+        const overlays = await api.listSectionOverlays(trainingIdToUse, currentSection.id);
         setOverlays(overlays);
         
         // Create session for tracking
-        createSession(trainingId);
+        createSession(trainingIdToUse);
         
         // REST API session ile section handler'ı başlat
         if (isSessionReady && interactionSessionId) {

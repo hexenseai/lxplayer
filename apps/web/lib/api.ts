@@ -180,11 +180,16 @@ async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit
   const url = `${base}${path}`;
   console.log('🌐 API Request:', { path, url, method: init?.method || 'GET' });
   
+  // Check if this is a public endpoint (no auth required)
+  const isPublicEndpoint = path.includes('/public/') || 
+                          path.includes('/interaction-sessions/') ||
+                          path.includes('/trainings/public/');
+  
   // Get token from localStorage
   let token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   
-  // QUICK BYPASS: Auto-login as superadmin in development
-  if (!token && typeof window !== 'undefined' && (process.env.NODE_ENV === 'development' || process.env.BYPASS_AUTH === 'true')) {
+  // QUICK BYPASS: Auto-login as superadmin in development (only for non-public endpoints)
+  if (!token && !isPublicEndpoint && typeof window !== 'undefined' && (process.env.NODE_ENV === 'development' || process.env.BYPASS_AUTH === 'true')) {
     try {
       console.log('🔄 Auto-login as superadmin...');
       const loginResponse = await fetch(`${base}/auth/login`, {
@@ -215,8 +220,8 @@ async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit
   
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   
-  // Add authorization header if token exists
-  if (token) {
+  // Add authorization header if token exists and not a public endpoint
+  if (token && !isPublicEndpoint) {
     headers['authorization'] = `Bearer ${token}`;
   }
   
@@ -729,6 +734,54 @@ export const api = {
         chat_interactions: z.number(),
         navigation_interactions: z.number()
       })
+    })
+  ),
+
+  // ===== PUBLIC API (NO AUTH REQUIRED) =====
+  
+  getTrainingByAccessCode: (accessCode: string) => request(
+    `/api/trainings/public/access-code/${accessCode}`,
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      description: z.string().nullable().optional(),
+      access_code: z.string(),
+      avatar_id: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional(),
+      ai_flow: z.string().nullable().optional(),
+      sections: z.array(z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string().nullable().optional(),
+        type: z.string(),
+        order_index: z.number(),
+        script: z.string().nullable().optional(),
+        duration: z.number().nullable().optional(),
+        asset_id: z.string().nullable().optional(),
+        asset: z.object({
+          id: z.string(),
+          name: z.string(),
+          uri: z.string(),
+          kind: z.string()
+        }).nullable().optional(),
+        overlays: z.array(z.object({
+          id: z.string(),
+          type: z.string(),
+          caption: z.string().nullable().optional(),
+          time_stamp: z.number(),
+          duration: z.number().nullable().optional(),
+          position: z.string().nullable().optional(),
+          animation: z.string().nullable().optional(),
+          style_id: z.string().nullable().optional(),
+          style: z.any().nullable().optional()
+        }))
+      })),
+      avatar: z.any().nullable().optional(),
+      company: z.object({
+        id: z.string().nullable().optional(),
+        name: z.string(),
+        display_name: z.string()
+      }).nullable().optional()
     })
   ),
 
