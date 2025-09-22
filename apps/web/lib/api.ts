@@ -740,7 +740,7 @@ export const api = {
   // ===== PUBLIC API (NO AUTH REQUIRED) =====
   
   getTrainingByAccessCode: (accessCode: string) => request(
-    `/api/trainings/public/access-code/${accessCode}`,
+    `/trainings/public/access-code/${accessCode}`,
     z.object({
       id: z.string(),
       title: z.string(),
@@ -793,7 +793,7 @@ export const api = {
     access_code: string;
     current_section_id?: string;
   }) => request(
-    `/api/interaction-sessions/`,
+    `/interaction-sessions/`,
     z.object({
       id: z.string(),
       training_id: z.string(),
@@ -819,7 +819,7 @@ export const api = {
   ),
 
   getInteractionSession: (sessionId: string) => request(
-    `/api/interaction-sessions/${sessionId}`,
+    `/interaction-sessions/${sessionId}`,
     z.object({
       id: z.string(),
       training_id: z.string(),
@@ -970,7 +970,7 @@ export const api = {
   // ===== FLOW ANALYSIS API =====
 
   getFlowAnalysis: (sessionId: string) => request(
-    `/api/interaction-sessions/${sessionId}/flow-analysis`,
+    `/interaction-sessions/${sessionId}/flow-analysis`,
     z.object({
       current_node: z.any().nullable().optional(),
       possible_paths: z.array(z.any()),
