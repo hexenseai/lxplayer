@@ -904,7 +904,8 @@ export const api = {
       actions: z.array(z.any()),
       session_id: z.string(),
       timestamp: z.string(),
-      processing_time_ms: z.number().nullable().optional()
+      processing_time_ms: z.number().nullable().optional(),
+      canProceedToNext: z.boolean().optional()
     }),
     {
       method: 'POST',
@@ -929,6 +930,31 @@ export const api = {
       timestamp: z.string(),
       metadata_json: z.string()
     }))
+  ),
+
+  // Section-specific chat history management
+  getSectionChatHistory: (sessionId: string, sectionId: string) => request(
+    `/interaction-sessions/${sessionId}/sections/${sectionId}/chat-history`,
+    z.array(z.object({
+      id: z.string(),
+      type: z.string(),
+      content: z.string(),
+      timestamp: z.string(),
+      suggestions: z.array(z.string()).optional()
+    }))
+  ),
+
+  saveSectionChatHistory: (sessionId: string, sectionId: string, messages: any[]) => request(
+    `/interaction-sessions/${sessionId}/sections/${sectionId}/chat-history`,
+    z.object({
+      success: z.boolean(),
+      message: z.string()
+    }),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages })
+    }
   ),
 
   getSessionProgress: (sessionId: string) => request(

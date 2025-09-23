@@ -332,6 +332,7 @@ class LLMMessageResponse(BaseModel):
     session_id: str
     timestamp: datetime
     processing_time_ms: Optional[int] = None
+    canProceedToNext: Optional[bool] = False
 
 
 # ===== SECTION PROGRESS SCHEMAS =====

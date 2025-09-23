@@ -26,6 +26,47 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   const updateCurrentSection = (section: any) => {
     setCurrentSection(section);
     currentSectionRef.current = section;
+    // Reset navigation state when section changes
+    setCanProceedToNext(false);
+    
+    // Load section progress to determine navigation state
+    loadSectionProgress(section.id);
+  };
+
+  // Load section progress and determine navigation state
+  const loadSectionProgress = async (sectionId: string) => {
+    if (!interactionSessionId) return;
+    
+    try {
+      const progress = await api.getSessionProgress(interactionSessionId);
+      const currentSectionProgress = progress.sections_progress.find(
+        (sp: any) => sp.section_id === sectionId
+      );
+      
+      if (currentSectionProgress) {
+        setSectionProgress(prev => ({
+          ...prev,
+          [sectionId]: currentSectionProgress
+        }));
+        
+        // Set navigation state based on section completion status
+        if (currentSectionProgress.status === 'completed') {
+          setCanProceedToNext(true);
+          console.log('✅ Section already completed, enabling next button');
+        } else {
+          setCanProceedToNext(false);
+          console.log('⏳ Section not completed, disabling next button');
+        }
+      } else {
+        // No progress found, assume not completed
+        setCanProceedToNext(false);
+        console.log('❓ No progress found for section, disabling next button');
+      }
+    } catch (error) {
+      console.error('❌ Failed to load section progress:', error);
+      // On error, assume not completed
+      setCanProceedToNext(false);
+    }
   };
   
   // Session and interaction tracking
@@ -49,6 +90,10 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   const [isSessionReady, setIsSessionReady] = useState<boolean>(false);
   const [currentSectionHandler, setCurrentSectionHandler] = useState<any>(null);
   const [flowAnalysis, setFlowAnalysis] = useState<any>(null);
+  
+  // Navigation button states
+  const [canProceedToNext, setCanProceedToNext] = useState<boolean>(false);
+  const [sectionProgress, setSectionProgress] = useState<Record<string, any>>({});
   
   // Interaction tracking hook
   const {
@@ -402,6 +447,12 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
           console.log('🎤 LLM requested agent action:', actionPayload.type);
           break;
           
+        case 'can_proceed_to_next':
+          // LLM interaction section'da yeterli etkileşim olduğunu belirt
+          console.log('✅ LLM indicated user can proceed to next section');
+          setCanProceedToNext(true);
+          break;
+          
         default:
           console.log('🔧 Unknown LLM action type:', actionPayload.type);
       }
@@ -513,6 +564,10 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             onNavigateNext={() => safeNavigateNext('User requested next section')}
             onNavigatePrevious={() => safeNavigatePrevious('User requested previous section')}
             onTrackUserMessage={trackUserMessage}
+            hasPreviousSection={currentSectionIndex > 0}
+            hasNextSection={currentSectionIndex < sectionsRef.current.length - 1}
+            canProceedToNext={canProceedToNext}
+            sectionProgress={sectionProgress[currentSection?.id]} // Pass progress info
             onTrackAssistantMessage={trackAssistantMessage}
             onLLMAction={handleLLMAction}
           />
@@ -538,6 +593,9 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
             sessionId={interactionSessionId || undefined}
             accessCode={accessCode}
             userId={userId}
+            sectionProgress={sectionProgress[currentSection?.id]}
+            hasPreviousSection={currentSectionIndex > 0}
+            hasNextSection={currentSectionIndex < sectionsRef.current.length - 1}
           />
         );
     }

@@ -31,6 +31,10 @@ interface VideoSectionPlayerProps {
   sessionId?: string;
   accessCode?: string;
   userId?: string;
+  // Progress props
+  sectionProgress?: any;
+  hasPreviousSection?: boolean;
+  hasNextSection?: boolean;
 }
 
 function buildVideoUrl(section: TrainingSection): string | undefined {
@@ -84,10 +88,12 @@ export function VideoSectionPlayer({
   onLLMAction,
   sessionId,
   accessCode,
-  userId
+  userId,
+  sectionProgress,
+  hasPreviousSection = false,
+  hasNextSection = true
 }: VideoSectionPlayerProps) {
   const playerRef = useRef<any>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -95,6 +101,7 @@ export function VideoSectionPlayer({
   const [currentFrame, setCurrentFrame] = useState<string>('wide');
   const [currentFrameConfig, setCurrentFrameConfig] = useState<any>(null);
   const [playerVolume, setPlayerVolume] = useState<number>(1);
+  const [isVideoCompleted, setIsVideoCompleted] = useState(false);
   
   // Chat states - section-specific
   const [chatOpen, setChatOpen] = useState<boolean>(false);
@@ -143,129 +150,29 @@ export function VideoSectionPlayer({
     lastOverlayIdRef.current = null;
   }, [section.id]);
 
-  // WebSocket URL utility
-  const toWsUrl = (apiBase: string) => {
-    if (!apiBase) return (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/chat/ws';
-    const url = new URL(apiBase);
-    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    url.pathname = (url.pathname.replace(/\/+$/, '')) + '/chat/ws';
-    return url.toString();
+  // Load chat history for this video section
+  const loadChatHistory = async () => {
+    if (!sessionId) return;
+    
+    try {
+      const history = await api.getSectionChatHistory(sessionId, section.id);
+      setChatMessages(history);
+      console.log('📚 Video section chat history loaded:', history.length, 'messages');
+    } catch (error) {
+      console.error('❌ Failed to load video section chat history:', error);
+    }
   };
 
-  // Initialize WebSocket connection for video overlays and chat
+  // Initialize video section and load chat history
   useEffect(() => {
-    if (!videoUrl) return; // Only connect for video sections
+    if (!videoUrl || !sessionId) return;
     
-    console.log('🎥 Video Section: Initializing WebSocket connection');
+    console.log('🎥 Video Section: Initializing REST API chat system');
     
-    const openSocket = () => {
-      try {
-        const wsUrl = toWsUrl(process.env.NEXT_PUBLIC_API_URL || '');
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-        
-        ws.onopen = () => {
-          console.log('✅ Video Section WebSocket connected');
-          ws.send(JSON.stringify({ 
-            type: 'init', 
-            context: { 
-              sectionId: section.id,
-              sectionType: 'video',
-              trainingId: section.training_id 
-            } 
-          }));
-          
-          // Send training context as system message (LLM should not respond to this)
-          setTimeout(() => {
-            ws.send(JSON.stringify({ 
-              type: 'system_message', 
-              content: `# EĞİTİM BİLGİLERİ (Bu bilgilere cevap verme, sadece referans olarak kullan)
-              
-**Eğitim Başlığı:** ${trainingTitle}
-**Bölüm:** ${section.title}
-**Bölüm Açıklaması:** ${section.description || 'Açıklama yok'}
-**Bölüm Türü:** Video Bölümü
-
-Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overlay etkileşimlerinde chat açılır. Video bittiğinde kullanıcıya seçenek sun (tekrar et, devam et, sonraki bölüm).`
-            }));
-          }, 500);
-        };
-        
-        ws.onmessage = (ev) => {
-          try {
-            const data = JSON.parse(ev.data);
-            
-            if (data.type === 'assistant_message') {
-              let assistantMessage = '';
-              
-              if (typeof data.content === 'object' && data.content) {
-                assistantMessage = String(data.content.message || '');
-              } else if (typeof data.content === 'string') {
-                assistantMessage = data.content;
-              }
-              
-              if (assistantMessage && assistantMessage.trim()) {
-                setChatMessages(m => [...m, { type: 'ai', content: assistantMessage, ts: Date.now(), section_id: section.id }]);
-                onTrackAssistantMessage(assistantMessage);
-                
-                // Check if this is a video ended message
-                const isVideoEndedMessage = data.content?.is_video_ended === true || data.type === 'video_ended';
-                
-                if (isVideoEndedMessage) {
-                  setChatOpen(true);
-                  
-                  if (data.content?.action === 'restart_video') {
-                    setTimeout(() => {
-                      if (playerRef.current) {
-                        videoEndedRef.current = false;
-                        playerRef.current.seekTo(0);
-                        setIsPlaying(true);
-                        setChatOpen(false);
-                      }
-                    }, 2000);
-                  }
-                  // REMOVED: WebSocket navigation action processing to prevent unwanted transitions
-                  // else if (data.content?.action === 'navigate_next') {
-                  //   onNavigateNext();
-                  // }
-                }
-              }
-              
-              // Handle suggestions
-              if (data.suggestions && data.suggestions.length > 0) {
-                const suggestionTexts = data.suggestions.map((s: any) => s.text || s).filter(Boolean);
-                if (suggestionTexts.length > 0) {
-                  setChatSuggestions(suggestionTexts);
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-          }
-        };
-        
-        ws.onerror = (error) => {
-          console.error('❌ Video Section WebSocket error:', error);
-        };
-        
-        ws.onclose = () => {
-          console.log('🔌 Video Section WebSocket closed');
-          wsRef.current = null;
-        };
-      } catch (error) {
-        console.error('Error creating WebSocket:', error);
-      }
-    };
+    // Load chat history for this section
+    loadChatHistory();
     
-    openSocket();
-    
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [section.id, section.training_id, videoUrl]);
+  }, [section.id, videoUrl, sessionId]);
 
   // Auto-populate overlay suggestions
   useEffect(() => {
@@ -318,7 +225,12 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
         // Just respond with LLM without processing navigation actions
         if (sessionId) {
           try {
-            const response = await api.sendMessageToLLM(sessionId, msg, 'user');
+            // Add video context to the message
+        const messageWithContext = `${msg}
+
+[Video Context: Currently at ${Math.floor(currentTime)}s of ${duration ? Math.floor(duration) : 'unknown'}s in "${section.title}" section]`;
+        
+        const response = await api.sendMessageToLLM(sessionId, messageWithContext, 'user');
             
             // Add LLM response to chat with section_id
             setChatMessages(m => [...m, { 
@@ -328,6 +240,16 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
               section_id: section.id
             }]);
             onTrackAssistantMessage(response.message);
+            
+            // Save chat history after each message
+            try {
+              await api.saveSectionChatHistory(sessionId, section.id, [...chatMessages, 
+                { type: 'user', content: msg, ts: Date.now(), section_id: section.id },
+                { type: 'ai', content: response.message, ts: Date.now(), section_id: section.id }
+              ]);
+            } catch (saveError) {
+              console.error('❌ Failed to save chat history:', saveError);
+            }
             
             // REMOVED: LLM action processing to prevent unwanted navigation
             // if (response.actions && response.actions.length > 0) {
@@ -348,7 +270,12 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
     // Use LLM API for regular messages
     if (sessionId) {
       try {
-        const response = await api.sendMessageToLLM(sessionId, msg, 'user');
+        // Add video context to the message
+        const messageWithContext = `${msg}
+
+[Video Context: Currently at ${Math.floor(currentTime)}s of ${duration ? Math.floor(duration) : 'unknown'}s in "${section.title}" section]`;
+        
+        const response = await api.sendMessageToLLM(sessionId, messageWithContext, 'user');
         
         // Add LLM response to chat with section_id
         setChatMessages(m => [...m, { 
@@ -362,6 +289,16 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
         // Update suggestions
         setChatSuggestions(response.suggestions || []);
         
+        // Save chat history after each message
+        try {
+          await api.saveSectionChatHistory(sessionId, section.id, [...chatMessages, 
+            { type: 'user', content: msg, ts: Date.now(), section_id: section.id },
+            { type: 'ai', content: response.message, ts: Date.now(), section_id: section.id }
+          ]);
+        } catch (saveError) {
+          console.error('❌ Failed to save chat history:', saveError);
+        }
+        
         // REMOVED: LLM action processing to prevent unwanted navigation from video section chats
         // Video sections should not process navigation actions from chat interactions
         // if (response.actions && response.actions.length > 0) {
@@ -373,12 +310,22 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
         // }
       } catch (error) {
         console.error('❌ Failed to send message to LLM:', error);
-        // Fallback to old WebSocket system if LLM fails
-        try { wsRef.current?.send(JSON.stringify({ type: 'user_message', content: msg })); } catch {}
+        // Show error message to user
+        setChatMessages(m => [...m, { 
+          type: 'ai', 
+          content: 'Üzgünüm, şu anda mesajınızı işleyemiyorum. Lütfen tekrar deneyin.', 
+          ts: Date.now(), 
+          section_id: section.id 
+        }]);
       }
     } else {
-      // Fallback to old WebSocket system if no session
-      try { wsRef.current?.send(JSON.stringify({ type: 'user_message', content: msg })); } catch {}
+      // No session available
+      setChatMessages(m => [...m, { 
+        type: 'ai', 
+        content: 'Chat sistemi şu anda kullanılamıyor.', 
+        ts: Date.now(), 
+        section_id: section.id 
+      }]);
     }
   };
 
@@ -390,12 +337,28 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
     }
   };
 
+  const lastSeekTimeRef = useRef<number>(0);
+  
   const handleTimeUpdate = (t: number) => {
+    const prevTime = currentTime;
     setCurrentTime(t);
+    
+    // Track video seek events (jumps in time)
+    const timeDiff = Math.abs(t - prevTime);
+    if (timeDiff > 2 && prevTime > 0) { // More than 2 seconds jump
+      console.log(`⏩ Video seek detected: ${prevTime.toFixed(1)}s → ${t.toFixed(1)}s (jump: ${timeDiff.toFixed(1)}s)`);
+      
+      // Log seek event to backend
+      if (sessionId) {
+        // You can add a specific API call for seek tracking here if needed
+        console.log(`📊 Seek event logged for section: ${section.title}`);
+      }
+    }
     
     // Video bitimine 0.5 saniye kala flag'i set et
     if (duration && t >= Math.max(0, duration - 0.5) && !videoEndedRef.current) {
       videoEndedRef.current = true;
+      setIsVideoCompleted(true);
     }
   };
 
@@ -438,14 +401,24 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
            <div className="flex items-center space-x-2">
              <button
                onClick={onNavigatePrevious}
-               className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+               disabled={!hasPreviousSection}
+               className={`flex items-center space-x-1 px-3 py-1.5 text-sm rounded border transition-colors ${
+                 hasPreviousSection
+                   ? 'bg-slate-700 hover:bg-slate-600 text-white border-slate-600'
+                   : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+               }`}
              >
                <ArrowLeft className="w-3 h-3" />
                <span>Önceki</span>
              </button>
              <button
                onClick={onNavigateNext}
-               className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+               disabled={!hasNextSection || (!isVideoCompleted && sectionProgress?.status !== 'completed')}
+               className={`flex items-center space-x-1 px-3 py-1.5 text-sm rounded border transition-colors ${
+                 hasNextSection && (isVideoCompleted || sectionProgress?.status === 'completed')
+                   ? 'bg-green-600 hover:bg-green-700 text-white border-green-500'
+                   : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+               }`}
              >
                <span>Sonraki</span>
                <ArrowRight className="w-3 h-3" />
@@ -480,6 +453,7 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
             if (videoEndedRef.current) {
               // Video bittiğinde oynatmaya çalışırsa, videoyu başa al ve oynat
               videoEndedRef.current = false;
+              setIsVideoCompleted(false);
               playerRef.current?.seekTo?.(0);
               setCurrentTime(0);
               setIsPlaying(true);
@@ -499,23 +473,27 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
               suppressNextPauseRef.current = false;
               return;
             }
-            try {
-              wsRef.current?.send(JSON.stringify({
-                type: 'user_message',
-                content: `Kullanıcı videoyu durdurdu. Bölüm: ${section.title}. Zaman: ${Math.floor(currentTime)}s.`
-              }));
-            } catch {}
+            // Log video pause event
+            console.log(`🎥 Video paused at ${Math.floor(currentTime)}s in section: ${section.title}`);
             openChatWindow();
           }}
           onEnded={() => {
             videoEndedRef.current = true;
-            try {
-              wsRef.current?.send(JSON.stringify({
-                type: 'video_ended',
-                content: `Video bitti. Bölüm: ${section.title}.`,
-                section_id: section.id
-              }));
-            } catch {}
+            setIsVideoCompleted(true);
+            
+            // Log video completion and mark section as completed
+            console.log(`🎉 Video completed for section: ${section.title}`);
+            
+            // Mark section as completed in database
+            if (sessionId) {
+              api.updateSectionProgress(sessionId, section.id, {
+                status: 'completed',
+                completed_at: new Date().toISOString()
+              }).catch(error => {
+                console.error('❌ Failed to update section progress:', error);
+              });
+            }
+            
             openChatWindow();
           }}
         />
@@ -602,13 +580,8 @@ Bu bölümde video oynatılıyor. Kullanıcı videoyu durdurduğunda veya overla
                       ts: Date.now() 
                     }]);
                     
-                    try { 
-                      wsRef.current?.send(JSON.stringify({ 
-                        type: 'system_message', 
-                        content: 'OVERLAY_INTERACTION: This is an overlay-triggered LLM interaction. The user should respond to the question, and then the video should continue playing.',
-                        ts: Date.now()
-                      })); 
-                    } catch {}
+                    // Log overlay interaction
+                    console.log(`🎯 LLM interaction overlay triggered: ${overlay.caption} at ${currentTime}s`);
                   }
                 }
               }

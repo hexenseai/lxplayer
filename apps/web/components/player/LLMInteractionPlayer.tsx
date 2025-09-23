@@ -17,6 +17,10 @@ interface LLMInteractionPlayerProps {
   onTrackUserMessage: (message: string) => void;
   onTrackAssistantMessage: (message: string) => void;
   onLLMAction?: (actionPayload: any) => Promise<any>;
+  hasPreviousSection?: boolean;
+  hasNextSection?: boolean;
+  canProceedToNext?: boolean;
+  sectionProgress?: any; // Progress information for this section
 }
 
 interface ChatMessage {
@@ -39,7 +43,11 @@ export function LLMInteractionPlayer({
   onNavigatePrevious,
   onTrackUserMessage,
   onTrackAssistantMessage,
-  onLLMAction
+  onLLMAction,
+  hasPreviousSection = false,
+  hasNextSection = true,
+  canProceedToNext = false,
+  sectionProgress
 }: LLMInteractionPlayerProps) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState<string>('');
@@ -47,21 +55,25 @@ export function LLMInteractionPlayer({
   const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
+  const [canProceed, setCanProceed] = useState(canProceedToNext);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
+  const sectionChatKey = useRef<string>(`${sessionId}-${section.id}`);
 
-  // Initialize LLM interaction section - start directly with opening sentence
+  // Initialize LLM interaction section with chat history support
   useEffect(() => {
-    if (!sessionId || isInitialized) return;
+    if (!sessionId) return;
 
     const initializeSection = async () => {
       try {
         console.log('🚀 Initializing LLM interaction section:', section.title);
         
-        // Don't load chat history - start fresh with LLM opening sentence
-        setChatMessages([]);
+        // Load existing chat history for this section if available
+        await loadChatHistory();
         
-        // Send initial greeting based on section purpose
-        await sendInitialGreeting();
+        // Only send initial greeting if no existing messages
+        if (chatMessages.length === 0) {
+          await sendInitialGreeting();
+        }
 
         setIsInitialized(true);
       } catch (error) {
@@ -71,50 +83,78 @@ export function LLMInteractionPlayer({
     };
 
     initializeSection();
-  }, [sessionId, isInitialized]);
+  }, [sessionId, section.id]);
+
+  // Load chat history for this specific section
+  const loadChatHistory = async () => {
+    if (!sessionId) return;
+    
+    try {
+      console.log('📚 Loading chat history for section:', section.id);
+      const history = await api.getSectionChatHistory(sessionId, section.id);
+      if (history && history.length > 0) {
+        setChatMessages(history);
+        console.log(`✅ Loaded ${history.length} messages from history`);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load chat history:', error);
+      // Continue without history - not critical
+    }
+  };
+
+  // Save chat messages to history
+  const saveChatHistory = async (messages: ChatMessage[]) => {
+    if (!sessionId) return;
+    
+    try {
+      await api.saveSectionChatHistory(sessionId, section.id, messages);
+    } catch (error) {
+      console.error('❌ Failed to save chat history:', error);
+    }
+  };
 
   // Send initial greeting
   const sendInitialGreeting = async () => {
     if (!sessionId) return;
 
     try {
-      let initialMessage = '';
+      const assistantName = trainingAvatar?.name || 'Asistan';
+      const voiceId = trainingAvatar?.elevenlabs_voice_id || null;
       
-      if (section.description || section.script) {
-        initialMessage = `# ETKİLEŞİM BÖLÜMÜ BAŞLATMA
-
-**Eğitim:** ${trainingTitle}
-**Bölüm:** ${section.title}
-**Açıklama:** ${section.description || 'Açıklama yok'}
-**Script:** ${section.script || 'Script yok'}
-
-Bu bölümün amacına uygun şekilde kullanıcıya etkileşimli bir açılış cümlesi ile başla. Bölümün içeriğine göre uygun bir soru sor veya konuyu tanıt.`;
+      // Açılış mesajını doğrudan section description'dan al
+      let initialGreetingMessage = '';
+      
+      if (section.description && section.description.trim()) {
+        initialGreetingMessage = section.description;
+        console.log('📝 Using section description as initial greeting');
       } else {
-        initialMessage = `# ETKİLEŞİM BÖLÜMÜ BAŞLATMA
-
-**Eğitim:** ${trainingTitle}
-**Bölüm:** ${section.title}
-
-Bu etkileşim bölümünde kullanıcıya hoş geldin ve bölümün amacını belirt. Uygun bir soru sor veya konuyu tanıt.`;
+        initialGreetingMessage = `Merhaba! Ben ${assistantName}. Bu eğitimde size yardımcı olacağım. ${section.title} bölümüne hoş geldiniz. Size nasıl yardımcı olabilirim?`;
+        console.log('📝 Using default greeting message');
       }
 
-      console.log('📤 Sending initial greeting...');
-      const response = await api.sendMessageToLLM(sessionId, initialMessage, 'system');
-      
-      // Add assistant message to chat
+      // Açılış mesajını doğrudan göster (LLM'e gönderme)
       const assistantMessage: ChatMessage = {
         id: `initial-${Date.now()}`,
         type: 'assistant',
-        content: response.message,
-        timestamp: response.timestamp,
-        suggestions: response.suggestions
+        content: initialGreetingMessage,
+        timestamp: new Date().toISOString(),
+        suggestions: [
+          "Merhaba, nasılsınız?",
+          "Bu konu hakkında bilgi almak istiyorum",
+          "Devam etmek istiyorum"
+        ]
       };
 
-      setChatMessages(prev => [...prev, assistantMessage]);
-      setChatSuggestions(response.suggestions);
+      setChatMessages(prev => [assistantMessage]);
+      setChatSuggestions(assistantMessage.suggestions);
+      
+      // Save to history
+      await saveChatHistory([assistantMessage]);
       
       // Track the message
-      onTrackAssistantMessage(response.message);
+      onTrackAssistantMessage(initialGreetingMessage);
+      
+      console.log('✅ Initial greeting displayed successfully');
       
     } catch (error) {
       console.error('❌ Failed to send initial greeting:', error);
@@ -155,11 +195,32 @@ Bu etkileşim bölümünde kullanıcıya hoş geldin ve bölümün amacını bel
         suggestions: response.suggestions
       };
 
-      setChatMessages(prev => [...prev, assistantMessage]);
+      const newMessages = [...chatMessages, userMessage, assistantMessage];
+      setChatMessages(newMessages);
       setChatSuggestions(response.suggestions);
+      
+      // Save to history
+      await saveChatHistory(newMessages);
       
       // Track the response
       onTrackAssistantMessage(response.message);
+      
+      // Check if we can proceed to next section
+      console.log('🔍 Checking canProceedToNext:', response.canProceedToNext);
+      if (response.canProceedToNext) {
+        console.log('✅ Setting canProceed to true and calling onLLMAction');
+        setCanProceed(true);
+        // Send action to parent component
+        if (onLLMAction) {
+          await onLLMAction({
+            type: 'can_proceed_to_next',
+            data: { canProceed: true },
+            timestamp: Date.now()
+          });
+        }
+      } else {
+        console.log('❌ canProceedToNext is false, not proceeding');
+      }
 
       // Handle LLM actions (navigation, etc.)
       if (response.actions && response.actions.length > 0) {
@@ -177,7 +238,8 @@ Bu etkileşim bölümünde kullanıcıya hoş geldin ve bölümün amacını bel
       console.log('✅ LLM response received:', {
         message: response.message.substring(0, 100) + '...',
         suggestions: response.suggestions.length,
-        processingTime: response.processing_time_ms
+        processingTime: response.processing_time_ms,
+        canProceedToNext: response.canProceedToNext
       });
 
     } catch (error) {
@@ -191,7 +253,11 @@ Bu etkileşim bölümünde kullanıcıya hoş geldin ve bölümün amacını bel
         timestamp: new Date().toISOString()
       };
 
-      setChatMessages(prev => [...prev, errorMessage]);
+      const newMessages = [...chatMessages, userMessage, errorMessage];
+      setChatMessages(newMessages);
+      
+      // Save to history
+      await saveChatHistory(newMessages);
     } finally {
       setIsLoading(false);
     }
@@ -279,18 +345,28 @@ Bu etkileşim bölümünde kullanıcıya hoş geldin ve bölümün amacını bel
            <div className="flex items-center space-x-2">
              <button
                onClick={onNavigatePrevious}
-               className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+               disabled={!hasPreviousSection}
+               className={`flex items-center space-x-1 px-3 py-1.5 text-sm rounded border transition-colors ${
+                 hasPreviousSection
+                   ? 'bg-slate-700 hover:bg-slate-600 text-white border-slate-600'
+                   : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+               }`}
              >
                <ArrowLeft className="w-3 h-3" />
                <span>Önceki</span>
              </button>
-             <button
-               onClick={onNavigateNext}
-               className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
-             >
-               <span>Sonraki</span>
-               <ArrowRight className="w-3 h-3" />
-             </button>
+            <button
+              onClick={onNavigateNext}
+              disabled={(!canProceed && !sectionProgress?.status === 'completed') || !hasNextSection}
+              className={`flex items-center space-x-1 px-3 py-1.5 text-sm rounded border transition-colors ${
+                (canProceed || sectionProgress?.status === 'completed') && hasNextSection
+                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-500'
+                  : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+              }`}
+            >
+              <span>Sonraki</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
            </div>
          </div>
        </div>
