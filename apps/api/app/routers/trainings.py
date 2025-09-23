@@ -14,7 +14,7 @@ from datetime import datetime
 import re
 from openai import OpenAI
 from ..db import get_session
-from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar, FrameConfig, GlobalFrameConfig, Company
+from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar, FrameConfig, GlobalFrameConfig, Company, UserInteraction
 from ..auth import hash_password, get_current_user, is_super_admin, is_admin, check_company_access
 from ..storage import get_minio
 
@@ -580,9 +580,15 @@ def delete_training(
     
     try:
         # Delete related data first (if cascade doesn't work)
-        # Delete overlays
+        # Delete overlays and their user interactions
         overlays = session.exec(select(Overlay).where(Overlay.training_id == training_id)).all()
         for overlay in overlays:
+            # Delete user interactions that reference this overlay
+            user_interactions = session.exec(
+                select(UserInteraction).where(UserInteraction.overlay_id == overlay.id)
+            ).all()
+            for interaction in user_interactions:
+                session.delete(interaction)
             session.delete(overlay)
         
         # Delete training sections
@@ -747,9 +753,15 @@ def delete_training_section(training_id: str, section_id: str, session: Session 
         raise HTTPException(404, "Training section not found")
     
     try:
-        # Delete related overlays first
+        # Delete related overlays and their user interactions first
         overlays = session.exec(select(Overlay).where(Overlay.training_section_id == section_id)).all()
         for overlay in overlays:
+            # Delete user interactions that reference this overlay
+            user_interactions = session.exec(
+                select(UserInteraction).where(UserInteraction.overlay_id == overlay.id)
+            ).all()
+            for interaction in user_interactions:
+                session.delete(interaction)
             session.delete(overlay)
         
         # Delete the section
@@ -1045,6 +1057,15 @@ def delete_section_overlay(training_id: str, section_id: str, overlay_id: str, s
         raise HTTPException(404, "Overlay not found")
     
     try:
+        # First, delete all UserInteraction records that reference this overlay
+        user_interactions = session.exec(
+            select(UserInteraction).where(UserInteraction.overlay_id == overlay_id)
+        ).all()
+        
+        for interaction in user_interactions:
+            session.delete(interaction)
+        
+        # Then delete the overlay
         session.delete(overlay)
         session.commit()
         return {"ok": True}
@@ -2664,6 +2685,12 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
                     if overlay_id:
                         overlay = session.get(Overlay, overlay_id)
                         if overlay and overlay.training_section_id == section_id:
+                            # Delete user interactions that reference this overlay
+                            user_interactions = session.exec(
+                                select(UserInteraction).where(UserInteraction.overlay_id == overlay_id)
+                            ).all()
+                            for interaction in user_interactions:
+                                session.delete(interaction)
                             session.delete(overlay)
                             session.commit()
                             executed_actions.append({
@@ -2684,6 +2711,12 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
                     ).all()
                     
                     for overlay in overlays_to_delete:
+                        # Delete user interactions that reference this overlay
+                        user_interactions = session.exec(
+                            select(UserInteraction).where(UserInteraction.overlay_id == overlay.id)
+                        ).all()
+                        for interaction in user_interactions:
+                            session.delete(interaction)
                         session.delete(overlay)
                         executed_actions.append({
                             "action": "delete",
