@@ -49,6 +49,19 @@ export function LLMInteractionPlayer({
   canProceedToNext = false,
   sectionProgress
 }: LLMInteractionPlayerProps) {
+  
+  // Sadece llm_interaction section'lar için çalış
+  if (section.type !== 'llm_interaction') {
+    console.log('❌ LLMInteractionPlayer sadece llm_interaction section\'lar için kullanılabilir');
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Geçersiz Bölüm Tipi</h2>
+          <p className="text-gray-600">Bu bölüm LLM etkileşimi için uygun değil.</p>
+        </div>
+      </div>
+    );
+  }
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);

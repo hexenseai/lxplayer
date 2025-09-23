@@ -643,7 +643,12 @@ def build_llm_context(session: InteractionSession, db: Session) -> dict:
     
     # Flow analyzer ile flow-aware context oluştur
     flow_analyzer = FlowAnalyzer(db)
-    flow_analysis = flow_analyzer.analyze_flow(session.training_id, session.id)
+    try:
+        flow_analysis = flow_analyzer.analyze_flow(session.training_id, session.id)
+        print(f"🔍 Flow analysis result: {type(flow_analysis)} - {flow_analysis is not None}")
+    except Exception as e:
+        print(f"❌ Error in flow analysis: {e}")
+        flow_analysis = {}
     
     # Build context with flow information
     context = {
@@ -719,6 +724,8 @@ def call_llm_api(message: str, context: dict) -> dict:
     
     try:
         # Context'i sistem prompt'una dönüştür
+        print(f"🔍 Context type: {type(context)} - {context is not None}")
+        print(f"🔍 Context keys: {list(context.keys()) if context else 'None'}")
         system_prompt = build_system_prompt(context)
         
         # OpenAI API çağrısı
@@ -730,14 +737,24 @@ def call_llm_api(message: str, context: dict) -> dict:
         # Konuşma geçmişini ekle
         recent_messages = context.get('recent_messages', [])
         for msg in recent_messages:
-            role = "user" if msg.get('message_type') == 'user' else "assistant"
-            messages.append({
-                "role": role,
-                "content": msg.get('message', '')
-            })
+            if msg and isinstance(msg, dict):
+                role = "user" if msg.get('message_type') == 'user' else "assistant"
+                messages.append({
+                    "role": role,
+                    "content": msg.get('message', '')
+                })
         
-        # Mevcut kullanıcı mesajını ekle
-        messages.append({"role": "user", "content": message})
+        # Mevcut kullanıcı mesajını ekle - overlay response kontrolü
+        if message.startswith('[OVERLAY_RESPONSE]'):
+            # Overlay response mesajı - kullanıcı overlay sorusuna cevap verdi
+            overlay_response = message.replace('[OVERLAY_RESPONSE]', '').strip()
+            messages.append({"role": "user", "content": overlay_response})
+        elif message.startswith('[LLM_INTERACTION_OVERLAY]'):
+            # LLM interaction overlay mesajı - özel işlem
+            overlay_message = message.replace('[LLM_INTERACTION_OVERLAY]', '').strip()
+            messages.append({"role": "user", "content": f"Overlay'den gelen soru: {overlay_message}"})
+        else:
+            messages.append({"role": "user", "content": message})
         
         print(f"🔍 Sending {len(messages)} messages to LLM")
         
@@ -758,16 +775,23 @@ def call_llm_api(message: str, context: dict) -> dict:
         
         # Flow analysis'dan suggestion ekle
         flow_analysis = context.get('flow_analysis', {})
-        recommendations = flow_analysis.get('recommendations', {})
-        suggested_action = recommendations.get('suggested_next_action', '')
+        print(f"🔍 Flow analysis in call_llm_api: {type(flow_analysis)} - {flow_analysis is not None}")
+        if flow_analysis and isinstance(flow_analysis, dict):
+            recommendations = flow_analysis.get('recommendations', {})
+            suggested_action = recommendations.get('suggested_next_action', '') if recommendations else ''
+        else:
+            suggested_action = ''
         
         if suggested_action and suggested_action != "complete_training":
             suggestions.append("Sonraki bölüme geçmek istiyorum")
         
-        # Determine if user can proceed to next section
+        # Determine if user can proceed to next section - section tipine göre farklı davranış
         canProceedToNext = False
         current_section = context.get('current_section')
-        if current_section and current_section.get('type') == 'llm_interaction':
+        section_type = current_section.get('type', '') if current_section else ''
+        
+        # Sadece llm_interaction ve llm_agent section'lar için navigation kontrolü
+        if current_section and section_type in ['llm_interaction', 'llm_agent']:
             # Check if user explicitly requested to proceed to next section
             user_message_lower = message.lower()
             if any(keyword in user_message_lower for keyword in ["sonraki bölüm", "next section", "devam et", "geç", "tamamlandı", "sonraki", "devam"]):
@@ -779,7 +803,7 @@ def call_llm_api(message: str, context: dict) -> dict:
             else:
                 # Check if tasks are completed based on interaction count and content
                 recent_messages = context.get('recent_messages', [])
-                user_messages = [msg for msg in recent_messages if msg.get('message_type') == 'user']
+                user_messages = [msg for msg in recent_messages if msg and isinstance(msg, dict) and msg.get('message_type') == 'user']
                 
                 # Check if user indicated completion
                 user_message_lower = message.lower()
@@ -798,6 +822,10 @@ def call_llm_api(message: str, context: dict) -> dict:
                 if section_script and any(task_keyword in llm_message.lower() for task_keyword in ["tamamlandı", "anladım", "öğrendim", "hazırım", "devam"]):
                     canProceedToNext = True
                     print(f"✅ Section tasks appear to be completed based on script")
+        
+        # Video section'lar için navigation kontrolü YOK - sadece video ile ilgili soruları yanıtla
+        elif section_type == 'video':
+            print(f"🎥 Video section - navigation kontrolü yapılmıyor, sadece video ile ilgili sorular yanıtlanıyor")
         
         # LLM'in navigation action'ları gönderebilmesi için actions ekle
         actions = []
@@ -837,11 +865,11 @@ def call_llm_api(message: str, context: dict) -> dict:
 def build_system_prompt(context: dict) -> str:
     """Build comprehensive system prompt for LLM"""
     
-    training = context.get('training', {})
-    current_section = context.get('current_section', {})
-    flow_analysis = context.get('flow_analysis', {})
-    avatar = context.get('avatar', {})
-    section_type = current_section.get('type', '')
+    training = context.get('training', {}) or {}
+    current_section = context.get('current_section', {}) or {}
+    flow_analysis = context.get('flow_analysis', {}) or {}
+    avatar = context.get('avatar', {}) or {}
+    section_type = current_section.get('type', '') if current_section else ''
     
     # Konuşma geçmişini al
     recent_messages = context.get('recent_messages', [])
@@ -875,8 +903,9 @@ KURALLAR:
 4. Kısa ve net ol
 5. Eğitim akışına uygun rehberlik et
 6. {avatar.get('name', 'Asistan')} olarak davran
-7. ÖNEMLİ: Eğer bu devam eden bir konuşma ise, kendini tekrar tanıtma! Sadece kullanıcının son mesajına yanıt ver
-8. Sadece ilk mesajda kendini tanıt ve hoş geldin de
+7. ÖNEMLİ: KENDİNİ TANITMA! Kullanıcı seni zaten tanıyor
+8. ÖNEMLİ: HOŞ GELDİN DEME! Kullanıcı zaten eğitimde
+9. Sadece kullanıcının son mesajına yanıt ver
 """
 
     # Video bölümleri için özel talimatlar
@@ -888,13 +917,60 @@ VİDEO BÖLÜMÜ ÖZEL TALİMATLARI:
 - Video ile ilgili teknik sorunları çöz
 - Video içeriği hakkında açıklamalar yap
 
-ÖNEMLİ: 
+ÖNEMLİ KURALLAR:
+- KENDİNİ TANITMA! Kullanıcı seni zaten tanıyor
+- HOŞ GELDİN DEME! Kullanıcı zaten eğitimde
+- BULUNDUĞU BÖLÜMÜ SÖYLEME! Kullanıcı zaten biliyor
+- Kısa ve öz yanıtlar ver, uzun açıklamalar yapma
+- Kullanıcı video durdurduğunda hızlı yardım sağla
 - OTAMATİK OLARAK BÖLÜM DEĞİŞTİRME!
-- Kullanıcı açıkça "sonraki bölüme geç" veya "devam et" derse, o zaman navigate_next action'ı kullan
 - Sadece video ile ilgili soruları yanıtla, bölüm değişikliği yapma
-- Kullanıcı video hakkında soru sorduğunda sadece açıklama yap, bölüm değiştirme
+
+DURUM AYRIMI:
+1. LLM INTERACTION OVERLAY: Kullanıcıya soru sorulur, kısa cevap alınır, eğitime devam edilir
+2. VİDEO DURDURMA: Kullanıcı isteyerek durdurur, hızlı yardım alır
+
+HER İKİ DURUMDA DA:
+- Kendini tanıtma, kullanıcı seni tanıyor
+- Kısa ve net yanıtlar ver
+- Eğitime devam etmeyi teşvik et
 """
     
+    # LLM Agent bölümleri için özel talimatlar
+    elif section_type == 'llm_agent':
+        system_prompt += """
+LLM AGENT BÖLÜMÜ TALİMATLARI:
+- Bu bir AI Agent ile etkileşim bölümü
+- ElevenLabs Agent ID: {current_section.get('agent_id', 'Tanımsız')}
+- Sesli etkileşim odaklı konuşma yürüt
+- Agent'ın kişiliğine uygun davran
+- Doğal konuşma akışını koru
+
+AGENT ÖZELLİKLERİ:
+- Sesli yanıtlar verecek
+- Kullanıcıyla doğal konuşma yapacak
+- Bölümün amacına uygun etkileşim sağlayacak
+- Konuşma tamamlandığında kullanıcıyı bilgilendirecek
+
+ÖNEMLİ KURALLAR:
+- Bu devam eden bir konuşma! Kendini tekrar tanıtma!
+- Sadece kullanıcının son mesajına yanıt ver
+- Agent'ın sesli yanıt vereceğini unutma
+- Konuşma geçmişini dikkate al ve doğal akışı koru
+- Açılış mesajı zaten verildi, tekrar hoş geldin deme
+
+NAVİGASYON KOMUTLARI:
+- Kullanıcı "sonraki bölüme geç", "devam et", "sonraki" derse: Etkileşim tamamlandı kabul et
+- Kullanıcı "başka yok", "yeterli", "tamamlandı", "bitti", "hazırım", "devam", "tamam" derse: Etkileşim tamamlandı kabul et
+- Bu durumlarda tekrar soru sorma, sadece "Sonraki bölüme geçebilirsiniz" de
+
+ETKİLEŞİM YÖNETİMİ:
+- Kullanıcı 3+ mesaj gönderdiyse etkileşim tamamlanmış say
+- Kullanıcı beklentilerini paylaştıysa etkileşim tamamlanmış say
+- Etkileşim tamamlandığında kullanıcıya "Sonraki bölüme geçebilirsiniz" mesajı ver
+- Kısa ve öz yanıtlar ver, uzun açıklamalar yapma
+"""
+
     # LLM Interaction bölümleri için özel talimatlar
     elif section_type == 'llm_interaction':
         system_prompt += """
@@ -927,6 +1003,30 @@ GÖREV YÖNETİMİ:
 - Kullanıcı beklentilerini paylaştıysa görev tamamlanmış say
 - Görevler tamamlandığında kullanıcıya "Sonraki bölüme geçebilirsiniz" mesajı ver
 - Kısa ve öz yanıtlar ver, uzun açıklamalar yapma
+
+OVERLAY ETKİLEŞİM KURALLARI:
+- Eğer bu bir overlay'den gelen etkileşimse, kısa soru-cevap yap
+- Kullanıcının cevabını aldıktan sonra eğitime devam etmeyi teşvik et
+- Konuyu uzatma, katılımcının eğitime devam etmesi daha önemli
+- Overlay'de sorulan soru ile kullanıcı cevabını gör ve ona göre devam et
+
+LLM INTERACTION OVERLAY ÖZEL KURALLARI:
+- Overlay'den gelen sorular için kısa ve net yanıtlar ver
+- KENDİNİ TANITMA! Kullanıcı seni zaten tanıyor
+- HOŞ GELDİN DEME! Kullanıcı zaten eğitimde
+- BULUNDUĞU BÖLÜMÜ SÖYLEME! Kullanıcı zaten biliyor
+- Kullanıcının cevabını aldıktan sonra "Teşekkürler! Eğitime devam edebilirsiniz." gibi kısa bir mesaj ver
+- Konuyu uzatma, eğitime devam etmeyi teşvik et
+- Overlay'de sorulan soru ile kullanıcı cevabını gör ve ona göre kısa devam et
+- Sadece sorulan soruya odaklan, ekstra bilgi verme
+
+OVERLAY RESPONSE ÖZEL KURALLARI:
+- Kullanıcı overlay sorusuna cevap verdiğinde, o cevaba göre kısa yanıt ver
+- Chat geçmişini dikkate al - overlay sorusu ve kullanıcı cevabını gör
+- KENDİNİ TANITMA! Kullanıcı seni zaten tanıyor
+- HOŞ GELDİN DEME! Kullanıcı zaten eğitimde
+- Cevabı aldıktan sonra "Teşekkürler! Eğitime devam edebilirsiniz." gibi kısa mesaj ver
+- Konuyu uzatma, eğitime devam etmeyi teşvik et
 """
     
     # Karşılama bölümü için özel talimatlar

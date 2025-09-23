@@ -1,4 +1,5 @@
 export * from './player/Overlay';
+export * from './player/OverlayProgressBar';
 export * from './admin/VideoPreview';
 export * from './admin/TrainingSectionsList';
 export * from './admin/forms/TrainingSectionForm';

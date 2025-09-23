@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { VideoFrame } from './VideoFrame';
 import { OverlayManager, OverlayComponent } from './Overlay';
+import { OverlayProgressBar } from './OverlayProgressBar';
 // import { 
 //   SectionContainer, 
 //   SectionHeader, 
@@ -200,6 +201,18 @@ export function VideoSectionPlayer({
     const msg = (text || '').trim();
     if (!msg) return;
     
+    // Sadece video section'lar için LLM mesaj gönderimi
+    if (section.type !== 'video') {
+      console.log('❌ LLM mesaj gönderimi sadece video section\'lar için destekleniyor');
+      setChatMessages(m => [...m, { 
+        type: 'ai', 
+        content: 'Bu bölüm tipi için mesaj gönderimi desteklenmiyor.', 
+        ts: Date.now(), 
+        section_id: section.id 
+      }]);
+      return;
+    }
+    
     // Add user message to chat with section_id
     setChatMessages(m => [...m, { type: 'user', content: msg, ts: Date.now(), section_id: section.id }]);
     onTrackUserMessage(msg);
@@ -270,12 +283,25 @@ export function VideoSectionPlayer({
     // Use LLM API for regular messages
     if (sessionId) {
       try {
-        // Add video context to the message
-        const messageWithContext = `${msg}
+        // Check if this is a response to an LLM interaction overlay
+        const lastMessage = chatMessages[chatMessages.length - 1];
+        const isResponseToOverlay = lastMessage && lastMessage.type === 'ai' && 
+          chatMessages.filter(m => m.type === 'ai').length === 1;
+        
+        let messageToSend = msg;
+        
+        if (isResponseToOverlay) {
+          // This is a response to an overlay question, add context
+          messageToSend = `[OVERLAY_RESPONSE] Kullanıcı overlay sorusuna cevap verdi: "${msg}"`;
+          console.log('🤖 User responding to overlay question:', msg);
+        } else {
+          // Regular video section message
+          messageToSend = `${msg}
 
 [Video Context: Currently at ${Math.floor(currentTime)}s of ${duration ? Math.floor(duration) : 'unknown'}s in "${section.title}" section]`;
+        }
         
-        const response = await api.sendMessageToLLM(sessionId, messageWithContext, 'user');
+        const response = await api.sendMessageToLLM(sessionId, messageToSend, 'user');
         
         // Add LLM response to chat with section_id
         setChatMessages(m => [...m, { 
@@ -336,34 +362,19 @@ export function VideoSectionPlayer({
       setIsPlaying(false);
     }
     
-    // LLM'den otomatik hoş geldin mesajı gönder
-    if (sessionId && chatMessages.length === 0) {
-      try {
-        console.log('🤖 Sending initial greeting to LLM...');
-        const response = await api.sendMessageToLLM(sessionId, 'Merhaba, video durduruldu. Bu konu hakkında konuşmak ister misin?', 'system');
-        
-        if (response && response.message) {
-          setChatMessages(m => [...m, { 
-            type: 'ai', 
-            content: response.message, 
-            ts: Date.now(), 
-            section_id: section.id 
-          }]);
-          
-          if (response.suggestions && response.suggestions.length > 0) {
-            setChatSuggestions(response.suggestions);
-          }
-        }
-      } catch (error) {
-        console.error('❌ Failed to send initial greeting:', error);
-        // Fallback mesaj
-        setChatMessages(m => [...m, { 
-          type: 'ai', 
-          content: 'Merhaba! Video durduruldu. Bu konu hakkında sorularınızı sorabilirsiniz.', 
-          ts: Date.now(), 
-          section_id: section.id 
-        }]);
-      }
+    // Video section'lar için chat aç ama otomatik mesaj gönderme
+    if (section.type === 'video') {
+      // Video durdurulduğunda chat açılır ama otomatik mesaj gönderilmez
+      // Kullanıcı isterse soru sorabilir
+      console.log('🎥 Video durduruldu, chat açıldı - kullanıcı isterse soru sorabilir');
+    } else if (section.type !== 'video') {
+      // Video olmayan section'lar için basit mesaj
+      setChatMessages(m => [...m, { 
+        type: 'ai', 
+        content: 'Bu bölüm için chat özelliği mevcut değil.', 
+        ts: Date.now(), 
+        section_id: section.id 
+      }]);
     }
   };
 
@@ -603,17 +614,23 @@ export function VideoSectionPlayer({
                 setChatOpen(true);
                 const { message, isLLMInteraction } = value;
                 if (message) {
-                  setChatMessages(m => [...m, { type: 'ai', content: message, ts: Date.now() }]);
-                  
                   if (isLLMInteraction) {
+                    // LLM interaction overlay: Overlay mesajını LLM'nin sorusu olarak göster
+                    console.log(`🎯 LLM interaction overlay triggered: ${message} at ${currentTime}s`);
+                    
+                    // Overlay mesajını LLM'nin sorusu olarak ekle
                     setChatMessages(m => [...m, { 
-                      type: 'system', 
-                      content: 'LLM_INTERACTION_WAITING', 
-                      ts: Date.now() 
+                      type: 'ai', 
+                      content: message, 
+                      ts: Date.now(), 
+                      section_id: section.id 
                     }]);
                     
-                    // Log overlay interaction
-                    console.log(`🎯 LLM interaction overlay triggered: ${message} at ${currentTime}s`);
+                    // Kullanıcının cevap vermesini bekle, otomatik mesaj gönderme
+                    console.log('🤖 Waiting for user response to overlay question...');
+                  } else {
+                    // Normal overlay mesajı
+                    setChatMessages(m => [...m, { type: 'ai', content: message, ts: Date.now() }]);
                   }
                 }
               }
@@ -848,13 +865,11 @@ export function VideoSectionPlayer({
             <span className="w-10 text-right">{Math.round(playerVolume * 100)}%</span>
           </div>
           
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            step={0.1}
-            value={currentTime}
-            onChange={(e) => handleSeek(parseFloat(e.target.value))}
+          <OverlayProgressBar
+            currentTime={currentTime}
+            duration={duration || 0}
+            overlays={overlays}
+            onSeek={handleSeek}
             className="flex-1"
           />
           
