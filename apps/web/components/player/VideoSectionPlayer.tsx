@@ -329,11 +329,41 @@ export function VideoSectionPlayer({
     }
   };
 
-  const openChatWindow = () => {
+  const openChatWindow = async () => {
     setChatOpen(true);
     if (isPlaying) {
       suppressNextPauseRef.current = true;
       setIsPlaying(false);
+    }
+    
+    // LLM'den otomatik hoş geldin mesajı gönder
+    if (sessionId && chatMessages.length === 0) {
+      try {
+        console.log('🤖 Sending initial greeting to LLM...');
+        const response = await api.sendMessageToLLM(sessionId, 'Merhaba, video durduruldu. Bu konu hakkında konuşmak ister misin?', 'system');
+        
+        if (response && response.message) {
+          setChatMessages(m => [...m, { 
+            type: 'ai', 
+            content: response.message, 
+            ts: Date.now(), 
+            section_id: section.id 
+          }]);
+          
+          if (response.suggestions && response.suggestions.length > 0) {
+            setChatSuggestions(response.suggestions);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Failed to send initial greeting:', error);
+        // Fallback mesaj
+        setChatMessages(m => [...m, { 
+          type: 'ai', 
+          content: 'Merhaba! Video durduruldu. Bu konu hakkında sorularınızı sorabilirsiniz.', 
+          ts: Date.now(), 
+          section_id: section.id 
+        }]);
+      }
     }
   };
 
@@ -462,7 +492,8 @@ export function VideoSectionPlayer({
               return;
             }
             setIsPlaying(true);
-            setChatOpen(false);
+            // Chat'i otomatik kapatma - kullanıcı manuel olarak kapatabilir
+            // setChatOpen(false);
             onTrackVideoPlay();
           }}
           onPause={() => {
@@ -546,9 +577,10 @@ export function VideoSectionPlayer({
                   setModalContentOverlay(null);
                   setIsPlaying(true);
                 }
-                if (!videoEndedRef.current) {
-                  setChatOpen(false);
-                }
+                // Chat'i otomatik kapatma - kullanıcı manuel olarak kapatabilir
+                // if (!videoEndedRef.current) {
+                //   setChatOpen(false);
+                // }
               }
               
               if (action === 'show_fullscreen_content' && value) {
@@ -581,7 +613,7 @@ export function VideoSectionPlayer({
                     }]);
                     
                     // Log overlay interaction
-                    console.log(`🎯 LLM interaction overlay triggered: ${overlay.caption} at ${currentTime}s`);
+                    console.log(`🎯 LLM interaction overlay triggered: ${message} at ${currentTime}s`);
                   }
                 }
               }
