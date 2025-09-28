@@ -199,6 +199,67 @@ export default function StudioPage() {
     }
   };
 
+  const handleMoveSection = async (sectionId: string, direction: 'up' | 'down') => {
+    if (!selectedTraining) return;
+
+    try {
+      const sortedSections = sections.sort((a, b) => a.order_index - b.order_index);
+      const currentIndex = sortedSections.findIndex(s => s.id === sectionId);
+      
+      if (currentIndex === -1) return;
+      
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      
+      if (targetIndex < 0 || targetIndex >= sortedSections.length) return;
+      
+      // Swap order_index values
+      const currentSection = sortedSections[currentIndex];
+      const targetSection = sortedSections[targetIndex];
+      
+      const tempOrderIndex = currentSection.order_index;
+      currentSection.order_index = targetSection.order_index;
+      targetSection.order_index = tempOrderIndex;
+      
+      // Update both sections
+      await Promise.all([
+        api.updateTrainingSection(selectedTraining.id, currentSection.id, {
+          title: currentSection.title,
+          description: currentSection.description || '',
+          script: currentSection.script || '',
+          duration: currentSection.duration || 0,
+          video_object: currentSection.video_object || '',
+          asset_id: currentSection.asset_id || '',
+          order_index: currentSection.order_index,
+          type: (currentSection as any).type || 'video',
+          agent_id: (currentSection as any).agent_id || '',
+          language: currentSection.language || 'TR',
+          target_audience: currentSection.target_audience || 'Genel',
+          audio_asset_id: currentSection.audio_asset_id || ''
+        }),
+        api.updateTrainingSection(selectedTraining.id, targetSection.id, {
+          title: targetSection.title,
+          description: targetSection.description || '',
+          script: targetSection.script || '',
+          duration: targetSection.duration || 0,
+          video_object: targetSection.video_object || '',
+          asset_id: targetSection.asset_id || '',
+          order_index: targetSection.order_index,
+          type: (targetSection as any).type || 'video',
+          agent_id: (targetSection as any).agent_id || '',
+          language: targetSection.language || 'TR',
+          target_audience: targetSection.target_audience || 'Genel',
+          audio_asset_id: targetSection.audio_asset_id || ''
+        })
+      ]);
+      
+      // Reload sections to reflect the changes
+      loadTrainingSections(selectedTraining.id);
+    } catch (error) {
+      console.error('Error moving section:', error);
+      alert('Bölüm taşınırken hata oluştu!');
+    }
+  };
+
   const handleTrainingSelect = (training: TrainingT) => {
     setSelectedTraining(training);
     setSections([]);
@@ -330,8 +391,8 @@ export default function StudioPage() {
           >
             ← Eğitimlere Dön
           </button>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-start gap-6">
+            <div className="w-2/3">
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-3xl font-bold text-gray-900">{selectedTraining.title}</h1>
                 {/* Company Badge */}
@@ -353,9 +414,20 @@ export default function StudioPage() {
                   })()}
                 </div>
               </div>
-              <p className="text-gray-600 mb-4">{selectedTraining.description}</p>
+              {/* Eğitimin Amacı */}
+              {selectedTraining.description && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <h2 className="text-lg font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Eğitimin Amacı
+                  </h2>
+                  <p className="text-blue-800 leading-relaxed">{selectedTraining.description}</p>
+                </div>
+              )}
             </div>
-            <div className="flex gap-3">
+            <div className="w-1/3 flex flex-col gap-3">
               <button
                 onClick={() => {
                   if (selectedTraining.access_code) {
@@ -409,93 +481,276 @@ export default function StudioPage() {
           />
         )}
 
-        {/* Sections Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sections.map((section) => (
-            <div key={section.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    {(section as any).type === 'llm_task' ? '🤖' : '📹'} {section.title}
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-2">
-                    Bölüm #{section.order_index} • {(section as any).type === 'llm_task' ? 'LLM Görevi' : 'Video Bölümü'}
-                  </p>
-                  {section.description && (
-                    <p className="text-sm text-gray-600 line-clamp-3">{section.description}</p>
-                  )}
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => router.push(`/studio/sections/${section.id}`)}
-                    className="text-blue-600 hover:text-blue-900 text-sm"
-                  >
-                    Düzenle
-                  </button>
-                  <button
-                    onClick={() => handleDuplicateSection(section)}
-                    className="text-green-600 hover:text-green-900 text-sm"
-                  >
-                    Kopyala
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSection(section.id)}
-                    className="text-red-600 hover:text-red-900 text-sm"
-                  >
-                    Sil
-                  </button>
-                </div>
-              </div>
-              
-              <div className="mb-4 space-y-2">
-                {/* Video bölümleri için süre bilgisi */}
-                {(section as any).type !== 'llm_task' && section.duration && section.duration > 0 && (
-                  <div className="text-xs text-gray-500">
-                    <span className="font-medium">Süre:</span> {section.duration} saniye
+        {/* Sections List - Sıra numaralarına göre sıralanmış */}
+        <div className="space-y-4">
+          {sections
+            .sort((a, b) => a.order_index - b.order_index)
+            .map((section, index) => (
+            <div key={section.id} className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-all duration-200">
+              {/* Section Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  {/* Sıra Numarası */}
+                  <div className="flex items-center justify-center w-8 h-8 bg-primary text-white rounded-full text-sm font-semibold">
+                    {section.order_index}
                   </div>
-                )}
+                  
+                  {/* Section Başlığı ve Tipi */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      {(() => {
+                        const type = (section as any).type;
+                        if (type === 'llm_interaction' || type === 'llm_agent') return '🤖';
+                        if (type === 'video') return '📹';
+                        return '📄';
+                      })()}
+                      {section.title}
+                    </h3>
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span className="font-medium">
+                        {(() => {
+                          const type = (section as any).type;
+                          if (type === 'llm_interaction') return 'LLM Etkileşim';
+                          if (type === 'llm_agent') return 'LLM Agent';
+                          if (type === 'video') return 'Video Bölümü';
+                          return 'Bölüm';
+                        })()}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {(() => {
+                          const lang = section.language || 'TR';
+                          const langInfo = LANGUAGES.find(l => l.code === lang);
+                          return `${langInfo?.flag || '🌐'} ${langInfo?.name || lang}`;
+                        })()}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {(() => {
+                          const audience = section.target_audience || 'Genel';
+                          const audienceInfo = TARGET_AUDIENCES.find(a => a.name === audience);
+                          return `${audienceInfo?.icon || '👥'} ${audience}`;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
                 
-                {/* Dil ve Hedef Kitle */}
-                <div className="flex gap-4 text-xs">
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium">Dil:</span>
-                    <span className="text-gray-600">
-                      {(() => {
-                        const lang = section.language || 'TR';
-                        const langInfo = LANGUAGES.find(l => l.code === lang);
-                        return `${langInfo?.flag || '🌐'} ${langInfo?.name || lang}`;
-                      })()}
-                    </span>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2">
+                  {/* Move Up/Down Buttons */}
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => handleMoveSection(section.id, 'up')}
+                      disabled={index === 0}
+                      className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Yukarı Taşı"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleMoveSection(section.id, 'down')}
+                      disabled={index === sections.length - 1}
+                      className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Aşağı Taşı"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium">Hedef:</span>
-                    <span className="text-gray-600">
-                      {(() => {
-                        const audience = section.target_audience || 'Genel';
-                        const audienceInfo = TARGET_AUDIENCES.find(a => a.name === audience);
-                        return `${audienceInfo?.icon || '👥'} ${audience}`;
-                      })()}
-                    </span>
+                  
+                  {/* Main Action Buttons */}
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      onClick={() => router.push(`/studio/sections/${section.id}`)}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      Düzenle
+                    </button>
+                    <button
+                      onClick={() => handleDuplicateSection(section)}
+                      className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+                    >
+                      Kopyala
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSection(section.id)}
+                      className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+                    >
+                      Sil
+                    </button>
                   </div>
                 </div>
-
-                {/* Video bölümleri için asset bilgileri */}
-                {(section as any).type !== 'llm_task' && section.asset_id && (
-                  <div className="text-xs text-gray-500">
-                    <span className="font-medium">Video:</span> {section.asset_id.substring(0, 8)}...
-                  </div>
-                )}
-                {(section as any).type !== 'llm_task' && section.audio_asset_id && (
-                  <div className="text-xs text-gray-500">
-                    <span className="font-medium">Ses:</span> {section.audio_asset_id.substring(0, 8)}...
-                  </div>
-                )}
               </div>
               
-              <div className="flex justify-between items-center">
-                <div className="text-xs text-gray-500">
-                  ID: {section.id.substring(0, 8)}...
-                </div>
+              {/* Section Content */}
+              <div className="p-4">
+                {(() => {
+                  const type = (section as any).type;
+                  
+                  // LLM Interaction veya LLM Agent bölümleri
+                  if (type === 'llm_interaction' || type === 'llm_agent') {
+                    const avatar = (section as any).avatar;
+                    return (
+                      <div className="flex gap-4">
+                        {/* Avatar Bilgisi */}
+                        <div className="flex-shrink-0">
+                          <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-xl font-bold relative overflow-hidden">
+                            {avatar?.image_url ? (
+                              <img 
+                                src={avatar.image_url} 
+                                alt={avatar.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Avatar ve Bölüm Bilgileri */}
+                        <div className="flex-1">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {/* Avatar Bilgileri - Sol Sütun */}
+                            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
+                              <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                Avatar Bilgileri
+                              </h4>
+                              
+                              {avatar ? (
+                                <div className="space-y-3">
+                                  {/* Avatar Adı */}
+                                  <div>
+                                    <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Avatar Adı</span>
+                                    <p className="text-sm font-medium text-purple-900 mt-1">{avatar.name}</p>
+                                  </div>
+                                  
+                                  {/* Avatar Görseli */}
+                                  {avatar.image_url && (
+                                    <div>
+                                      <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Görsel</span>
+                                      <div className="mt-1">
+                                        <img 
+                                          src={avatar.image_url} 
+                                          alt={avatar.name}
+                                          className="w-12 h-12 rounded-full object-cover border-2 border-purple-200"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Kişilik Bilgisi */}
+                                  <div>
+                                    <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Kişilik</span>
+                                    <p className="text-sm text-purple-800 mt-1 leading-relaxed">{avatar.personality}</p>
+                                  </div>
+                                  
+                                  {/* Açıklama (varsa) */}
+                                  {avatar.description && (
+                                    <div>
+                                      <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Açıklama</span>
+                                      <p className="text-sm text-purple-700 mt-1">{avatar.description}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-center py-4">
+                                  <svg className="w-8 h-8 text-purple-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                  </svg>
+                                  <p className="text-sm text-purple-500">Avatar bilgisi bulunamadı</p>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Bölüm Açıklaması - Sağ Sütun */}
+                            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                              <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Bölüm Açıklaması
+                              </h4>
+                              <p className="text-sm text-gray-700 leading-relaxed">
+                                {section.description || 'Bu bölüm için açıklama bulunmuyor.'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Video bölümleri
+                  if (type === 'video') {
+                    return (
+                      <div className="space-y-3">
+                        {/* Video Preview ve Bilgiler */}
+                        <div className="flex gap-4">
+                          {/* Video Preview */}
+                          <div className="flex-shrink-0">
+                            <div className="w-24 h-16 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                              {(section as any).asset?.uri ? (
+                                <video 
+                                  src={(section as any).asset.uri}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  preload="metadata"
+                                />
+                              ) : (
+                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Video Bilgileri */}
+                          <div className="flex-1 space-y-2">
+                            {section.description && (
+                              <p className="text-sm text-gray-700">{section.description}</p>
+                            )}
+                            <div className="flex gap-4 text-sm text-gray-600">
+                              {section.duration && section.duration > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  {section.duration} saniye
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-10 0a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2" />
+                                </svg>
+                                {section.asset_id ? 'Video mevcut' : 'Video yok'}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4h10M7 4a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2" />
+                                </svg>
+                                Overlay sayısı: {(section as any).overlay_count || 0}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Diğer bölüm tipleri
+                  return (
+                    <div className="text-sm text-gray-600">
+                      {section.description || 'Açıklama bulunmuyor'}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ))}

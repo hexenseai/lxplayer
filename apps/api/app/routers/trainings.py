@@ -669,14 +669,30 @@ def list_training_sections(training_id: str, session: Session = Depends(get_sess
         .order_by(TrainingSection.order_index)
     ).all()
     
-    # Include asset information for each section
+    # Include asset and avatar information for each section
     result = []
     for section in sections:
         section_dict = section.model_dump()
+        
+        # Add asset information
         if section.asset_id:
             asset = session.get(Asset, section.asset_id)
             if asset:
                 section_dict["asset"] = asset.model_dump()
+        
+        # Add avatar information for LLM sections
+        if training.avatar_id and (section.type == 'llm_interaction' or section.type == 'llm_agent'):
+            avatar = session.get(Avatar, training.avatar_id)
+            if avatar:
+                section_dict["avatar"] = avatar.model_dump()
+        
+        # Add overlay count for video sections
+        if section.type == 'video':
+            overlay_count = session.exec(
+                select(Overlay).where(Overlay.training_section_id == section.id)
+            ).all()
+            section_dict["overlay_count"] = len(overlay_count)
+        
         result.append(section_dict)
     
     return result
