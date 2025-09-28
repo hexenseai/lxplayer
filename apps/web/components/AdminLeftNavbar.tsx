@@ -150,14 +150,14 @@ export function AdminLeftNavbar({ isSuperAdmin, isAdmin, activePage, onPageChang
         <div className={`flex items-center h-16 px-4 border-b border-slate-700 ${
           isCollapsed ? 'justify-center' : 'justify-between'
         }`}>
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">LX</span>
-            </div>
-            {!isCollapsed && (
+          {!isCollapsed && (
+            <Link href="/" className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">LX</span>
+              </div>
               <span className="text-xl font-bold text-white">LXPlayer</span>
-            )}
-          </Link>
+            </Link>
+          )}
           
           {/* Toggle Button */}
           <button

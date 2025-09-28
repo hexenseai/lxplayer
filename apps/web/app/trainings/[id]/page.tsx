@@ -30,7 +30,12 @@ export default async function TrainingDetail({ params, searchParams }: TrainingD
   if (accessCode) {
     try {
       const companyTrainings = await api.listCompanyTrainings();
-      companyTraining = companyTrainings.find(ct => ct.access_code === accessCode) || null;
+      companyTraining = companyTrainings.find(ct => 
+        ct.access_code === accessCode && 
+        ct.company_id && 
+        ct.training && 
+        ct.company
+      ) || null;
     } catch (error) {
       console.error('Error fetching company training:', error);
     }

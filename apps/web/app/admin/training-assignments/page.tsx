@@ -18,7 +18,7 @@ interface Training {
 
 interface CompanyTraining {
   id: string;
-  company_id: string;
+  company_id: string | null; // Allow null to handle orphaned records
   training_id: string;
   expectations?: string;
   access_code: string;
@@ -26,12 +26,12 @@ interface CompanyTraining {
     id: string;
     title: string;
     description?: string;
-  };
+  } | null;
   company?: {
     id: string;
     name: string;
     description?: string;
-  };
+  } | null;
 }
 
 export default function TrainingAssignmentsPage() {
@@ -69,9 +69,18 @@ export default function TrainingAssignmentsPage() {
       console.log('📚 Trainings data:', trainingsData);
       console.log('🎯 Assignments data:', assignmentsData);
       
+      // Filter out orphaned records (those with null company_id or missing training/company data)
+      const validAssignments = assignmentsData.filter(assignment => 
+        assignment.company_id && 
+        assignment.training && 
+        assignment.company
+      );
+      
+      console.log(`🔍 Filtered out ${assignmentsData.length - validAssignments.length} orphaned assignments`);
+      
       setCompanies(companiesData);
       setTrainings(trainingsData);
-      setCompanyTrainings(assignmentsData);
+      setCompanyTrainings(validAssignments);
       
     } catch (error) {
       console.error('❌ Error fetching data:', error);

@@ -1056,7 +1056,7 @@ export const api = {
     const queryString = companyId ? `?company_id=${companyId}` : '';
     return request(`/company-trainings${queryString}`, z.array(z.object({
       id: z.string(),
-      company_id: z.string(),
+      company_id: z.string().nullable(), // Allow null values to handle orphaned records
       training_id: z.string(),
       expectations: z.string().nullable().optional(),
       access_code: z.string(),

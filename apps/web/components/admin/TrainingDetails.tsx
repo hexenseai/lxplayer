@@ -25,7 +25,12 @@ export default function TrainingDetails({ training }: TrainingDetailsProps) {
       try {
         // Bu eğitime ait tüm access code'ları al
         const allCompanyTrainings = await api.listCompanyTrainings();
-        const trainingAccessCodes = allCompanyTrainings.filter(ct => ct.training_id === training.id);
+        const trainingAccessCodes = allCompanyTrainings.filter(ct => 
+          ct.training_id === training.id && 
+          ct.company_id && 
+          ct.training && 
+          ct.company
+        );
         setAccessCodes(trainingAccessCodes);
       } catch (error) {
         console.error('Error fetching access codes:', error);
