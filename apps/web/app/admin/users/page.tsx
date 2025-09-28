@@ -246,10 +246,10 @@ export default function AdminUsersPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">
             {isSuperAdmin ? 'Kullanıcı Yönetimi' : 'Firma Kullanıcıları'}
           </h1>
-          <p className="text-gray-600">
+          <p className="text-slate-600">
             {isSuperAdmin 
               ? 'Sistem kullanıcılarını görüntüleyin, yönetin ve eğitim atayın'
               : 'Firma kullanıcılarını görüntüleyin ve yönetin'

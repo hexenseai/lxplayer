@@ -108,8 +108,8 @@ export default function CompaniesPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Firmalar</h1>
-            <p className="text-gray-600">Tüm firmaları yönetin</p>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Firmalar</h1>
+            <p className="text-slate-600">Tüm firmaları yönetin</p>
           </div>
           <button
             onClick={() => setShowCreateForm(true)}

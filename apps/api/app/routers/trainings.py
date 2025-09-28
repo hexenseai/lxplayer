@@ -2938,3 +2938,34 @@ Lütfen bu komuta göre gerekli overlay işlemlerini JSON formatında belirt.
             message=f"LLM overlay yönetimi hatası: {error_message}",
             warnings=[error_message]
         )
+
+
+@router.get("/available-for-assignment", operation_id="list_available_trainings_for_assignment")
+def list_available_trainings_for_assignment(
+    company_id: str | None = None
+):
+    """Atanabilir eğitimleri listele - SuperAdmin için (temporary no auth)"""
+    
+    print(f"🔍 Available trainings endpoint called!")
+    print(f"🔍 Company ID filter: {company_id}")
+    
+    try:
+        # Basit test response döndür
+        return [
+            {
+                "id": "test-training-1",
+                "title": "Test Training 1",
+                "description": "Test training for debugging",
+                "assigned": False
+            },
+            {
+                "id": "test-training-2", 
+                "title": "Test Training 2",
+                "description": "Another test training",
+                "assigned": False
+            }
+        ]
+        
+    except Exception as e:
+        print(f"❌ Error in available-trainings endpoint: {str(e)}")
+        raise HTTPException(500, f"Internal server error: {str(e)}")

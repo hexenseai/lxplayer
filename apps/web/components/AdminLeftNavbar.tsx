@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 
 interface AdminLeftNavbarProps {
   isSuperAdmin: boolean;
@@ -8,9 +9,17 @@ interface AdminLeftNavbarProps {
   activePage: string;
   onPageChange: (page: string) => void;
   onLogout: () => void;
+  onCollapseChange?: (isCollapsed: boolean) => void;
 }
 
-export function AdminLeftNavbar({ isSuperAdmin, isAdmin, activePage, onPageChange, onLogout }: AdminLeftNavbarProps) {
+export function AdminLeftNavbar({ isSuperAdmin, isAdmin, activePage, onPageChange, onLogout, onCollapseChange }: AdminLeftNavbarProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  const handleToggleCollapse = () => {
+    const newCollapsed = !isCollapsed;
+    setIsCollapsed(newCollapsed);
+    onCollapseChange?.(newCollapsed);
+  };
   const menuItems = [
     {
       id: 'dashboard',
@@ -49,6 +58,16 @@ export function AdminLeftNavbar({ isSuperAdmin, isAdmin, activePage, onPageChang
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+      roles: ['SuperAdmin']
+    },
+    {
+      id: 'training-assignments',
+      label: 'Eğitim Atamaları',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
       roles: ['SuperAdmin']
@@ -123,61 +142,111 @@ export function AdminLeftNavbar({ isSuperAdmin, isAdmin, activePage, onPageChang
   });
 
   return (
-    <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg border-r border-gray-200">
+    <div className={`fixed inset-y-0 left-0 z-50 bg-slate-900 shadow-xl border-r border-slate-700 transition-all duration-300 ${
+      isCollapsed ? 'w-16' : 'w-64'
+    }`}>
       <div className="flex flex-col h-full">
         {/* Logo */}
-        <div className="flex items-center justify-center h-16 px-4 border-b border-gray-200">
+        <div className={`flex items-center h-16 px-4 border-b border-slate-700 ${
+          isCollapsed ? 'justify-center' : 'justify-between'
+        }`}>
           <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">LX</span>
             </div>
-            <span className="text-xl font-bold text-gray-900">LXPlayer</span>
+            {!isCollapsed && (
+              <span className="text-xl font-bold text-white">LXPlayer</span>
+            )}
           </Link>
+          
+          {/* Toggle Button */}
+          <button
+            onClick={handleToggleCollapse}
+            className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
+            title={isCollapsed ? 'Genişlet' : 'Daralt'}
+          >
+            <svg 
+              className={`w-5 h-5 text-slate-300 transition-transform duration-300 ${
+                isCollapsed ? 'rotate-180' : ''
+              }`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-2">
+        <nav className="flex-1 px-2 py-6 space-y-2">
           {filteredMenuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => onPageChange(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 text-left rounded-lg transition-colors ${
+              className={`w-full flex items-center rounded-lg transition-all duration-200 relative group ${
+                isCollapsed ? 'px-2 py-3 justify-center' : 'px-4 py-3 space-x-3'
+              } ${
                 activePage === item.id
-                  ? 'bg-primary text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
+              title={isCollapsed ? item.label : ''}
             >
-              <span className={activePage === item.id ? 'text-white' : 'text-gray-500'}>
+              <span className={activePage === item.id ? 'text-white' : 'text-slate-400'}>
                 {item.icon}
               </span>
-              <span className="font-medium">{item.label}</span>
+              {!isCollapsed && (
+                <span className="font-medium">{item.label}</span>
+              )}
+              
+              {/* Tooltip for collapsed state */}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                  {item.label}
+                </div>
+              )}
             </button>
           ))}
         </nav>
 
         {/* User Info & Logout */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
+        <div className={`border-t border-slate-700 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+          {!isCollapsed && (
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center">
+                <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">
+                  {isSuperAdmin ? 'Super Admin' : 'Admin'}
+                </p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {isSuperAdmin ? 'Super Admin' : 'Admin'}
-              </p>
-            </div>
-          </div>
+          )}
           
           <button
             onClick={onLogout}
-            className="w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className={`w-full flex items-center text-left text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-all duration-200 relative group ${
+              isCollapsed ? 'px-2 py-3 justify-center' : 'px-4 py-2 space-x-3'
+            }`}
+            title={isCollapsed ? 'Çıkış Yap' : ''}
           >
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            <span className="font-medium">Çıkış Yap</span>
+            {!isCollapsed && (
+              <span className="font-medium">Çıkış Yap</span>
+            )}
+            
+            {/* Tooltip for collapsed state */}
+            {isCollapsed && (
+              <div className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                Çıkış Yap
+              </div>
+            )}
           </button>
         </div>
       </div>

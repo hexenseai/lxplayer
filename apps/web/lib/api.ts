@@ -1050,6 +1050,72 @@ export const api = {
     })
   ),
 
+  // ===== COMPANY TRAINING ASSIGNMENTS API =====
+
+  listCompanyTrainings: (companyId?: string) => {
+    const queryString = companyId ? `?company_id=${companyId}` : '';
+    return request(`/company-trainings${queryString}`, z.array(z.object({
+      id: z.string(),
+      company_id: z.string(),
+      training_id: z.string(),
+      expectations: z.string().nullable().optional(),
+      access_code: z.string(),
+      training: z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string().nullable().optional()
+      }).nullable().optional(),
+      company: z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().nullable().optional()
+      }).nullable().optional()
+    })));
+  },
+
+  assignTrainingToCompany: (companyId: string, trainingId: string, expectations?: string) =>
+    request('/company-trainings', z.object({
+      id: z.string(),
+      company_id: z.string(),
+      training_id: z.string(),
+      expectations: z.string().nullable().optional(),
+      access_code: z.string(),
+      training: z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string().nullable().optional()
+      }),
+      company: z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().nullable().optional()
+      })
+    }), { 
+      method: 'POST', 
+      body: JSON.stringify({ 
+        company_id: companyId,
+        training_id: trainingId,
+        expectations: expectations
+      }) 
+    }),
+
+  removeTrainingFromCompany: (companyTrainingId: string) => request(
+    `/company-trainings/${companyTrainingId}`,
+    z.object({ message: z.string() }),
+    { method: 'DELETE' }
+  ),
+
+  getAvailableTrainingsForAssignment: (companyId?: string) => {
+    const queryString = companyId ? `?company_id=${companyId}` : '';
+    console.log('🔍 Calling getAvailableTrainingsForAssignment with params:', queryString);
+    return request(`/trainings/available-for-assignment${queryString}`, z.array(z.object({
+      id: z.string(),
+      title: z.string(),
+      description: z.string().nullable().optional(),
+      assigned: z.boolean()
+    })));
+  },
+
   // ===== USER INTERACTIONS API =====
 
   getUserInteractions: (params?: {

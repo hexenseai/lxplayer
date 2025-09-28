@@ -147,8 +147,8 @@ export default function AdminStylesPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Stil Yönetimi</h1>
-            <p className="text-gray-600">
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Stil Yönetimi</h1>
+            <p className="text-slate-600">
               {isSuperAdmin 
                 ? 'Sistem stillerini yönetin ve yeni stiller oluşturun'
                 : 'Stilleri görüntüleyin ve firmanıza özel stiller oluşturun'
@@ -158,7 +158,7 @@ export default function AdminStylesPage() {
           <div className="flex space-x-3">
             <button
               onClick={handleSeedStyles}
-              className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+              className="bg-slate-500 text-white px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors"
             >
               Varsayılan Stilleri Yükle
             </button>

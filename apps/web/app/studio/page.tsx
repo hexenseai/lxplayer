@@ -47,12 +47,44 @@ export default function StudioPage() {
   const loadTrainings = async () => {
     try {
       setLoading(true);
-      const data = await api.listTrainings();
-      setTrainings(data);
+      
+      if (isSuperAdmin) {
+        // SuperAdmin tüm eğitimleri görebilir
+        const data = await api.listTrainings();
+        setTrainings(data);
+      } else if (isAdmin && user?.company_id) {
+        // Admin hem kendi firmasına kopyalanmış hem de atanmış eğitimleri görebilir
+        
+        // 1. Kendi firmasına kopyalanmış eğitimleri al (Training.company_id = user.company_id)
+        const copiedTrainings = await api.listTrainings();
+        
+        // 2. Kendi firmasına atanmış eğitimleri al (CompanyTraining tablosundan)
+        const companyTrainings = await api.listCompanyTrainings(user.company_id);
+        const assignedTrainings = companyTrainings
+          .filter(ct => ct.training)
+          .map(ct => ({
+            ...ct.training,
+            access_code: ct.access_code,
+            expectations: ct.expectations,
+            // Bu eğitim atanmış bir eğitim olduğunu belirt
+            is_assigned: true,
+            company_assignment: ct.company
+          }));
+        
+        // 3. İki listeyi birleştir (duplicate'leri kaldır)
+        const allTrainings = [...copiedTrainings, ...assignedTrainings];
+        const uniqueTrainings = allTrainings.filter((training, index, self) => 
+          index === self.findIndex(t => t.id === training.id)
+        );
+        
+        setTrainings(uniqueTrainings);
+      } else {
+        setTrainings([]);
+      }
       
       // URL'den training ID varsa, o eğitimi seç
       if (trainingId) {
-        const training = data.find(t => t.id === trainingId);
+        const training = trainings.find(t => t.id === trainingId);
         if (training) {
           setSelectedTraining(training);
           loadTrainingSections(trainingId);
@@ -196,8 +228,27 @@ export default function StudioPage() {
   const loadSystemTrainings = async () => {
     try {
       setImportLoading(true);
-      const data = await api.listSystemTrainings();
-      setSystemTrainings(data);
+      
+      if (isSuperAdmin) {
+        // SuperAdmin tüm sistem eğitimlerini görebilir
+        const data = await api.listSystemTrainings();
+        setSystemTrainings(data);
+      } else if (isAdmin && user?.company_id) {
+        // Admin sadece kendi firmasına atanmış eğitimleri görebilir
+        const companyTrainings = await api.listCompanyTrainings(user.company_id);
+        // CompanyTraining'leri Training formatına dönüştür
+        const data = companyTrainings
+          .filter(ct => ct.training) // training bilgisi olanları al
+          .map(ct => ({
+            ...ct.training,
+            // Access code bilgisini de ekle
+            access_code: ct.access_code,
+            expectations: ct.expectations
+          }));
+        setSystemTrainings(data);
+      } else {
+        setSystemTrainings([]);
+      }
     } catch (error) {
       console.error('Error loading system trainings:', error);
       alert(`Sistem eğitimleri yüklenirken hata oluştu: ${error instanceof Error ? error.message : String(error)}`);
@@ -288,7 +339,18 @@ export default function StudioPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
-                  {(selectedTraining as any).company?.display_name || 'Sistem Eğitimi'}
+                  {(() => {
+                    // Eğer atanmış bir eğitimse, atanmış olduğu firmanın adını göster
+                    if ((selectedTraining as any).is_assigned) {
+                      return (selectedTraining as any).company_assignment?.name || 'Atanmış Eğitim';
+                    }
+                    // Eğer kopyalanmış bir eğitimse, kendi firmasının adını göster
+                    if ((selectedTraining as any).company?.display_name) {
+                      return (selectedTraining as any).company.display_name;
+                    }
+                    // Sistem eğitimi
+                    return 'Sistem Eğitimi';
+                  })()}
                 </div>
               </div>
               <p className="text-gray-600 mb-4">{selectedTraining.description}</p>
@@ -499,7 +561,18 @@ export default function StudioPage() {
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
-                  {(training as any).company?.display_name || 'Sistem Eğitimi'}
+                  {(() => {
+                    // Eğer atanmış bir eğitimse, atanmış olduğu firmanın adını göster
+                    if ((training as any).is_assigned) {
+                      return (training as any).company_assignment?.name || 'Atanmış Eğitim';
+                    }
+                    // Eğer kopyalanmış bir eğitimse, kendi firmasının adını göster
+                    if ((training as any).company?.display_name) {
+                      return (training as any).company.display_name;
+                    }
+                    // Sistem eğitimi
+                    return 'Sistem Eğitimi';
+                  })()}
                 </div>
               </div>
               
@@ -781,9 +854,14 @@ export default function StudioPage() {
 
             {!importLoading && systemTrainings.length === 0 && (
               <div className="text-center py-12">
-                <div className="text-gray-500 mb-4">Sistem eğitimi bulunamadı</div>
+                <div className="text-gray-500 mb-4">
+                  {isSuperAdmin ? 'Sistem eğitimi bulunamadı' : 'Atanmış eğitim bulunamadı'}
+                </div>
                 <p className="text-sm text-gray-400">
-                  SuperAdmin tarafından oluşturulmuş eğitimler burada görünecek
+                  {isSuperAdmin 
+                    ? 'SuperAdmin tarafından oluşturulmuş eğitimler burada görünecek'
+                    : 'Firmanıza atanmış eğitimler burada görünecek. Eğitim ataması için SuperAdmin ile iletişime geçin.'
+                  }
                 </p>
               </div>
             )}

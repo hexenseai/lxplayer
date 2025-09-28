@@ -11,6 +11,7 @@ import StylesPage from '@/app/admin/styles/page';
 import FrameConfigsPage from '@/app/admin/frame-configs/page';
 import AvatarsPage from '@/app/admin/avatars/page';
 import UserInteractionsPage from '@/app/admin/user-interactions/page';
+import TrainingAssignmentsPage from '@/app/admin/training-assignments/page';
 
 interface DashboardContentProps {
   activePage: string;
@@ -74,13 +75,13 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
   const renderDashboard = () => (
     <div className="p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-gray-600">Hoş geldiniz! İşte sisteminizin genel durumu.</p>
+        <h1 className="text-3xl font-bold text-slate-900 mb-2">Dashboard</h1>
+        <p className="text-slate-600">Hoş geldiniz! İşte sisteminizin genel durumu.</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-blue-100">
               <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,13 +89,13 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Toplam Kullanıcı</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
+              <p className="text-sm font-medium text-slate-600">Toplam Kullanıcı</p>
+              <p className="text-2xl font-bold text-slate-900">{stats.totalUsers}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-green-100">
               <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -102,13 +103,13 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Toplam Eğitim</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalTrainings}</p>
+              <p className="text-sm font-medium text-slate-600">Toplam Eğitim</p>
+              <p className="text-2xl font-bold text-slate-900">{stats.totalTrainings}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-purple-100">
               <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,13 +117,13 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Toplam İçerik</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalAssets}</p>
+              <p className="text-sm font-medium text-slate-600">Toplam İçerik</p>
+              <p className="text-2xl font-bold text-slate-900">{stats.totalAssets}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-orange-100">
               <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -130,13 +131,13 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Toplam Stil</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalStyles}</p>
+              <p className="text-sm font-medium text-slate-600">Toplam Stil</p>
+              <p className="text-2xl font-bold text-slate-900">{stats.totalStyles}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
           <div className="flex items-center">
             <div className="p-3 rounded-full bg-pink-100">
               <svg className="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -144,8 +145,8 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Toplam Avatar</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalAvatars}</p>
+              <p className="text-sm font-medium text-slate-600">Toplam Avatar</p>
+              <p className="text-2xl font-bold text-slate-900">{stats.totalAvatars}</p>
             </div>
           </div>
         </div>
@@ -153,80 +154,80 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Hızlı İşlemler</h3>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Hızlı İşlemler</h3>
           <div className="space-y-3">
             <button 
               onClick={() => window.location.href = '/admin/trainings'}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
             >
               <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              <span className="text-gray-700">Yeni Eğitim Ekle</span>
+              <span className="text-slate-700">Yeni Eğitim Ekle</span>
             </button>
             
             <button 
               onClick={() => window.location.href = '/admin/assets'}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
             >
               <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              <span className="text-gray-700">İçerik Yükle</span>
+              <span className="text-slate-700">İçerik Yükle</span>
             </button>
             
             <button 
               onClick={() => window.location.href = '/admin/styles'}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
             >
               <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              <span className="text-gray-700">Stil Tanımla</span>
+              <span className="text-slate-700">Stil Tanımla</span>
             </button>
             
             <button 
               onClick={() => window.location.href = '/admin/frame-configs'}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
             >
               <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              <span className="text-gray-700">Frame Ayarları</span>
+              <span className="text-slate-700">Frame Ayarları</span>
             </button>
             
             <button 
               onClick={() => window.location.href = '/admin/avatars'}
-              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
             >
               <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
-              <span className="text-gray-700">Avatar Oluştur</span>
+              <span className="text-slate-700">Avatar Oluştur</span>
             </button>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Son Eklenen Eğitimler</h3>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <h3 className="text-lg font-semibold text-slate-900 mb-4">Son Eklenen Eğitimler</h3>
           <div className="space-y-3">
             {stats.recentTrainings.length > 0 ? (
               stats.recentTrainings.map((training: any) => (
-                <div key={training.id} className="flex items-center space-x-3 p-3 rounded-lg border border-gray-200">
+                <div key={training.id} className="flex items-center space-x-3 p-3 rounded-lg border border-slate-200">
                   <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                     <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{training.title}</p>
-                    <p className="text-xs text-gray-500">{training.description || 'Açıklama yok'}</p>
+                    <p className="text-sm font-medium text-slate-900">{training.title}</p>
+                    <p className="text-xs text-slate-500">{training.description || 'Açıklama yok'}</p>
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 text-sm">Henüz eğitim eklenmemiş</p>
+              <p className="text-slate-500 text-sm">Henüz eğitim eklenmemiş</p>
             )}
           </div>
         </div>
@@ -244,6 +245,8 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
         return <StudioAssetsPage />;
       case 'companies':
         return <CompaniesPage />;
+      case 'training-assignments':
+        return <TrainingAssignmentsPage />;
       case 'users':
         return <UsersPage />;
       case 'styles':
@@ -262,7 +265,7 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {renderPage()}
     </div>
   );

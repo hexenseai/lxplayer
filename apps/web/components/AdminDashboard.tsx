@@ -13,6 +13,7 @@ interface AdminDashboardProps {
 export function AdminDashboard({ initialTab }: AdminDashboardProps) {
   const { user, isSuperAdmin, isAdmin } = useUser();
   const [activePage, setActivePage] = useState(initialTab || 'dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const logout = () => {
     document.cookie = 'lx_token=; Max-Age=0; path=/';
@@ -22,7 +23,7 @@ export function AdminDashboard({ initialTab }: AdminDashboardProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Header removed */}
       
       <div className="flex">
@@ -33,10 +34,13 @@ export function AdminDashboard({ initialTab }: AdminDashboardProps) {
           activePage={activePage}
           onPageChange={setActivePage}
           onLogout={logout}
+          onCollapseChange={setIsSidebarCollapsed}
         />
         
         {/* Main Content */}
-        <main className="flex-1 ml-64 pt-4">
+        <main className={`flex-1 pt-4 transition-all duration-300 ${
+          isSidebarCollapsed ? 'ml-16' : 'ml-64'
+        }`}>
           <DashboardContent 
             activePage={activePage}
             isSuperAdmin={isSuperAdmin}
