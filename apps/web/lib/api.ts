@@ -55,7 +55,32 @@ export const TrainingSection = z.object({
   target_audience: z.string().nullable().optional(),
   audio_asset_id: z.string().nullable().optional(),
   created_at: z.string().optional(),
-  updated_at: z.string().optional()
+  updated_at: z.string().optional(),
+  // Additional fields from backend
+  avatar: z.object({
+    id: z.string(),
+    name: z.string(),
+    personality: z.string(),
+    elevenlabs_voice_id: z.string(),
+    description: z.string().nullable().optional(),
+    image_url: z.string().nullable().optional(),
+    is_default: z.boolean(),
+    company_id: z.string().nullable().optional(),
+    created_at: z.string(),
+    updated_at: z.string()
+  }).nullable().optional(),
+  asset: z.object({
+    id: z.string(),
+    title: z.string(),
+    kind: z.string(),
+    uri: z.string(),
+    description: z.string().nullable().optional(),
+    html_content: z.string().nullable().optional(),
+    company_id: z.string().nullable().optional(),
+    language: z.string().nullable().optional(),
+    original_asset_id: z.string().nullable().optional()
+  }).nullable().optional(),
+  overlay_count: z.number().optional()
 });
 export type TrainingSection = z.infer<typeof TrainingSection>;
 

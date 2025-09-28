@@ -100,7 +100,11 @@ export default function StudioPage() {
   const loadTrainingSections = async (id: string) => {
     try {
       const data = await api.listTrainingSections(id);
-      console.log('Loaded sections:', data);
+      console.log('🔍 Loaded sections data:', data);
+      // Check each section for avatar data
+      data.forEach((section, index) => {
+        console.log(`🔍 Section ${index}:`, section.title, 'Avatar:', (section as any).avatar);
+      });
       setSections(data);
     } catch (error) {
       console.error('Error loading training sections:', error);
@@ -594,6 +598,8 @@ export default function StudioPage() {
                   // LLM Interaction veya LLM Agent bölümleri
                   if (type === 'llm_interaction' || type === 'llm_agent') {
                     const avatar = (section as any).avatar;
+                    console.log('🔍 Section:', section.title, 'Type:', type, 'Avatar:', avatar);
+                    console.log('🔍 Selected Training Avatar ID:', selectedTraining.avatar_id);
                     return (
                       <div className="flex gap-4">
                         {/* Avatar Bilgisi */}
@@ -616,48 +622,18 @@ export default function StudioPage() {
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             {/* Avatar Bilgileri - Sol Sütun */}
                             <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
-                              <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
-                                Avatar Bilgileri
-                              </h4>
-                              
                               {avatar ? (
-                                <div className="space-y-3">
-                                  {/* Avatar Adı */}
-                                  <div>
-                                    <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Avatar Adı</span>
-                                    <p className="text-sm font-medium text-purple-900 mt-1">{avatar.name}</p>
-                                  </div>
-                                  
-                                  {/* Avatar Görseli */}
-                                  {avatar.image_url && (
-                                    <div>
-                                      <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Görsel</span>
-                                      <div className="mt-1">
-                                        <img 
-                                          src={avatar.image_url} 
-                                          alt={avatar.name}
-                                          className="w-12 h-12 rounded-full object-cover border-2 border-purple-200"
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
+                                <div>
+                                  {/* Avatar İsmi - Başlık olarak */}
+                                  <h4 className="font-semibold text-purple-900 mb-3">
+                                    {avatar.name}
+                                  </h4>
                                   
                                   {/* Kişilik Bilgisi */}
                                   <div>
                                     <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Kişilik</span>
                                     <p className="text-sm text-purple-800 mt-1 leading-relaxed">{avatar.personality}</p>
                                   </div>
-                                  
-                                  {/* Açıklama (varsa) */}
-                                  {avatar.description && (
-                                    <div>
-                                      <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Açıklama</span>
-                                      <p className="text-sm text-purple-700 mt-1">{avatar.description}</p>
-                                    </div>
-                                  )}
                                 </div>
                               ) : (
                                 <div className="text-center py-4">

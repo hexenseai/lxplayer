@@ -680,11 +680,17 @@ def list_training_sections(training_id: str, session: Session = Depends(get_sess
             if asset:
                 section_dict["asset"] = asset.model_dump()
         
-        # Add avatar information for LLM sections
+        # Add avatar information for LLM sections (always add if training has avatar)
         if training.avatar_id and (section.type == 'llm_interaction' or section.type == 'llm_agent'):
+            print(f"🔍 Adding avatar for section {section.id} (type: {section.type}), training avatar_id: {training.avatar_id}")
             avatar = session.get(Avatar, training.avatar_id)
             if avatar:
+                print(f"✅ Avatar found: {avatar.name}")
                 section_dict["avatar"] = avatar.model_dump()
+            else:
+                print(f"❌ Avatar not found for ID: {training.avatar_id}")
+        else:
+            print(f"🔍 Skipping avatar for section {section.id} - training.avatar_id: {training.avatar_id}, section.type: {section.type}")
         
         # Add overlay count for video sections
         if section.type == 'video':
