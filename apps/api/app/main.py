@@ -6,7 +6,7 @@ load_dotenv(find_dotenv(usecwd=True))
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
-from .routers import trainings, assets, sessions, tools, users, companies, auth, uploads, company_trainings, styles, generate, chat, frame_configs, imports, avatars, interactions, llm_agent, interaction_sessions, user_interactions
+from .routers import trainings, assets, sessions, tools, users, companies, auth, uploads, company_trainings, styles, generate, chat, frame_configs, imports, avatars, interactions, llm_agent, interaction_sessions, user_interactions, evaluation_criteria, evaluation_results, evaluation_reports
 from .db import init_db
 
 app = FastAPI(title="LXPlayer API")
@@ -68,6 +68,9 @@ app.include_router(interactions.router, prefix="/interactions")
 app.include_router(llm_agent.router, prefix="/chat/llm-agent")
 app.include_router(interaction_sessions.router)
 app.include_router(user_interactions.router)
+app.include_router(evaluation_criteria.router)
+app.include_router(evaluation_results.router)
+app.include_router(evaluation_reports.router)
 
 #print([ (r.path, r.name) for r in app.routes if "/trainings" in getattr(r, "path", "") ])
 

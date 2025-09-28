@@ -382,3 +382,152 @@ class TrainingProgressResponse(BaseModel):
     total_interactions: int
     last_accessed_at: datetime
     sections_progress: list[SectionProgressResponse] = []
+
+
+# ===== EVALUATION CRITERIA SCHEMAS =====
+
+class EvaluationCriteriaCreate(BaseModel):
+    training_id: str
+    title: str
+    description: Optional[str] = None
+    section_id: Optional[str] = None
+    applies_to_entire_training: bool = True
+    llm_evaluation_prompt: str
+    criteria_type: str = "question"
+    weight: float = 1.0
+    order_index: int = 0
+    is_active: bool = True
+
+
+class EvaluationCriteriaUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    section_id: Optional[str] = None
+    applies_to_entire_training: Optional[bool] = None
+    llm_evaluation_prompt: Optional[str] = None
+    criteria_type: Optional[str] = None
+    weight: Optional[float] = None
+    order_index: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class EvaluationCriteriaResponse(BaseModel):
+    id: str
+    training_id: str
+    title: str
+    description: Optional[str] = None
+    section_id: Optional[str] = None
+    applies_to_entire_training: bool
+    llm_evaluation_prompt: str
+    criteria_type: str
+    weight: float
+    order_index: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    created_by: Optional[str] = None
+    company_id: Optional[str] = None
+
+
+# ===== EVALUATION RESULT SCHEMAS =====
+
+class EvaluationResultCreate(BaseModel):
+    criteria_id: str
+    session_id: str
+    user_id: str
+    training_id: str
+    evaluation_score: Optional[float] = None
+    evaluation_result: str
+    explanation: str
+    llm_model: Optional[str] = None
+    processing_time_ms: Optional[int] = None
+    tokens_used: Optional[int] = None
+    section_id: Optional[str] = None
+    user_interactions_json: str = "{}"
+    context_data_json: str = "{}"
+    metadata_json: str = "{}"
+
+
+class EvaluationResultUpdate(BaseModel):
+    evaluation_score: Optional[float] = None
+    evaluation_result: Optional[str] = None
+    explanation: Optional[str] = None
+    metadata_json: Optional[str] = None
+
+
+class EvaluationResultResponse(BaseModel):
+    id: str
+    criteria_id: str
+    session_id: str
+    user_id: str
+    training_id: str
+    evaluation_score: Optional[float] = None
+    evaluation_result: str
+    explanation: str
+    llm_model: Optional[str] = None
+    processing_time_ms: Optional[int] = None
+    tokens_used: Optional[int] = None
+    section_id: Optional[str] = None
+    user_interactions_json: str
+    context_data_json: str
+    evaluated_at: datetime
+    created_at: datetime
+    metadata_json: str
+
+
+# ===== EVALUATION REPORT SCHEMAS =====
+
+class EvaluationReportCreate(BaseModel):
+    session_id: str
+    user_id: str
+    training_id: str
+    report_title: str
+    overall_score: Optional[float] = None
+    summary: str
+    detailed_analysis: str
+    recommendations: str
+    criteria_results_json: str = "{}"
+    strengths: str = ""
+    weaknesses: str = ""
+    is_public: bool = False
+    generated_by: Optional[str] = None
+    metadata_json: str = "{}"
+
+
+class EvaluationReportUpdate(BaseModel):
+    report_title: Optional[str] = None
+    overall_score: Optional[float] = None
+    summary: Optional[str] = None
+    detailed_analysis: Optional[str] = None
+    recommendations: Optional[str] = None
+    strengths: Optional[str] = None
+    weaknesses: Optional[str] = None
+    status: Optional[str] = None
+    is_public: Optional[bool] = None
+    reviewed_by: Optional[str] = None
+    metadata_json: Optional[str] = None
+
+
+class EvaluationReportResponse(BaseModel):
+    id: str
+    session_id: str
+    user_id: str
+    training_id: str
+    report_title: str
+    overall_score: Optional[float] = None
+    summary: str
+    detailed_analysis: str
+    recommendations: str
+    criteria_results_json: str
+    strengths: str
+    weaknesses: str
+    status: str
+    is_public: bool
+    generated_at: datetime
+    reviewed_at: Optional[datetime] = None
+    finalized_at: Optional[datetime] = None
+    generated_by: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    company_id: Optional[str] = None
+    metadata_json: str
+

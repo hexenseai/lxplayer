@@ -51,11 +51,10 @@ export default function StudioPage() {
     try {
       setLoading(true);
       
-      let trainingsData = [];
-      
       if (isSuperAdmin) {
         // SuperAdmin tüm eğitimleri görebilir
-        trainingsData = await api.listTrainings();
+        const data = await api.listTrainings();
+        setTrainings(data);
       } else if (isAdmin && user?.company_id) {
         // Admin hem kendi firmasına kopyalanmış hem de atanmış eğitimleri görebilir
         
@@ -77,37 +76,18 @@ export default function StudioPage() {
         
         // 3. İki listeyi birleştir (duplicate'leri kaldır)
         const allTrainings = [...copiedTrainings, ...assignedTrainings];
-        trainingsData = allTrainings.filter((training, index, self) => 
+        const uniqueTrainings = allTrainings.filter((training, index, self) => 
           index === self.findIndex(t => t.id === training.id)
         );
+        
+        setTrainings(uniqueTrainings);
       } else {
-        trainingsData = [];
+        setTrainings([]);
       }
-      
-      // Her eğitim için bölüm sayısını hesapla
-      const trainingsWithSectionCount = await Promise.all(
-        trainingsData.map(async (training) => {
-          try {
-            const sections = await api.listTrainingSections(training.id);
-            return {
-              ...training,
-              section_count: sections.length
-            };
-          } catch (error) {
-            console.error(`Error loading sections for training ${training.id}:`, error);
-            return {
-              ...training,
-              section_count: 0
-            };
-          }
-        })
-      );
-      
-      setTrainings(trainingsWithSectionCount);
       
       // URL'den training ID varsa, o eğitimi seç
       if (trainingId) {
-        const training = trainingsWithSectionCount.find(t => t.id === trainingId);
+        const training = trainings.find(t => t.id === trainingId);
         if (training) {
           setSelectedTraining(training);
           loadTrainingSections(trainingId);
@@ -287,6 +267,12 @@ export default function StudioPage() {
     }
   };
 
+  const handleTrainingSelect = (training: TrainingT) => {
+    setSelectedTraining(training);
+    setSections([]);
+    router.push(`/studio?trainingId=${training.id}`);
+  };
+
   const handleEditTraining = async (training: TrainingT) => {
     try {
       // Always fetch fresh data when opening the modal
@@ -307,6 +293,60 @@ export default function StudioPage() {
     loadTrainings(); // Reload trainings to get updated data
   };
 
+  const loadSystemTrainings = async () => {
+    try {
+      setImportLoading(true);
+      
+      if (isSuperAdmin) {
+        // SuperAdmin tüm sistem eğitimlerini görebilir
+        const data = await api.listSystemTrainings();
+        setSystemTrainings(data);
+      } else if (isAdmin && user?.company_id) {
+        // Admin sadece kendi firmasına atanmış eğitimleri görebilir
+        const companyTrainings = await api.listCompanyTrainings(user.company_id);
+        // CompanyTraining'leri Training formatına dönüştür
+        const data = companyTrainings
+          .filter(ct => ct.training) // training bilgisi olanları al
+          .map(ct => ({
+            ...ct.training,
+            // Access code bilgisini de ekle
+            access_code: ct.access_code,
+            expectations: ct.expectations
+          }));
+        setSystemTrainings(data);
+      } else {
+        setSystemTrainings([]);
+      }
+    } catch (error) {
+      console.error('Error loading system trainings:', error);
+      alert(`Sistem eğitimleri yüklenirken hata oluştu: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleImportTraining = async (sourceTrainingId: string) => {
+    try {
+      setImportLoading(true);
+      const result = await api.copyTraining(sourceTrainingId);
+      
+      alert(`Eğitim başarıyla kopyalandı! ${result.sections_copied} bölüm, ${result.overlays_copied} overlay, ${result.assets_copied} asset ve ${result.styles_copied} stil kopyalandı.`);
+      
+      setShowImportModal(false);
+      loadTrainings();
+    } catch (error) {
+      console.error('Error importing training:', error);
+      alert('Eğitim kopyalanırken hata oluştu!');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleCreateTrainingComplete = () => {
+    setShowCreateTrainingModal(false);
+    loadTrainings(); // Reload trainings to show the new one
+  };
+
   const handleDeleteTraining = async (training: TrainingT) => {
     const confirmMessage = `"${training.title}" eğitimini silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz ve eğitimin tüm bölümleri, overlay'leri ve ilgili verileri silinecektir.`;
     
@@ -322,12 +362,6 @@ export default function StudioPage() {
       console.error('Error deleting training:', error);
       alert('Eğitim silinirken hata oluştu!');
     }
-  };
-
-  const handleTrainingSelect = (training: TrainingT) => {
-    setSelectedTraining(training);
-    setSections([]);
-    router.push(`/studio?trainingId=${training.id}`);
   };
 
   const handleBackToTrainings = () => {
@@ -464,250 +498,250 @@ export default function StudioPage() {
           <TabsContent value="sections" className="mt-6">
             {/* Sections List - Sıra numaralarına göre sıralanmış */}
             <div className="space-y-4">
-              {sections
-                .sort((a, b) => a.order_index - b.order_index)
-                .map((section, index) => (
-                <div key={section.id} className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-all duration-200">
-                  {/* Section Header */}
-                  <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                    <div className="flex items-center gap-3">
-                      {/* Sıra Numarası */}
-                      <div className="flex items-center justify-center w-8 h-8 bg-primary text-white rounded-full text-sm font-semibold">
-                        {section.order_index}
-                      </div>
-                      
-                      {/* Section Başlığı ve Tipi */}
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                          {(() => {
-                            const type = (section as any).type;
-                            if (type === 'llm_interaction' || type === 'llm_agent') return '🤖';
-                            if (type === 'video') return '📹';
-                            return '📄';
-                          })()}
-                          {section.title}
-                        </h3>
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                          <span className="font-medium">
-                            {(() => {
-                              const type = (section as any).type;
-                              if (type === 'llm_interaction') return 'LLM Etkileşim';
-                              if (type === 'llm_agent') return 'LLM Agent';
-                              if (type === 'video') return 'Video Bölümü';
-                              return 'Bölüm';
-                            })()}
-                          </span>
-                          <span>•</span>
-                          <span>
-                            {(() => {
-                              const lang = section.language || 'TR';
-                              const langInfo = LANGUAGES.find(l => l.code === lang);
-                              return `${langInfo?.flag || '🌐'} ${langInfo?.name || lang}`;
-                            })()}
-                          </span>
-                          <span>•</span>
-                          <span>
-                            {(() => {
-                              const audience = section.target_audience || 'Genel';
-                              const audienceInfo = TARGET_AUDIENCES.find(a => a.name === audience);
-                              return `${audienceInfo?.icon || '👥'} ${audience}`;
-                            })()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2">
-                      {/* Move Up/Down Buttons */}
-                      <div className="flex flex-col gap-1">
-                        <button
-                          onClick={() => handleMoveSection(section.id, 'up')}
-                          disabled={index === 0}
-                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Yukarı Taşı"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleMoveSection(section.id, 'down')}
-                          disabled={index === sections.length - 1}
-                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Aşağı Taşı"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                      </div>
-                      
-                      {/* Main Action Buttons */}
-                      <div className="flex gap-2 ml-4">
-                        <button
-                          onClick={() => router.push(`/studio/sections/${section.id}`)}
-                          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
-                        >
-                          Düzenle
-                        </button>
-                        <button
-                          onClick={() => handleDuplicateSection(section)}
-                          className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
-                        >
-                          Kopyala
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSection(section.id)}
-                          className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
-                        >
-                          Sil
-                        </button>
-                      </div>
-                    </div>
+          {sections
+            .sort((a, b) => a.order_index - b.order_index)
+            .map((section, index) => (
+            <div key={section.id} className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-all duration-200">
+              {/* Section Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  {/* Sıra Numarası */}
+                  <div className="flex items-center justify-center w-8 h-8 bg-primary text-white rounded-full text-sm font-semibold">
+                    {section.order_index}
                   </div>
                   
-                  {/* Section Content */}
-                  <div className="p-4">
-                    {(() => {
-                      const type = (section as any).type;
-                      
-                      // LLM Interaction veya LLM Agent bölümleri
-                      if (type === 'llm_interaction' || type === 'llm_agent') {
-                        const avatar = (section as any).avatar;
-                        console.log('🔍 Section:', section.title, 'Type:', type, 'Avatar:', avatar);
-                        console.log('🔍 Selected Training Avatar ID:', selectedTraining.avatar_id);
-                        return (
-                          <div className="flex gap-4">
-                            {/* Avatar Bilgisi */}
-                            <div className="flex-shrink-0">
-                              <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-xl font-bold relative overflow-hidden">
-                                {avatar?.image_url ? (
-                                  <img 
-                                    src={avatar.image_url} 
-                                    alt={avatar.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Avatar ve Bölüm Bilgileri */}
-                            <div className="flex-1">
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                {/* Avatar Bilgileri - Sol Sütun */}
-                                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
-                                  {avatar ? (
-                                    <div>
-                                      {/* Avatar İsmi - Başlık olarak */}
-                                      <h4 className="font-semibold text-purple-900 mb-3">
-                                        {avatar.name}
-                                      </h4>
-                                      
-                                      {/* Kişilik Bilgisi */}
-                                      <div>
-                                        <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Kişilik</span>
-                                        <p className="text-sm text-purple-800 mt-1 leading-relaxed">{avatar.personality}</p>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="text-center py-4">
-                                      <svg className="w-8 h-8 text-purple-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                      </svg>
-                                      <p className="text-sm text-purple-500">Avatar bilgisi bulunamadı</p>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Bölüm Açıklaması - Sağ Sütun */}
-                                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    Bölüm Açıklaması
-                                  </h4>
-                                  <p className="text-sm text-gray-700 leading-relaxed">
-                                    {section.description || 'Bu bölüm için açıklama bulunmuyor.'}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      // Video bölümleri
-                      if (type === 'video') {
-                        return (
-                          <div className="space-y-3">
-                            {/* Video Preview ve Bilgiler */}
-                            <div className="flex gap-4">
-                              {/* Video Preview */}
-                              <div className="flex-shrink-0">
-                                <div className="w-24 h-16 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
-                                  {(section as any).asset?.uri ? (
-                                    <video 
-                                      src={(section as any).asset.uri}
-                                      className="w-full h-full object-cover"
-                                      muted
-                                      preload="metadata"
-                                    />
-                                  ) : (
-                                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                    </svg>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {/* Video Bilgileri */}
-                              <div className="flex-1 space-y-2">
-                                {section.description && (
-                                  <p className="text-sm text-gray-700">{section.description}</p>
-                                )}
-                                <div className="flex gap-4 text-sm text-gray-600">
-                                  {section.duration && section.duration > 0 && (
-                                    <span className="flex items-center gap-1">
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                      {section.duration} saniye
-                                    </span>
-                                  )}
-                                  <span className="flex items-center gap-1">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-10 0a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2" />
-                                    </svg>
-                                    {section.asset_id ? 'Video mevcut' : 'Video yok'}
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4h10M7 4a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2" />
-                                    </svg>
-                                    Overlay sayısı: {(section as any).overlay_count || 0}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      // Diğer bölüm tipleri
-                      return (
-                        <div className="text-sm text-gray-600">
-                          {section.description || 'Açıklama bulunmuyor'}
-                        </div>
-                      );
-                    })()}
+                  {/* Section Başlığı ve Tipi */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      {(() => {
+                        const type = (section as any).type;
+                        if (type === 'llm_interaction' || type === 'llm_agent') return '🤖';
+                        if (type === 'video') return '📹';
+                        return '📄';
+                      })()}
+                      {section.title}
+                    </h3>
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span className="font-medium">
+                        {(() => {
+                          const type = (section as any).type;
+                          if (type === 'llm_interaction') return 'LLM Etkileşim';
+                          if (type === 'llm_agent') return 'LLM Agent';
+                          if (type === 'video') return 'Video Bölümü';
+                          return 'Bölüm';
+                        })()}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {(() => {
+                          const lang = section.language || 'TR';
+                          const langInfo = LANGUAGES.find(l => l.code === lang);
+                          return `${langInfo?.flag || '🌐'} ${langInfo?.name || lang}`;
+                        })()}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {(() => {
+                          const audience = section.target_audience || 'Genel';
+                          const audienceInfo = TARGET_AUDIENCES.find(a => a.name === audience);
+                          return `${audienceInfo?.icon || '👥'} ${audience}`;
+                        })()}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              ))}
+                
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2">
+                  {/* Move Up/Down Buttons */}
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => handleMoveSection(section.id, 'up')}
+                      disabled={index === 0}
+                      className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Yukarı Taşı"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleMoveSection(section.id, 'down')}
+                      disabled={index === sections.length - 1}
+                      className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Aşağı Taşı"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Main Action Buttons */}
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      onClick={() => router.push(`/studio/sections/${section.id}`)}
+                      className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      Düzenle
+                    </button>
+                    <button
+                      onClick={() => handleDuplicateSection(section)}
+                      className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+                    >
+                      Kopyala
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSection(section.id)}
+                      className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+                    >
+                      Sil
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Section Content */}
+              <div className="p-4">
+                {(() => {
+                  const type = (section as any).type;
+                  
+                  // LLM Interaction veya LLM Agent bölümleri
+                  if (type === 'llm_interaction' || type === 'llm_agent') {
+                    const avatar = (section as any).avatar;
+                    console.log('🔍 Section:', section.title, 'Type:', type, 'Avatar:', avatar);
+                    console.log('🔍 Selected Training Avatar ID:', selectedTraining.avatar_id);
+                    return (
+                      <div className="flex gap-4">
+                        {/* Avatar Bilgisi */}
+                        <div className="flex-shrink-0">
+                          <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-xl font-bold relative overflow-hidden">
+                            {avatar?.image_url ? (
+                              <img 
+                                src={avatar.image_url} 
+                                alt={avatar.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Avatar ve Bölüm Bilgileri */}
+                        <div className="flex-1">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {/* Avatar Bilgileri - Sol Sütun */}
+                            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
+                              {avatar ? (
+                                <div>
+                                  {/* Avatar İsmi - Başlık olarak */}
+                                  <h4 className="font-semibold text-purple-900 mb-3">
+                                    {avatar.name}
+                                  </h4>
+                                  
+                                  {/* Kişilik Bilgisi */}
+                                  <div>
+                                    <span className="text-xs font-medium text-purple-600 uppercase tracking-wide">Kişilik</span>
+                                    <p className="text-sm text-purple-800 mt-1 leading-relaxed">{avatar.personality}</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center py-4">
+                                  <svg className="w-8 h-8 text-purple-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                  </svg>
+                                  <p className="text-sm text-purple-500">Avatar bilgisi bulunamadı</p>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Bölüm Açıklaması - Sağ Sütun */}
+                            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                              <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Bölüm Açıklaması
+                              </h4>
+                              <p className="text-sm text-gray-700 leading-relaxed">
+                                {section.description || 'Bu bölüm için açıklama bulunmuyor.'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Video bölümleri
+                  if (type === 'video') {
+                    return (
+                      <div className="space-y-3">
+                        {/* Video Preview ve Bilgiler */}
+                        <div className="flex gap-4">
+                          {/* Video Preview */}
+                          <div className="flex-shrink-0">
+                            <div className="w-24 h-16 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                              {(section as any).asset?.uri ? (
+                                <video 
+                                  src={(section as any).asset.uri}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  preload="metadata"
+                                />
+                              ) : (
+                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Video Bilgileri */}
+                          <div className="flex-1 space-y-2">
+                            {section.description && (
+                              <p className="text-sm text-gray-700">{section.description}</p>
+                            )}
+                            <div className="flex gap-4 text-sm text-gray-600">
+                              {section.duration && section.duration > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  {section.duration} saniye
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-10 0a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2" />
+                                </svg>
+                                {section.asset_id ? 'Video mevcut' : 'Video yok'}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4h10M7 4a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2" />
+                                </svg>
+                                Overlay sayısı: {(section as any).overlay_count || 0}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Diğer bölüm tipleri
+                  return (
+                    <div className="text-sm text-gray-600">
+                      {section.description || 'Açıklama bulunmuyor'}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
+          ))}
+        </div>
 
             {sections.length === 0 && (
               <div className="text-center py-12">
@@ -720,6 +754,7 @@ export default function StudioPage() {
                 </button>
               </div>
             )}
+            </div>
           </TabsContent>
 
           <TabsContent value="evaluation" className="mt-6">
@@ -745,6 +780,17 @@ export default function StudioPage() {
             </p>
           </div>
           <div className="flex gap-3">
+            {(isAdmin || isSuperAdmin) && (
+              <button
+                onClick={() => {
+                  setShowImportModal(true);
+                  loadSystemTrainings();
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                İçeri Aktar
+              </button>
+            )}
             <button
               onClick={() => setShowCreateTrainingModal(true)}
               className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
@@ -843,19 +889,6 @@ export default function StudioPage() {
                   </div>
                 )}
 
-                {/* Bölüm Sayısı */}
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Bölümler:</span>
-                    <span className="ml-1">{(training as any).section_count || 0} bölüm</span>
-                  </div>
-                </div>
-
                 {/* Technical Details */}
                 <div className="flex flex-wrap gap-2">
                   {training.flow_id && (
@@ -941,6 +974,42 @@ export default function StudioPage() {
         </div>
       )}
 
+      <div className="mt-8 p-6 bg-gray-50 rounded-lg">
+        <h2 className="text-xl font-semibold mb-4">Hızlı Başlangıç</h2>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+            <span>Yeni bir eğitim oluşturun</span>
+            <button
+              onClick={() => setShowCreateTrainingModal(true)}
+              className="bg-primary text-white px-3 py-1 rounded text-sm hover:bg-primary/90"
+            >
+              Eğitim Oluştur
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+            <span>Eğitim bölümlerini düzenleyin</span>
+            <button
+              onClick={() => router.push('/studio/assets')}
+              className="bg-primary text-white px-3 py-1 rounded text-sm hover:bg-primary/90"
+            >
+              Bölümler
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+            <span>Medya dosyalarınızı yükleyin</span>
+            <button
+              onClick={() => router.push('/studio/assets')}
+              className="bg-primary text-white px-3 py-1 rounded text-sm hover:bg-primary/90"
+            >
+              Dosya Yükle
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Training Edit Modal */}
       {showTrainingEditModal && editingTraining && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -964,6 +1033,94 @@ export default function StudioPage() {
         </div>
       )}
 
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-semibold">Sistem Eğitimlerini İçeri Aktar</h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  SuperAdmin eğitimlerini seçin ve şirketinize kopyalayın
+                </p>
+              </div>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {importLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-muted-foreground">Yükleniyor...</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {systemTrainings.map((training) => (
+                  <div key={training.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="mb-3">
+                      <h3 className="font-semibold text-gray-900 mb-1">
+                        📚 {training.title}
+                      </h3>
+                      {training.description && (
+                        <p className="text-sm text-gray-600 line-clamp-2">
+                          {training.description}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="mb-3 space-y-1">
+                      {training.avatar && (
+                        <div className="text-xs text-gray-500 flex items-center gap-1">
+                          <div className="w-3 h-3 bg-pink-100 rounded-full flex items-center justify-center">
+                            <svg className="w-2 h-2 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                          <span>Avatar: {training.avatar.name}</span>
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500">
+                        ID: {training.id.substring(0, 8)}...
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleImportTraining(training.id)}
+                      disabled={importLoading}
+                      className="w-full bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                    >
+                      {importLoading ? 'Kopyalanıyor...' : 'Kopyala'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!importLoading && systemTrainings.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-gray-500 mb-4">
+                  {isSuperAdmin ? 'Sistem eğitimi bulunamadı' : 'Atanmış eğitim bulunamadı'}
+                </div>
+                <p className="text-sm text-gray-400">
+                  {isSuperAdmin 
+                    ? 'SuperAdmin tarafından oluşturulmuş eğitimler burada görünecek'
+                    : 'Firmanıza atanmış eğitimler burada görünecek. Eğitim ataması için SuperAdmin ile iletişime geçin.'
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Create Training Modal */}
       {showCreateTrainingModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -980,10 +1137,7 @@ export default function StudioPage() {
               </button>
             </div>
             <TrainingForm 
-              onDone={() => {
-                setShowCreateTrainingModal(false);
-                loadTrainings();
-              }}
+              onDone={handleCreateTrainingComplete}
             />
           </div>
         </div>

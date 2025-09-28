@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useVoiceStream } from 'voice-stream';
 import type { ElevenLabsWebSocketEvent } from '../types/websocket';
+import { api } from '@/lib/api';
 
 const sendMessage = (websocket: WebSocket, request: object) => {
   if (websocket.readyState !== WebSocket.OPEN) {
@@ -12,12 +13,34 @@ const sendMessage = (websocket: WebSocket, request: object) => {
   websocket.send(JSON.stringify(request));
 };
 
+interface ConversationMessage {
+  type: 'user' | 'agent';
+  content: string;
+  timestamp: number;
+  audioDuration?: number;
+  confidence?: number; // Transcription confidence
+}
+
+interface ConversationSession {
+  sessionId?: string;
+  sectionId?: string;
+  trainingId?: string;
+  agentId?: string;
+  startTime?: number;
+  messages: ConversationMessage[];
+}
+
 export const useAgentConversation = () => {
   const websocketRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [messages, setMessages] = useState<Array<{type: 'user' | 'agent', content: string}>>([]);
   const [error, setError] = useState<string | null>(null);
+  
+  // Conversation logging state
+  const conversationRef = useRef<ConversationSession>({
+    messages: []
+  });
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   
   // Audio handling
@@ -501,6 +524,86 @@ export const useAgentConversation = () => {
     queueAudio(audioBase64);
   }, [queueAudio]);
 
+  // Conversation logging functions
+  const saveConversationMessage = useCallback(async (
+    messageType: 'user' | 'agent',
+    content: string,
+    metadata?: any
+  ) => {
+    if (!conversationRef.current.sessionId) {
+      console.warn('⚠️ No session ID available for saving conversation message');
+      return;
+    }
+
+    try {
+      await api.createChatMessage({
+        session_id: conversationRef.current.sessionId,
+        message_type: messageType,
+        content: content,
+        section_id: conversationRef.current.sectionId,
+        message_metadata: JSON.stringify({
+          agent_id: conversationRef.current.agentId,
+          conversation_type: 'voice_chat',
+          ...metadata
+        })
+      });
+      console.log('💾 Conversation message saved:', messageType, content.substring(0, 50) + '...');
+    } catch (error) {
+      console.error('❌ Failed to save conversation message:', error);
+    }
+  }, []);
+
+  const saveConversationSession = useCallback(async () => {
+    if (!conversationRef.current.sessionId || conversationRef.current.messages.length === 0) {
+      console.warn('⚠️ No session or messages to save');
+      return;
+    }
+
+    try {
+      const conversationData = {
+        session_id: conversationRef.current.sessionId,
+        interaction_type: 'agent_conversation_complete',
+        section_id: conversationRef.current.sectionId,
+        content: JSON.stringify({
+          agent_id: conversationRef.current.agentId,
+          total_messages: conversationRef.current.messages.length,
+          user_messages: conversationRef.current.messages.filter(m => m.type === 'user').length,
+          agent_messages: conversationRef.current.messages.filter(m => m.type === 'agent').length,
+          conversation_duration: Date.now() - (conversationRef.current.startTime || Date.now()),
+          full_conversation: conversationRef.current.messages
+        }),
+        interaction_metadata: JSON.stringify({
+          conversation_type: 'voice_chat',
+          agent_id: conversationRef.current.agentId,
+          message_count: conversationRef.current.messages.length
+        }),
+        success: true
+      };
+
+      await api.createInteraction(conversationData);
+      console.log('💾 Complete conversation session saved');
+    } catch (error) {
+      console.error('❌ Failed to save conversation session:', error);
+    }
+  }, []);
+
+  const initializeConversationSession = useCallback((
+    sessionId: string,
+    sectionId: string,
+    trainingId: string,
+    agentId: string
+  ) => {
+    conversationRef.current = {
+      sessionId,
+      sectionId,
+      trainingId,
+      agentId,
+      startTime: Date.now(),
+      messages: []
+    };
+    console.log('🎯 Conversation session initialized:', { sessionId, sectionId, agentId });
+  }, []);
+
   const startConversation = useCallback(async (agentId: string) => {
     if (isConnected) return;
     
@@ -541,19 +644,56 @@ export const useAgentConversation = () => {
         if (data.type === "user_transcript") {
           const { user_transcription_event } = data;
           console.log("📝 User transcript:", user_transcription_event.user_transcript);
-          // Voice-only mode: Skip message storage for better performance
+          
+          // Save user message to conversation log
+          const userMessage: ConversationMessage = {
+            type: 'user',
+            content: user_transcription_event.user_transcript,
+            timestamp: Date.now(),
+            confidence: user_transcription_event.confidence || undefined
+          };
+          conversationRef.current.messages.push(userMessage);
+          
+          // Save to database
+          await saveConversationMessage('user', user_transcription_event.user_transcript, {
+            confidence: user_transcription_event.confidence,
+            event_type: 'user_transcript'
+          });
         }
         
         if (data.type === "agent_response") {
           const { agent_response_event } = data;
           console.log("🤖 Agent response:", agent_response_event.agent_response);
-          // Voice-only mode: Skip message storage for better performance
+          
+          // Save agent message to conversation log
+          const agentMessage: ConversationMessage = {
+            type: 'agent',
+            content: agent_response_event.agent_response,
+            timestamp: Date.now()
+          };
+          conversationRef.current.messages.push(agentMessage);
+          
+          // Save to database
+          await saveConversationMessage('assistant', agent_response_event.agent_response, {
+            event_type: 'agent_response'
+          });
         }
         
         if (data.type === "agent_response_correction") {
           const { agent_response_correction_event } = data;
           console.log("🔄 Agent response correction:", agent_response_correction_event.corrected_agent_response);
-          // Voice-only mode: Skip message storage for better performance
+          
+          // Update the last agent message with corrected response
+          const lastAgentIndex = conversationRef.current.messages.findLastIndex(m => m.type === 'agent');
+          if (lastAgentIndex !== -1) {
+            conversationRef.current.messages[lastAgentIndex].content = agent_response_correction_event.corrected_agent_response;
+          }
+          
+          // Save corrected response to database
+          await saveConversationMessage('assistant', agent_response_correction_event.corrected_agent_response, {
+            event_type: 'agent_response_correction',
+            is_correction: true
+          });
         }
         
         if (data.type === "interruption") {
@@ -594,6 +734,9 @@ export const useAgentConversation = () => {
     
     console.log('🛑 Stopping ElevenLabs conversation...');
     
+    // Save complete conversation session to database before stopping
+    await saveConversationSession();
+    
     // Stop any currently playing audio and clear queue
     stopCurrentAudio();
     audioQueueRef.current = [];
@@ -618,7 +761,7 @@ export const useAgentConversation = () => {
     websocketRef.current.close();
     setIsRecording(false);
     stopStreaming();
-  }, [stopStreaming, stopCurrentAudio]);
+  }, [stopStreaming, stopCurrentAudio, saveConversationSession]);
 
   const toggleRecording = useCallback(async () => {
     if (!isConnected) {
@@ -668,6 +811,7 @@ export const useAgentConversation = () => {
     stopConversation,
     toggleRecording,
     sendContextualUpdate,
+    initializeConversationSession,
     isConnected,
     isRecording,
     isPlaying,

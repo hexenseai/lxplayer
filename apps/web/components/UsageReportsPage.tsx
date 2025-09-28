@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { UserReportDashboard } from '@/components/analytics/UserReportDashboard';
+import EvaluationReportsList from '@/components/admin/EvaluationReportsList';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@lxplayer/ui';
 import { 
   Users, 
   BookOpen, 
@@ -11,7 +13,9 @@ import {
   Download,
   RefreshCw,
   Calendar,
-  TrendingUp
+  TrendingUp,
+  FileText,
+  BarChart3
 } from 'lucide-react';
 
 interface User {
@@ -53,6 +57,7 @@ export function UsageReportsPage() {
   const [showUserReport, setShowUserReport] = useState(false);
   const [showTrainingAnalytics, setShowTrainingAnalytics] = useState(false);
   const [showCompletions, setShowCompletions] = useState(false);
+  const [activeTab, setActiveTab] = useState('usage');
 
   useEffect(() => {
     fetchData();
@@ -144,8 +149,8 @@ export function UsageReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Kullanım Raporları</h1>
-          <p className="text-gray-600 mt-1">Kullanıcı etkileşimleri ve eğitim analitikleri</p>
+          <h1 className="text-3xl font-bold text-gray-900">Raporlar</h1>
+          <p className="text-gray-600 mt-1">Kullanım raporları ve değerlendirme analitikleri</p>
         </div>
         <button
           onClick={handleRefresh}
@@ -155,6 +160,21 @@ export function UsageReportsPage() {
           Yenile
         </button>
       </div>
+
+      {/* Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="usage" className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Kullanım Raporları
+          </TabsTrigger>
+          <TabsTrigger value="evaluation" className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Değerlendirme Raporları
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="usage" className="mt-6">
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -489,6 +509,17 @@ export function UsageReportsPage() {
           </button>
         </div>
       </div>
+
+        </TabsContent>
+
+        <TabsContent value="evaluation" className="mt-6">
+          <EvaluationReportsList
+            title="LLM Değerlendirme Raporları"
+            showActions={true}
+          />
+        </TabsContent>
+
+      </Tabs>
     </div>
   );
 }

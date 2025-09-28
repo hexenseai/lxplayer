@@ -333,7 +333,6 @@ export const api = {
   // company trainings
   attachTrainingToCompany: (companyId: string, input: { training_id: string; expectations?: string }) =>
     request(`/companies/${companyId}/trainings`, CompanyTraining, { method: 'POST', body: JSON.stringify(input) }),
-  listCompanyTrainings: (companyId: string) => request(`/companies/${companyId}/trainings`, z.array(CompanyTraining)),
   listAllCompanyTrainings: () => request('/company-trainings', z.array(CompanyTraining)),
   getCompanyTraining: (id: string) => request(`/company-trainings/${id}`, CompanyTraining),
   updateCompanyTraining: (companyId: string, trainingId: string, input: { training_id: string; expectations?: string }) =>
@@ -1287,4 +1286,446 @@ export const api = {
       last_interaction: z.string().nullable().optional()
     }))
   ),
+
+  // ===== EVALUATION CRITERIA API =====
+
+  getEvaluationCriteria: (params?: {
+    training_id?: string;
+    section_id?: string;
+    is_active?: boolean;
+  }) => {
+    const queryString = new URLSearchParams();
+    if (params?.training_id) queryString.append('training_id', params.training_id);
+    if (params?.section_id) queryString.append('section_id', params.section_id);
+    if (params?.is_active !== undefined) queryString.append('is_active', params.is_active.toString());
+    
+    const url = `/evaluation-criteria${queryString.toString() ? `?${queryString}` : ''}`;
+    return request(url, z.array(z.object({
+      id: z.string(),
+      training_id: z.string(),
+      title: z.string(),
+      description: z.string().nullable().optional(),
+      section_id: z.string().nullable().optional(),
+      applies_to_entire_training: z.boolean(),
+      llm_evaluation_prompt: z.string(),
+      criteria_type: z.string(),
+      weight: z.number(),
+      order_index: z.number(),
+      is_active: z.boolean(),
+      created_at: z.string(),
+      updated_at: z.string(),
+      created_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional()
+    })));
+  },
+
+  getEvaluationCriteriaById: (criteriaId: string) => {
+    return request(`/evaluation-criteria/${criteriaId}`, z.object({
+      id: z.string(),
+      training_id: z.string(),
+      title: z.string(),
+      description: z.string().nullable().optional(),
+      section_id: z.string().nullable().optional(),
+      applies_to_entire_training: z.boolean(),
+      llm_evaluation_prompt: z.string(),
+      criteria_type: z.string(),
+      weight: z.number(),
+      order_index: z.number(),
+      is_active: z.boolean(),
+      created_at: z.string(),
+      updated_at: z.string(),
+      created_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional()
+    }));
+  },
+
+  createEvaluationCriteria: (data: {
+    training_id: string;
+    title: string;
+    description?: string;
+    section_id?: string;
+    applies_to_entire_training: boolean;
+    llm_evaluation_prompt: string;
+    criteria_type: string;
+    weight: number;
+    order_index: number;
+    is_active: boolean;
+  }) => {
+    return request('/evaluation-criteria', z.object({
+      id: z.string(),
+      training_id: z.string(),
+      title: z.string(),
+      description: z.string().nullable().optional(),
+      section_id: z.string().nullable().optional(),
+      applies_to_entire_training: z.boolean(),
+      llm_evaluation_prompt: z.string(),
+      criteria_type: z.string(),
+      weight: z.number(),
+      order_index: z.number(),
+      is_active: z.boolean(),
+      created_at: z.string(),
+      updated_at: z.string(),
+      created_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional()
+    }), {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  updateEvaluationCriteria: (criteriaId: string, data: {
+    title?: string;
+    description?: string;
+    section_id?: string;
+    applies_to_entire_training?: boolean;
+    llm_evaluation_prompt?: string;
+    criteria_type?: string;
+    weight?: number;
+    order_index?: number;
+    is_active?: boolean;
+  }) => {
+    return request(`/evaluation-criteria/${criteriaId}`, z.object({
+      id: z.string(),
+      training_id: z.string(),
+      title: z.string(),
+      description: z.string().nullable().optional(),
+      section_id: z.string().nullable().optional(),
+      applies_to_entire_training: z.boolean(),
+      llm_evaluation_prompt: z.string(),
+      criteria_type: z.string(),
+      weight: z.number(),
+      order_index: z.number(),
+      is_active: z.boolean(),
+      created_at: z.string(),
+      updated_at: z.string(),
+      created_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional()
+    }), {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  deleteEvaluationCriteria: (criteriaId: string) => {
+    return request(`/evaluation-criteria/${criteriaId}`, z.object({
+      message: z.string()
+    }), {
+      method: 'DELETE'
+    });
+  },
+
+  duplicateEvaluationCriteria: (criteriaId: string) => {
+    return request(`/evaluation-criteria/${criteriaId}/duplicate`, z.object({
+      id: z.string(),
+      training_id: z.string(),
+      title: z.string(),
+      description: z.string().nullable().optional(),
+      section_id: z.string().nullable().optional(),
+      applies_to_entire_training: z.boolean(),
+      llm_evaluation_prompt: z.string(),
+      criteria_type: z.string(),
+      weight: z.number(),
+      order_index: z.number(),
+      is_active: z.boolean(),
+      created_at: z.string(),
+      updated_at: z.string(),
+      created_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional()
+    }), {
+      method: 'POST'
+    });
+  },
+
+  getTrainingSectionsForCriteria: (trainingId: string) => {
+    return request(`/evaluation-criteria/training/${trainingId}/sections`, z.array(z.object({
+      id: z.string(),
+      title: z.string(),
+      description: z.string().nullable().optional(),
+      order_index: z.number(),
+      type: z.string()
+    })));
+  },
+
+  // ===== EVALUATION RESULTS API =====
+
+  getEvaluationResults: (params?: {
+    session_id?: string;
+    user_id?: string;
+    training_id?: string;
+    criteria_id?: string;
+  }) => {
+    const queryString = new URLSearchParams();
+    if (params?.session_id) queryString.append('session_id', params.session_id);
+    if (params?.user_id) queryString.append('user_id', params.user_id);
+    if (params?.training_id) queryString.append('training_id', params.training_id);
+    if (params?.criteria_id) queryString.append('criteria_id', params.criteria_id);
+    
+    const url = `/evaluation-results${queryString.toString() ? `?${queryString}` : ''}`;
+    return request(url, z.array(z.object({
+      id: z.string(),
+      criteria_id: z.string(),
+      session_id: z.string(),
+      user_id: z.string(),
+      training_id: z.string(),
+      evaluation_score: z.number().nullable().optional(),
+      evaluation_result: z.string(),
+      explanation: z.string(),
+      llm_model: z.string().nullable().optional(),
+      processing_time_ms: z.number().nullable().optional(),
+      tokens_used: z.number().nullable().optional(),
+      section_id: z.string().nullable().optional(),
+      user_interactions_json: z.string(),
+      context_data_json: z.string(),
+      evaluated_at: z.string(),
+      created_at: z.string(),
+      metadata_json: z.string()
+    })));
+  },
+
+  getSessionEvaluationSummary: (sessionId: string) => {
+    return request(`/evaluation-results/session/${sessionId}/summary`, z.object({
+      session_id: z.string(),
+      training_id: z.string(),
+      user_id: z.string(),
+      total_criteria: z.number(),
+      evaluated_criteria: z.number(),
+      average_score: z.number().nullable().optional(),
+      results: z.array(z.object({
+        id: z.string(),
+        criteria_id: z.string(),
+        evaluation_score: z.number().nullable().optional(),
+        evaluation_result: z.string(),
+        explanation: z.string(),
+        evaluated_at: z.string(),
+        llm_model: z.string().nullable().optional()
+      }))
+    }));
+  },
+
+  // ===== EVALUATION REPORTS API =====
+
+  getEvaluationReports: (params?: {
+    session_id?: string;
+    user_id?: string;
+    training_id?: string;
+    status?: string;
+    is_public?: boolean;
+  }) => {
+    const queryString = new URLSearchParams();
+    if (params?.session_id) queryString.append('session_id', params.session_id);
+    if (params?.user_id) queryString.append('user_id', params.user_id);
+    if (params?.training_id) queryString.append('training_id', params.training_id);
+    if (params?.status) queryString.append('status', params.status);
+    if (params?.is_public !== undefined) queryString.append('is_public', params.is_public.toString());
+    
+    const url = `/evaluation-reports${queryString.toString() ? `?${queryString}` : ''}`;
+    return request(url, z.array(z.object({
+      id: z.string(),
+      session_id: z.string(),
+      user_id: z.string(),
+      training_id: z.string(),
+      report_title: z.string(),
+      overall_score: z.number().nullable().optional(),
+      summary: z.string(),
+      detailed_analysis: z.string(),
+      recommendations: z.string(),
+      criteria_results_json: z.string(),
+      strengths: z.string(),
+      weaknesses: z.string(),
+      status: z.string(),
+      is_public: z.boolean(),
+      generated_at: z.string(),
+      reviewed_at: z.string().nullable().optional(),
+      finalized_at: z.string().nullable().optional(),
+      generated_by: z.string().nullable().optional(),
+      reviewed_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional(),
+      metadata_json: z.string()
+    })));
+  },
+
+  getEvaluationReportById: (reportId: string) => {
+    return request(`/evaluation-reports/${reportId}`, z.object({
+      id: z.string(),
+      session_id: z.string(),
+      user_id: z.string(),
+      training_id: z.string(),
+      report_title: z.string(),
+      overall_score: z.number().nullable().optional(),
+      summary: z.string(),
+      detailed_analysis: z.string(),
+      recommendations: z.string(),
+      criteria_results_json: z.string(),
+      strengths: z.string(),
+      weaknesses: z.string(),
+      status: z.string(),
+      is_public: z.boolean(),
+      generated_at: z.string(),
+      reviewed_at: z.string().nullable().optional(),
+      finalized_at: z.string().nullable().optional(),
+      generated_by: z.string().nullable().optional(),
+      reviewed_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional(),
+      metadata_json: z.string()
+    }));
+  },
+
+  createEvaluationReport: (data: {
+    session_id: string;
+    user_id: string;
+    training_id: string;
+    report_title: string;
+    overall_score?: number;
+    summary: string;
+    detailed_analysis: string;
+    recommendations: string;
+    criteria_results_json?: string;
+    strengths?: string;
+    weaknesses?: string;
+    is_public?: boolean;
+    generated_by?: string;
+    metadata_json?: string;
+  }) => {
+    return request('/evaluation-reports', z.object({
+      id: z.string(),
+      session_id: z.string(),
+      user_id: z.string(),
+      training_id: z.string(),
+      report_title: z.string(),
+      overall_score: z.number().nullable().optional(),
+      summary: z.string(),
+      detailed_analysis: z.string(),
+      recommendations: z.string(),
+      criteria_results_json: z.string(),
+      strengths: z.string(),
+      weaknesses: z.string(),
+      status: z.string(),
+      is_public: z.boolean(),
+      generated_at: z.string(),
+      reviewed_at: z.string().nullable().optional(),
+      finalized_at: z.string().nullable().optional(),
+      generated_by: z.string().nullable().optional(),
+      reviewed_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional(),
+      metadata_json: z.string()
+    }), {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  updateEvaluationReport: (reportId: string, data: {
+    report_title?: string;
+    overall_score?: number;
+    summary?: string;
+    detailed_analysis?: string;
+    recommendations?: string;
+    strengths?: string;
+    weaknesses?: string;
+    status?: string;
+    is_public?: boolean;
+    reviewed_by?: string;
+    metadata_json?: string;
+  }) => {
+    return request(`/evaluation-reports/${reportId}`, z.object({
+      id: z.string(),
+      session_id: z.string(),
+      user_id: z.string(),
+      training_id: z.string(),
+      report_title: z.string(),
+      overall_score: z.number().nullable().optional(),
+      summary: z.string(),
+      detailed_analysis: z.string(),
+      recommendations: z.string(),
+      criteria_results_json: z.string(),
+      strengths: z.string(),
+      weaknesses: z.string(),
+      status: z.string(),
+      is_public: z.boolean(),
+      generated_at: z.string(),
+      reviewed_at: z.string().nullable().optional(),
+      finalized_at: z.string().nullable().optional(),
+      generated_by: z.string().nullable().optional(),
+      reviewed_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional(),
+      metadata_json: z.string()
+    }), {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  },
+
+  deleteEvaluationReport: (reportId: string) => {
+    return request(`/evaluation-reports/${reportId}`, z.object({
+      message: z.string()
+    }), {
+      method: 'DELETE'
+    });
+  },
+
+  regenerateEvaluationReport: (reportId: string) => {
+    return request(`/evaluation-reports/${reportId}/generate`, z.object({
+      message: z.string(),
+      report_id: z.string(),
+      session_id: z.string(),
+      training_id: z.string(),
+      status: z.string(),
+      note: z.string()
+    }), {
+      method: 'POST'
+    });
+  },
+
+  autoGenerateEvaluationReport: (sessionId: string) => {
+    return request(`/evaluation-reports/session/${sessionId}/auto-generate`, z.object({
+      id: z.string(),
+      session_id: z.string(),
+      user_id: z.string(),
+      training_id: z.string(),
+      report_title: z.string(),
+      overall_score: z.number().nullable().optional(),
+      summary: z.string(),
+      detailed_analysis: z.string(),
+      recommendations: z.string(),
+      criteria_results_json: z.string(),
+      strengths: z.string(),
+      weaknesses: z.string(),
+      status: z.string(),
+      is_public: z.boolean(),
+      generated_at: z.string(),
+      reviewed_at: z.string().nullable().optional(),
+      finalized_at: z.string().nullable().optional(),
+      generated_by: z.string().nullable().optional(),
+      reviewed_by: z.string().nullable().optional(),
+      company_id: z.string().nullable().optional(),
+      metadata_json: z.string()
+    }), {
+      method: 'POST'
+    });
+  },
+
+  getTrainingEvaluationAnalytics: (trainingId: string) => {
+    return request(`/evaluation-reports/training/${trainingId}/analytics`, z.object({
+      training_id: z.string(),
+      total_reports: z.number(),
+      average_score: z.number().nullable().optional(),
+      score_distribution: z.object({
+        "0-20": z.number(),
+        "20-40": z.number(),
+        "40-60": z.number(),
+        "60-80": z.number(),
+        "80-100": z.number()
+      }),
+      status_distribution: z.record(z.number()),
+      recent_reports: z.array(z.object({
+        id: z.string(),
+        user_id: z.string(),
+        overall_score: z.number().nullable().optional(),
+        status: z.string(),
+        generated_at: z.string(),
+        report_title: z.string()
+      }))
+    }));
+  },
+
 };

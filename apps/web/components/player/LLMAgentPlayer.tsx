@@ -11,11 +11,14 @@ interface LLMAgentPlayerProps {
   onNavigateNext: () => void;
   onNavigatePrevious: () => void;
   onLLMAction?: (actionPayload: ActionPayload) => Promise<ActionResponse>;
+  sessionId?: string;
+  trainingId?: string;
+  userId?: string;
 }
 
 type ViewState = 'loading' | 'voice-chat' | 'error';
 
-export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigatePrevious, onLLMAction }: LLMAgentPlayerProps) {
+export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigatePrevious, onLLMAction, sessionId, trainingId, userId }: LLMAgentPlayerProps) {
   
   // Sadece llm_agent section'lar için çalış
   if (section.type !== 'llm_agent') {
@@ -40,6 +43,7 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
     stopConversation,
     toggleRecording,
     sendContextualUpdate,
+    initializeConversationSession,
     isConnected,
     isRecording,
     isPlaying,
@@ -95,6 +99,11 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
 
   // Auto-start session when component mounts
   useEffect(() => {
+    // Initialize conversation session if we have the required data
+    if (sessionId && trainingId && section.id) {
+      initializeConversationSession(sessionId, section.id, trainingId, agentId);
+    }
+    
     handleStartSession();
     
     // Cleanup on unmount
@@ -103,7 +112,7 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
         stopConversation();
       }
     };
-  }, []);
+  }, [sessionId, trainingId, section.id, agentId, initializeConversationSession]);
 
   // Watch for connection status changes
   useEffect(() => {
@@ -211,15 +220,43 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
       <div className="w-full h-full max-w-7xl mx-auto flex flex-col">
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🎭</span>
-              <div>
+            <div className="flex items-center gap-4">
+              {/* Avatar Display */}
+              <div className="flex-shrink-0">
+                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden">
+                  {section.avatar?.image_url ? (
+                    <img 
+                      src={section.avatar.image_url} 
+                      alt={section.avatar.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
+                  )}
+                </div>
+              </div>
+              
+              {/* Section Info */}
+              <div className="flex-1">
                 <h2 
                   className="text-xl font-semibold text-white cursor-help" 
                   title={section.description || ''}
                 >
                   {section.title}
                 </h2>
+                {section.avatar && (
+                  <div className="text-sm text-slate-300 mt-1">
+                    <span className="font-medium">{section.avatar.name}</span>
+                    {section.avatar.personality && (
+                      <span className="text-slate-400 ml-2">• {section.avatar.personality}</span>
+                    )}
+                  </div>
+                )}
+                {section.description && (
+                  <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+                    {section.description}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -292,15 +329,43 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
       <div className="w-full h-full max-w-7xl mx-auto flex flex-col">
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🎭</span>
-              <div>
+            <div className="flex items-center gap-4">
+              {/* Avatar Display */}
+              <div className="flex-shrink-0">
+                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden">
+                  {section.avatar?.image_url ? (
+                    <img 
+                      src={section.avatar.image_url} 
+                      alt={section.avatar.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
+                  )}
+                </div>
+              </div>
+              
+              {/* Section Info */}
+              <div className="flex-1">
                 <h2 
                   className="text-xl font-semibold text-white cursor-help" 
                   title={section.description || ''}
                 >
                   {section.title}
                 </h2>
+                {section.avatar && (
+                  <div className="text-sm text-slate-300 mt-1">
+                    <span className="font-medium">{section.avatar.name}</span>
+                    {section.avatar.personality && (
+                      <span className="text-slate-400 ml-2">• {section.avatar.personality}</span>
+                    )}
+                  </div>
+                )}
+                {section.description && (
+                  <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+                    {section.description}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -370,15 +435,43 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
       <div className="w-full h-full max-w-7xl mx-auto flex flex-col">
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🎭</span>
-              <div>
+            <div className="flex items-center gap-4">
+              {/* Avatar Display */}
+              <div className="flex-shrink-0">
+                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden">
+                  {section.avatar?.image_url ? (
+                    <img 
+                      src={section.avatar.image_url} 
+                      alt={section.avatar.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
+                  )}
+                </div>
+              </div>
+              
+              {/* Section Info */}
+              <div className="flex-1">
                 <h2 
                   className="text-xl font-semibold text-white cursor-help" 
                   title={section.description || ''}
                 >
                   {section.title}
                 </h2>
+                {section.avatar && (
+                  <div className="text-sm text-slate-300 mt-1">
+                    <span className="font-medium">{section.avatar.name}</span>
+                    {section.avatar.personality && (
+                      <span className="text-slate-400 ml-2">• {section.avatar.personality}</span>
+                    )}
+                  </div>
+                )}
+                {section.description && (
+                  <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+                    {section.description}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center space-x-2">

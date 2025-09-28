@@ -344,15 +344,35 @@ export function LLMInteractionPlayer({
     <div className="w-full h-full max-w-7xl mx-auto flex flex-col">
        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-4">
          <div className="flex items-center justify-between">
-           <div className="flex items-center gap-3">
-             <span className="text-2xl">💬</span>
-             <div>
+           <div className="flex items-center gap-4">
+             {/* Avatar Display */}
+             <div className="flex-shrink-0">
+               <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden">
+                 {section.avatar?.image_url ? (
+                   <img 
+                     src={section.avatar.image_url} 
+                     alt={section.avatar.name}
+                     className="w-full h-full object-cover"
+                   />
+                 ) : (
+                   section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
+                 )}
+               </div>
+             </div>
+             
+             {/* Section Info */}
+             <div className="flex-1">
                <h2 
                  className="text-xl font-semibold text-white cursor-help" 
                  title={section.description || ''}
                >
                  {section.title}
                </h2>
+               {section.avatar && (
+                 <div className="text-sm text-slate-300 mt-1">
+                   <span className="font-medium">{section.avatar.name}</span>
+                 </div>
+               )}
              </div>
            </div>
            <div className="flex items-center space-x-2">

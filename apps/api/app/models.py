@@ -378,3 +378,100 @@ class SectionProgress(SQLModel, table=True):
     
     # Section-specific data
     section_data_json: str = Field(default="{}", description="Section-specific progress data")
+
+
+class EvaluationCriteria(SQLModel, table=True):
+    """Eğitim değerlendirme kriterleri"""
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    training_id: str = Field(foreign_key="training.id", description="Hangi eğitime ait olduğu")
+    title: str = Field(description="Değerlendirme kriterinin başlığı/sorusu")
+    description: Optional[str] = Field(default=None, description="Kriterin açıklaması")
+    
+    # Bölüm ilişkisi - belirli bir bölüm için mi yoksa tüm eğitim için mi
+    section_id: Optional[str] = Field(default=None, foreign_key="trainingsection.id", description="Belirli bölüm için ise bölüm ID'si, None ise tüm eğitim için")
+    applies_to_entire_training: bool = Field(default=True, description="Tüm eğitim için mi yoksa sadece belirli bölüm için mi")
+    
+    # LLM değerlendirme metni
+    llm_evaluation_prompt: str = Field(description="LLM'in nasıl değerlendirme yapacağına dair metin")
+    
+    # Kriter türü ve ağırlığı
+    criteria_type: str = Field(default="question", description="question|title|assessment|skill")
+    weight: float = Field(default=1.0, description="Değerlendirmedeki ağırlığı (0.1-10.0)")
+    
+    # Sıralama ve durum
+    order_index: int = Field(default=0, description="Kriterlerin sıralanması için")
+    is_active: bool = Field(default=True, description="Kriter aktif mi")
+    
+    # Metadata
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: Optional[str] = Field(default=None, foreign_key="user.id")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+
+
+class EvaluationResult(SQLModel, table=True):
+    """LLM tarafından yapılan değerlendirme sonuçları"""
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    criteria_id: str = Field(foreign_key="evaluationcriteria.id", description="Hangi kriter değerlendirildi")
+    session_id: str = Field(foreign_key="interactionsession.id", description="Hangi oturum için değerlendirme")
+    user_id: str = Field(foreign_key="user.id", description="Değerlendirilen kullanıcı")
+    training_id: str = Field(foreign_key="training.id", description="Hangi eğitim")
+    
+    # LLM değerlendirme sonucu
+    evaluation_score: Optional[float] = Field(default=None, description="LLM tarafından verilen puan (0-100)")
+    evaluation_result: str = Field(description="LLM'in değerlendirme sonucu metni")
+    explanation: str = Field(description="LLM'in neden bu değeri verdiğini açıklayan metin")
+    
+    # Değerlendirme detayları
+    llm_model: Optional[str] = Field(default=None, description="Kullanılan LLM modeli")
+    processing_time_ms: Optional[int] = Field(default=None, description="LLM işlem süresi")
+    tokens_used: Optional[int] = Field(default=None, description="Kullanılan token sayısı")
+    
+    # İlişkili veriler
+    section_id: Optional[str] = Field(default=None, foreign_key="trainingsection.id", description="Değerlendirilen bölüm")
+    user_interactions_json: str = Field(default="{}", description="Kullanıcının etkileşimleri JSON olarak")
+    context_data_json: str = Field(default="{}", description="Değerlendirme bağlamı JSON olarak")
+    
+    # Timestamps
+    evaluated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Metadata
+    metadata_json: str = Field(default="{}", description="Ek metadata")
+
+
+class EvaluationReport(SQLModel, table=True):
+    """Değerlendirme sonuç raporları"""
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    session_id: str = Field(foreign_key="interactionsession.id", description="Hangi oturum için rapor")
+    user_id: str = Field(foreign_key="user.id", description="Raporlanan kullanıcı")
+    training_id: str = Field(foreign_key="training.id", description="Hangi eğitim")
+    
+    # Rapor içeriği
+    report_title: str = Field(description="Rapor başlığı")
+    overall_score: Optional[float] = Field(default=None, description="Genel değerlendirme puanı (0-100)")
+    summary: str = Field(description="Rapor özeti")
+    detailed_analysis: str = Field(description="Detaylı analiz")
+    recommendations: str = Field(description="Öneriler")
+    
+    # Kriter sonuçları
+    criteria_results_json: str = Field(default="{}", description="Tüm kriter sonuçları JSON olarak")
+    strengths: str = Field(default="", description="Güçlü yanlar")
+    weaknesses: str = Field(default="", description="Geliştirilmesi gereken alanlar")
+    
+    # Rapor durumu
+    status: str = Field(default="generated", description="generated|reviewed|finalized")
+    is_public: bool = Field(default=False, description="Rapor herkese açık mı")
+    
+    # Timestamps
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    reviewed_at: Optional[datetime] = Field(default=None)
+    finalized_at: Optional[datetime] = Field(default=None)
+    
+    # Metadata
+    generated_by: Optional[str] = Field(default=None, foreign_key="user.id", description="Raporu oluşturan")
+    reviewed_by: Optional[str] = Field(default=None, foreign_key="user.id", description="Raporu inceleyen")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+    metadata_json: str = Field(default="{}", description="Ek metadata")
+
+

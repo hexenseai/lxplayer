@@ -528,6 +528,9 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
         return (
           <LLMAgentPlayer
             section={currentSection}
+            sessionId={interactionSessionId || undefined}
+            trainingId={companyTraining?.training_id}
+            userId={userId}
             onComplete={async () => {
               console.log('🤖 LLM Agent section completed');
               
