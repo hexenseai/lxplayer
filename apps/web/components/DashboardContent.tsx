@@ -10,6 +10,7 @@ import UsersPage from '@/app/admin/users/page';
 import StylesPage from '@/app/admin/styles/page';
 import FrameConfigsPage from '@/app/admin/frame-configs/page';
 import AvatarsPage from '@/app/admin/avatars/page';
+import UserInteractionsPage from '@/app/admin/user-interactions/page';
 
 interface DashboardContentProps {
   activePage: string;
@@ -251,6 +252,8 @@ export function DashboardContent({ activePage, isSuperAdmin, isAdmin }: Dashboar
         return <FrameConfigsPage />;
       case 'avatars':
         return <AvatarsPage />;
+      case 'user-interactions':
+        return <UserInteractionsPage />;
       case 'usage-reports':
         return <UsageReportsPage />;
       default:

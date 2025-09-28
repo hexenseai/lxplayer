@@ -256,12 +256,20 @@ export default function AdminUsersPage() {
             }
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          Yeni Kullanıcı Ekle
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => window.location.href = '/?tab=user-interactions'}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Etkileşim Listesi
+          </button>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            Yeni Kullanıcı Ekle
+          </button>
+        </div>
       </div>
 
       {/* Create User Modal */}

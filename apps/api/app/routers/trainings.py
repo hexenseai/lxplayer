@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, select, text
+from sqlalchemy import text as sql_text
 from sqlalchemy.exc import IntegrityError
 import uuid
 import os
@@ -14,7 +15,7 @@ from datetime import datetime
 import re
 from openai import OpenAI
 from ..db import get_session
-from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar, FrameConfig, GlobalFrameConfig, Company, UserInteraction
+from ..models import Training, TrainingSection, Asset, Overlay, CompanyTraining, User, Style, Avatar, FrameConfig, GlobalFrameConfig, Company, UserInteraction, Session, TrainingProgress, ChatMessage, InteractionSession, InteractionMessage, SectionProgress
 from ..auth import hash_password, get_current_user, is_super_admin, is_admin, check_company_access
 from ..storage import get_minio
 
@@ -579,34 +580,78 @@ def delete_training(
         raise HTTPException(403, "Only admins can delete trainings")
     
     try:
-        # Delete related data first (if cascade doesn't work)
-        # Delete overlays and their user interactions
-        overlays = session.exec(select(Overlay).where(Overlay.training_id == training_id)).all()
-        for overlay in overlays:
-            # Delete user interactions that reference this overlay
-            user_interactions = session.exec(
-                select(UserInteraction).where(UserInteraction.overlay_id == overlay.id)
-            ).all()
-            for interaction in user_interactions:
-                session.delete(interaction)
-            session.delete(overlay)
+        print(f"🔍 Starting deletion of training {training_id}")
         
-        # Delete training sections
-        sections = session.exec(select(TrainingSection).where(TrainingSection.training_id == training_id)).all()
-        for section in sections:
-            session.delete(section)
+        # Use raw SQL to delete all related records in the correct order
+        # This approach is more reliable than ORM deletions for complex relationships
         
-        # Delete company trainings
-        company_trainings = session.exec(select(CompanyTraining).where(CompanyTraining.training_id == training_id)).all()
-        for ct in company_trainings:
-            session.delete(ct)
+        # 1. Delete UserInteraction records
+        result = session.execute(sql_text("DELETE FROM userinteraction WHERE training_id = :training_id"), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} user interactions")
         
-        # Delete the training
-        session.delete(training)
+        # 2. Delete ChatMessage records
+        result = session.execute(sql_text("DELETE FROM chatmessage WHERE training_id = :training_id"), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} chat messages")
+        
+        # 3. Delete InteractionMessage records (via InteractionSession)
+        result = session.execute(sql_text("""
+            DELETE FROM interactionmessage 
+            WHERE session_id IN (
+                SELECT id FROM interactionsession WHERE training_id = :training_id
+            )
+        """), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} interaction messages")
+        
+        # 4. Delete SectionProgress records (via InteractionSession)
+        result = session.execute(sql_text("""
+            DELETE FROM sectionprogress 
+            WHERE session_id IN (
+                SELECT id FROM interactionsession WHERE training_id = :training_id
+            )
+        """), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} section progress records")
+        
+        # 5. Delete InteractionSession records
+        result = session.execute(sql_text("DELETE FROM interactionsession WHERE training_id = :training_id"), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} interaction sessions")
+        
+        # 6. Delete TrainingProgress records
+        result = session.execute(sql_text("DELETE FROM trainingprogress WHERE training_id = :training_id"), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} training progress records")
+        
+        # 7. Delete Session records
+        result = session.execute(sql_text("DELETE FROM session WHERE training_id = :training_id"), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} sessions")
+        
+        # 8. Delete Overlay records (and their user interactions)
+        result = session.execute(sql_text("DELETE FROM userinteraction WHERE overlay_id IN (SELECT id FROM overlay WHERE training_id = :training_id)"), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} overlay user interactions")
+        
+        result = session.execute(sql_text("DELETE FROM overlay WHERE training_id = :training_id"), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} overlays")
+        
+        # 9. Delete TrainingSection records
+        result = session.execute(sql_text("DELETE FROM trainingsection WHERE training_id = :training_id"), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} training sections")
+        
+        # 10. Delete CompanyTraining records
+        result = session.execute(sql_text("DELETE FROM companytraining WHERE training_id = :training_id"), {"training_id": training_id})
+        print(f"🔍 Deleted {result.rowcount} company trainings")
+        
+        # 11. Finally, delete the training itself
+        result = session.execute(sql_text("DELETE FROM training WHERE id = :training_id"), {"training_id": training_id})
+        if result.rowcount == 0:
+            raise HTTPException(404, "Training not found or already deleted")
+        
         session.commit()
+        print(f"✅ Successfully deleted training {training_id}")
         return {"ok": True}
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         session.rollback()
+        print(f"❌ Error deleting training {training_id}: {str(e)}")
         raise HTTPException(500, f"Error deleting training: {str(e)}")
 
 
@@ -753,23 +798,62 @@ def delete_training_section(training_id: str, section_id: str, session: Session 
         raise HTTPException(404, "Training section not found")
     
     try:
-        # Delete related overlays and their user interactions first
+        print(f"🔍 Starting deletion of training section {section_id}")
+        
+        # 1. Delete all UserInteraction records that reference this section
+        section_user_interactions = session.exec(
+            select(UserInteraction).where(UserInteraction.section_id == section_id)
+        ).all()
+        print(f"🔍 Found {len(section_user_interactions)} user interactions to delete for section {section_id}")
+        for interaction in section_user_interactions:
+            session.delete(interaction)
+        
+        # 2. Delete all ChatMessage records that reference this section
+        section_chat_messages = session.exec(
+            select(ChatMessage).where(ChatMessage.section_id == section_id)
+        ).all()
+        print(f"🔍 Found {len(section_chat_messages)} chat messages to delete for section {section_id}")
+        for message in section_chat_messages:
+            session.delete(message)
+        
+        # 3. Delete all SectionProgress records that reference this section
+        section_progress = session.exec(
+            select(SectionProgress).where(SectionProgress.section_id == section_id)
+        ).all()
+        print(f"🔍 Found {len(section_progress)} section progress records to delete for section {section_id}")
+        for progress in section_progress:
+            session.delete(progress)
+        
+        # 4. Delete all TrainingProgress records that reference this section
+        training_progress = session.exec(
+            select(TrainingProgress).where(TrainingProgress.current_section_id == section_id)
+        ).all()
+        print(f"🔍 Found {len(training_progress)} training progress records to delete for section {section_id}")
+        for progress in training_progress:
+            session.delete(progress)
+        
+        # 5. Delete related overlays and their user interactions
         overlays = session.exec(select(Overlay).where(Overlay.training_section_id == section_id)).all()
+        print(f"🔍 Found {len(overlays)} overlays to delete for section {section_id}")
         for overlay in overlays:
             # Delete user interactions that reference this overlay
             user_interactions = session.exec(
                 select(UserInteraction).where(UserInteraction.overlay_id == overlay.id)
             ).all()
+            print(f"🔍 Found {len(user_interactions)} user interactions for overlay {overlay.id}")
             for interaction in user_interactions:
                 session.delete(interaction)
             session.delete(overlay)
         
-        # Delete the section
+        # 6. Delete the section itself
+        print(f"🔍 Deleting training section {section_id}")
         session.delete(section)
         session.commit()
+        print(f"✅ Successfully deleted training section {section_id}")
         return {"ok": True}
     except Exception as e:
         session.rollback()
+        print(f"❌ Error deleting training section {section_id}: {str(e)}")
         raise HTTPException(500, f"Error deleting training section: {str(e)}")
 
 
@@ -872,6 +956,15 @@ def list_section_overlays(training_id: str, section_id: str, session: Session = 
         .where(Overlay.training_section_id == section_id)
         .order_by(Overlay.time_stamp)
     ).all()
+    
+    # Debug: Check for duplicates
+    print(f"🔍 DEBUG: Found {len(overlays)} overlays for section {section_id}")
+    overlay_counts = {}
+    for overlay in overlays:
+        key = f"{overlay.time_stamp}_{overlay.type}_{overlay.content_id}_{overlay.caption}"
+        overlay_counts[key] = overlay_counts.get(key, 0) + 1
+        if overlay_counts[key] > 1:
+            print(f"🔍 WARNING: Duplicate overlay found: {key} (count: {overlay_counts[key]})")
     
     # Include content asset information for each overlay
     result = []
@@ -1057,21 +1150,89 @@ def delete_section_overlay(training_id: str, section_id: str, overlay_id: str, s
         raise HTTPException(404, "Overlay not found")
     
     try:
-        # First, delete all UserInteraction records that reference this overlay
-        user_interactions = session.exec(
-            select(UserInteraction).where(UserInteraction.overlay_id == overlay_id)
-        ).all()
+        print(f"🔍 Starting deletion of overlay {overlay_id}")
         
-        for interaction in user_interactions:
-            session.delete(interaction)
+        # Use raw SQL to delete UserInteraction records that reference this overlay
+        # This bypasses any ORM-level issues
+        result = session.execute(sql_text("DELETE FROM userinteraction WHERE overlay_id = :overlay_id"), {"overlay_id": overlay_id})
+        deleted_interactions = result.rowcount
+        print(f"🔍 Deleted {deleted_interactions} user interactions for overlay {overlay_id}")
         
-        # Then delete the overlay
-        session.delete(overlay)
+        # Now delete the overlay using raw SQL as well
+        result = session.execute(sql_text("DELETE FROM overlay WHERE id = :overlay_id"), {"overlay_id": overlay_id})
+        deleted_overlays = result.rowcount
+        
+        if deleted_overlays == 0:
+            raise HTTPException(404, "Overlay not found or already deleted")
+        
         session.commit()
+        print(f"✅ Successfully deleted overlay {overlay_id}")
         return {"ok": True}
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         session.rollback()
+        print(f"❌ Error deleting overlay {overlay_id}: {str(e)}")
         raise HTTPException(500, f"Error deleting overlay: {str(e)}")
+
+
+@router.post("/{training_id}/sections/{section_id}/overlays/cleanup-duplicates", operation_id="cleanup_duplicate_overlays")
+def cleanup_duplicate_overlays(training_id: str, section_id: str, session: Session = Depends(get_session)):
+    """Clean up duplicate overlays in a section"""
+    # Verify training exists
+    training = session.get(Training, training_id)
+    if not training:
+        raise HTTPException(404, "Training not found")
+    
+    # Verify section exists and belongs to training
+    section = session.get(TrainingSection, section_id)
+    if not section or section.training_id != training_id:
+        raise HTTPException(404, "Training section not found")
+    
+    try:
+        # Get all overlays for this section
+        overlays = session.exec(
+            select(Overlay)
+            .where(Overlay.training_section_id == section_id)
+            .order_by(Overlay.time_stamp)
+        ).all()
+        
+        # Group overlays by their key characteristics
+        overlay_groups = {}
+        for overlay in overlays:
+            key = f"{overlay.time_stamp}_{overlay.type}_{overlay.content_id}_{overlay.caption}_{overlay.position}_{overlay.animation}"
+            if key not in overlay_groups:
+                overlay_groups[key] = []
+            overlay_groups[key].append(overlay)
+        
+        # Remove duplicates (keep the first one, delete the rest)
+        deleted_count = 0
+        for key, group in overlay_groups.items():
+            if len(group) > 1:
+                print(f"🔍 Found {len(group)} duplicate overlays for key: {key}")
+                # Keep the first one, delete the rest
+                for overlay in group[1:]:
+                    # Delete user interactions that reference this overlay
+                    user_interactions = session.exec(
+                        select(UserInteraction).where(UserInteraction.overlay_id == overlay.id)
+                    ).all()
+                    for interaction in user_interactions:
+                        session.delete(interaction)
+                    session.delete(overlay)
+                    deleted_count += 1
+        
+        session.commit()
+        
+        return {
+            "message": f"Cleanup completed. Removed {deleted_count} duplicate overlays.",
+            "deleted_count": deleted_count,
+            "remaining_count": len(overlays) - deleted_count
+        }
+        
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(500, f"Error cleaning up duplicates: {str(e)}")
 
 
 # Transcript generation endpoint

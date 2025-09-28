@@ -1049,4 +1049,151 @@ export const api = {
       })
     })
   ),
+
+  // ===== USER INTERACTIONS API =====
+
+  getUserInteractions: (params?: {
+    user_id?: string;
+    training_id?: string;
+    session_id?: string;
+    interaction_type?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.user_id) searchParams.append('user_id', params.user_id);
+    if (params?.training_id) searchParams.append('training_id', params.training_id);
+    if (params?.session_id) searchParams.append('session_id', params.session_id);
+    if (params?.interaction_type) searchParams.append('interaction_type', params.interaction_type);
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.offset) searchParams.append('offset', params.offset.toString());
+    
+    const queryString = searchParams.toString();
+    const url = `/user-interactions/${queryString ? `?${queryString}` : ''}`;
+    
+    return request(url, z.array(z.object({
+      id: z.string(),
+      user_id: z.string().nullable().optional(),
+      training_id: z.string(),
+      session_id: z.string(),
+      company_id: z.string().nullable().optional(),
+      timestamp: z.string(),
+      interaction_type: z.string(),
+      section_id: z.string().nullable().optional(),
+      overlay_id: z.string().nullable().optional(),
+      video_time: z.number().nullable().optional(),
+      duration: z.number().nullable().optional(),
+      content: z.string().nullable().optional(),
+      interaction_metadata: z.string(),
+      response_time: z.number().nullable().optional(),
+      success: z.boolean(),
+      user: z.object({
+        id: z.string(),
+        email: z.string(),
+        username: z.string().nullable().optional(),
+        full_name: z.string().nullable().optional()
+      }).nullable().optional(),
+      training: z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string().nullable().optional()
+      }).nullable().optional(),
+      session: z.object({
+        id: z.string(),
+        started_at: z.string(),
+        ended_at: z.string().nullable().optional(),
+        status: z.string()
+      }).nullable().optional(),
+      section: z.object({
+        id: z.string(),
+        title: z.string(),
+        order_index: z.number()
+      }).nullable().optional(),
+      overlay: z.object({
+        id: z.string(),
+        type: z.string(),
+        caption: z.string().nullable().optional(),
+        time_stamp: z.number()
+      }).nullable().optional(),
+      company: z.object({
+        id: z.string(),
+        name: z.string()
+      }).nullable().optional()
+    })));
+  },
+
+  getTrainingInteractionSummary: (trainingId: string) => request(
+    `/user-interactions/training-summary/${trainingId}`,
+    z.object({
+      training: z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string().nullable().optional()
+      }),
+      summary: z.object({
+        total_interactions: z.number(),
+        unique_users: z.number(),
+        unique_sessions: z.number(),
+        average_response_time: z.number(),
+        success_percentage: z.number()
+      }),
+      interaction_types: z.array(z.object({
+        type: z.string(),
+        count: z.number()
+      }))
+    })
+  ),
+
+  getSessionInteractionSummary: (sessionId: string) => request(
+    `/user-interactions/session-summary/${sessionId}`,
+    z.object({
+      session: z.object({
+        id: z.string(),
+        user_id: z.string().nullable().optional(),
+        training_id: z.string(),
+        started_at: z.string(),
+        ended_at: z.string().nullable().optional(),
+        status: z.string(),
+        total_duration: z.number().nullable().optional(),
+        completion_percentage: z.number().nullable().optional()
+      }),
+      summary: z.object({
+        total_interactions: z.number(),
+        average_response_time: z.number(),
+        success_percentage: z.number()
+      }),
+      interaction_types: z.array(z.object({
+        type: z.string(),
+        count: z.number()
+      }))
+    })
+  ),
+
+  getUserTrainingInteractions: (userId: string) => request(
+    `/user-interactions/user/${userId}/trainings`,
+    z.array(z.object({
+      training_id: z.string(),
+      training: z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string().nullable().optional()
+      }).nullable().optional(),
+      sessions: z.record(z.string(), z.object({
+        session_id: z.string(),
+        session: z.object({
+          id: z.string(),
+          started_at: z.string(),
+          ended_at: z.string().nullable().optional(),
+          status: z.string(),
+          total_duration: z.number().nullable().optional(),
+          completion_percentage: z.number().nullable().optional()
+        }).nullable().optional(),
+        interactions: z.array(z.any()),
+        interaction_count: z.number()
+      })),
+      total_interactions: z.number(),
+      first_interaction: z.string().nullable().optional(),
+      last_interaction: z.string().nullable().optional()
+    }))
+  ),
 };
