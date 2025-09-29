@@ -7,6 +7,7 @@ import { type ActionPayload, type ActionResponse } from '@/lib/training-llm';
 
 interface LLMAgentPlayerProps {
   section: TrainingSection;
+  trainingAvatar?: any;
   onComplete: () => void;
   onNavigateNext: () => void;
   onNavigatePrevious: () => void;
@@ -18,7 +19,7 @@ interface LLMAgentPlayerProps {
 
 type ViewState = 'loading' | 'voice-chat' | 'error';
 
-export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigatePrevious, onLLMAction, sessionId, trainingId, userId }: LLMAgentPlayerProps) {
+export function LLMAgentPlayer({ section, trainingAvatar, onComplete, onNavigateNext, onNavigatePrevious, onLLMAction, sessionId, trainingId, userId }: LLMAgentPlayerProps) {
   
   // Sadece llm_agent section'lar için çalış
   if (section.type !== 'llm_agent') {
@@ -56,6 +57,10 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
   console.log('🎭 LLMAgentPlayer rendered for section:', section.title);
   console.log('🤖 Section agent_id:', section.agent_id);
   console.log('🤖 Using agentId:', agentId);
+  console.log('👤 Section avatar:', section.avatar);
+  console.log('👤 Training avatar:', trainingAvatar);
+  console.log('🖼️ Training avatar image_url:', trainingAvatar?.image_url);
+  console.log('🖼️ Training avatar name:', trainingAvatar?.name);
 
   // Check microphone permissions
   const checkMicrophonePermission = async () => {
@@ -476,30 +481,6 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6">
-              {/* Avatar Display */}
-              <div className="flex-shrink-0">
-                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden shadow-lg border-2 border-white/20">
-                  {section.avatar?.image_url ? (
-                    <img 
-                      src={section.avatar.image_url} 
-                      alt={section.avatar.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Fallback to initials if image fails to load
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const parent = target.parentElement;
-                        if (parent) {
-                          parent.innerHTML = section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase();
-                        }
-                      }}
-                    />
-                  ) : (
-                    section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
-                  )}
-                </div>
-              </div>
-              
               {/* Section Info */}
               <div className="flex-1">
                 <h2 
@@ -553,6 +534,49 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
         
         <div className="flex-1 overflow-hidden bg-slate-900">
           <div className="flex-1 flex flex-col items-center justify-center p-8 bg-gradient-to-br from-blue-50 to-indigo-100">
+            {/* Agent Avatar and Persona Display */}
+            <div className="flex flex-col items-center mb-8">
+              <div className="w-32 h-32 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-3xl font-bold relative overflow-hidden shadow-xl border-4 border-white/30 mb-4">
+                {trainingAvatar?.image_url ? (
+                  <img 
+                    src={trainingAvatar.image_url} 
+                    alt={trainingAvatar.name}
+                    className="w-full h-full object-cover"
+                    onLoad={() => console.log('✅ Avatar image loaded successfully:', trainingAvatar.image_url)}
+                    onError={(e) => {
+                      console.log('❌ Avatar image failed to load:', trainingAvatar.image_url);
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        parent.innerHTML = trainingAvatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase();
+                      }
+                    }}
+                  />
+                ) : (
+                  trainingAvatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
+                )}
+              </div>
+              <div className="text-center">
+                <h3 className="text-2xl font-bold text-gray-800 mb-2">
+                  {trainingAvatar?.name || 'AI Agent'}
+                </h3>
+                {trainingAvatar?.personality && (
+                  <div className="bg-white/80 backdrop-blur-sm rounded-lg p-4 max-w-md shadow-lg border border-white/50 mb-3 max-h-32 overflow-y-auto">
+                    <p className="text-sm text-gray-700 font-medium mb-2">Kişilik:</p>
+                    <p className="text-gray-600 leading-relaxed">{trainingAvatar.personality}</p>
+                  </div>
+                )}
+                {!trainingAvatar && (
+                  <div className="bg-white/60 backdrop-blur-sm rounded-lg p-3 max-w-md shadow-lg border border-white/30">
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      Bu eğitim bölümü için AI agent ile sesli sohbet edebilirsiniz.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Connection Status */}
             <div className="flex items-center justify-center space-x-2 mb-8">
               <div className={`w-3 h-3 rounded-full ${getStatusColor(getConnectionStatus())}`}></div>
@@ -567,7 +591,6 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
             <div className="text-center">
               {!isConnected ? (
                 <div className="text-gray-500">
-                  <Bot className="w-16 h-16 mx-auto mb-4 opacity-50" />
                   <p className="text-lg mb-2">ElevenLabs Agent bağlanıyor...</p>
                   <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                 </div>
@@ -588,7 +611,6 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
                 </div>
               ) : (
                 <div className="text-blue-600">
-                  <Bot className="w-16 h-16 mx-auto mb-4" />
                   <p className="text-lg font-medium mb-2">Hazır</p>
                   <p className="text-sm">Kaydet butonuna basın ve konuşmaya başlayın</p>
                 </div>
@@ -633,10 +655,7 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
             {/* Help Text */}
             <div className="text-xs text-gray-500 text-center max-w-md">
               <p>
-                🎤 Bu eğitim bölümü hakkında agent ile sesli sohbet edin.
-              </p>
-              <p className="mt-1">
-                🤖 Agent size bu konuda yardımcı olacak ve sorularınızı yanıtlayacak.
+                🎤 Agent ile sesli sohbet edin ve sorularınızı sorun.
               </p>
             </div>
             </div>

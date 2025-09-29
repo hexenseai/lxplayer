@@ -528,6 +528,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
         return (
           <LLMAgentPlayer
             section={currentSection}
+            trainingAvatar={trainingAvatar}
             sessionId={interactionSessionId || undefined}
             trainingId={companyTraining?.training_id}
             userId={userId}

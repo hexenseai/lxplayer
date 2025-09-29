@@ -371,6 +371,11 @@ export function LLMInteractionPlayer({
                {section.avatar && (
                  <div className="text-sm text-slate-300 mt-1">
                    <span className="font-medium">{section.avatar.name}</span>
+                   {section.avatar.personality && (
+                     <span className="ml-2 px-2 py-1 text-xs bg-blue-600/20 text-blue-300 rounded-full border border-blue-500/30">
+                       {section.avatar.personality}
+                     </span>
+                   )}
                  </div>
                )}
              </div>
