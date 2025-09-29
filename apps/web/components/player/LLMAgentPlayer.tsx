@@ -157,6 +157,10 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
   const handleEndSession = async () => {
     try {
       await stopConversation();
+      
+      // Show evaluation results if available
+      // Note: This will be handled by the conversation session save
+      
       onComplete();
     } catch (err) {
       console.error('Error ending voice chat session:', err);
@@ -218,17 +222,26 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
   if (viewState === 'loading') {
     return (
       <div className="w-full h-full max-w-7xl mx-auto flex flex-col">
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-4">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               {/* Avatar Display */}
               <div className="flex-shrink-0">
-                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden">
+                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden shadow-lg border-2 border-white/20">
                   {section.avatar?.image_url ? (
                     <img 
                       src={section.avatar.image_url} 
                       alt={section.avatar.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Fallback to initials if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase();
+                        }
+                      }}
                     />
                   ) : (
                     section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
@@ -245,34 +258,43 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
                   {section.title}
                 </h2>
                 {section.avatar && (
-                  <div className="text-sm text-slate-300 mt-1">
-                    <span className="font-medium">{section.avatar.name}</span>
-                    {section.avatar.personality && (
-                      <span className="text-slate-400 ml-2">• {section.avatar.personality}</span>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-200">{section.avatar.name}</span>
+                      {section.avatar.personality && (
+                        <span className="px-2 py-1 text-xs bg-blue-600/20 text-blue-300 rounded-full border border-blue-500/30">
+                          {section.avatar.personality}
+                        </span>
+                      )}
+                    </div>
+                    {section.avatar.description && (
+                      <p className="text-xs text-slate-400 max-w-md">
+                        {section.avatar.description}
+                      </p>
                     )}
                   </div>
                 )}
                 {section.description && (
-                  <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+                  <p className="text-sm text-slate-400 mt-2 max-w-2xl leading-relaxed">
                     {section.description}
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
               <button
                 onClick={onNavigatePrevious}
-                className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all duration-200 hover:shadow-md"
               >
-                <ArrowLeft className="w-3 h-3" />
+                <ArrowLeft className="w-4 h-4" />
                 <span>Önceki</span>
               </button>
               <button
                 onClick={onComplete}
-                className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all duration-200 hover:shadow-md"
               >
                 <span>Atla</span>
-                <ArrowRight className="w-3 h-3" />
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -327,17 +349,26 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
   if (viewState === 'error') {
     return (
       <div className="w-full h-full max-w-7xl mx-auto flex flex-col">
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-4">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               {/* Avatar Display */}
               <div className="flex-shrink-0">
-                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden">
+                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden shadow-lg border-2 border-white/20">
                   {section.avatar?.image_url ? (
                     <img 
                       src={section.avatar.image_url} 
                       alt={section.avatar.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Fallback to initials if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase();
+                        }
+                      }}
                     />
                   ) : (
                     section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
@@ -354,34 +385,43 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
                   {section.title}
                 </h2>
                 {section.avatar && (
-                  <div className="text-sm text-slate-300 mt-1">
-                    <span className="font-medium">{section.avatar.name}</span>
-                    {section.avatar.personality && (
-                      <span className="text-slate-400 ml-2">• {section.avatar.personality}</span>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-200">{section.avatar.name}</span>
+                      {section.avatar.personality && (
+                        <span className="px-2 py-1 text-xs bg-blue-600/20 text-blue-300 rounded-full border border-blue-500/30">
+                          {section.avatar.personality}
+                        </span>
+                      )}
+                    </div>
+                    {section.avatar.description && (
+                      <p className="text-xs text-slate-400 max-w-md">
+                        {section.avatar.description}
+                      </p>
                     )}
                   </div>
                 )}
                 {section.description && (
-                  <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+                  <p className="text-sm text-slate-400 mt-2 max-w-2xl leading-relaxed">
                     {section.description}
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
               <button
                 onClick={onNavigatePrevious}
-                className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all duration-200 hover:shadow-md"
               >
-                <ArrowLeft className="w-3 h-3" />
+                <ArrowLeft className="w-4 h-4" />
                 <span>Önceki</span>
               </button>
               <button
                 onClick={onComplete}
-                className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all duration-200 hover:shadow-md"
               >
                 <span>Atla</span>
-                <ArrowRight className="w-3 h-3" />
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -433,17 +473,26 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
   if (viewState === 'voice-chat') {
     return (
       <div className="w-full h-full max-w-7xl mx-auto flex flex-col">
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-4">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 p-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               {/* Avatar Display */}
               <div className="flex-shrink-0">
-                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden">
+                <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden shadow-lg border-2 border-white/20">
                   {section.avatar?.image_url ? (
                     <img 
                       src={section.avatar.image_url} 
                       alt={section.avatar.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Fallback to initials if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase();
+                        }
+                      }}
                     />
                   ) : (
                     section.avatar?.name?.charAt(0).toUpperCase() || section.title.charAt(0).toUpperCase()
@@ -460,34 +509,43 @@ export function LLMAgentPlayer({ section, onComplete, onNavigateNext, onNavigate
                   {section.title}
                 </h2>
                 {section.avatar && (
-                  <div className="text-sm text-slate-300 mt-1">
-                    <span className="font-medium">{section.avatar.name}</span>
-                    {section.avatar.personality && (
-                      <span className="text-slate-400 ml-2">• {section.avatar.personality}</span>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-200">{section.avatar.name}</span>
+                      {section.avatar.personality && (
+                        <span className="px-2 py-1 text-xs bg-blue-600/20 text-blue-300 rounded-full border border-blue-500/30">
+                          {section.avatar.personality}
+                        </span>
+                      )}
+                    </div>
+                    {section.avatar.description && (
+                      <p className="text-xs text-slate-400 max-w-md">
+                        {section.avatar.description}
+                      </p>
                     )}
                   </div>
                 )}
                 {section.description && (
-                  <p className="text-sm text-slate-400 mt-1 max-w-2xl">
+                  <p className="text-sm text-slate-400 mt-2 max-w-2xl leading-relaxed">
                     {section.description}
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
               <button
                 onClick={onNavigatePrevious}
-                className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all duration-200 hover:shadow-md"
               >
-                <ArrowLeft className="w-3 h-3" />
+                <ArrowLeft className="w-4 h-4" />
                 <span>Önceki</span>
               </button>
               <button
                 onClick={onNavigateNext}
-                className="flex items-center space-x-1 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded border border-slate-600 transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-all duration-200 hover:shadow-md"
               >
                 <span>Sonraki</span>
-                <ArrowRight className="w-3 h-3" />
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>

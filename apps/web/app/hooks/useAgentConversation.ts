@@ -28,6 +28,15 @@ interface ConversationSession {
   agentId?: string;
   startTime?: number;
   messages: ConversationMessage[];
+  evaluationResults?: EvaluationResult[];
+}
+
+interface EvaluationResult {
+  criteria_id: string;
+  criteria_title: string;
+  result: 'successful' | 'unsuccessful' | 'unknown';
+  score?: number;
+  explanation?: string;
 }
 
 export const useAgentConversation = () => {
@@ -39,7 +48,8 @@ export const useAgentConversation = () => {
   
   // Conversation logging state
   const conversationRef = useRef<ConversationSession>({
-    messages: []
+    messages: [],
+    evaluationResults: []
   });
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   
@@ -553,6 +563,84 @@ export const useAgentConversation = () => {
     }
   }, []);
 
+  const saveEvaluationResults = useCallback(async () => {
+    if (!conversationRef.current.sessionId || !conversationRef.current.evaluationResults?.length) {
+      console.warn('⚠️ No session or evaluation results to save');
+      return;
+    }
+
+    try {
+      const evaluationResults = conversationRef.current.evaluationResults;
+      const savedResults = [];
+
+      // Save each evaluation result
+      for (const result of evaluationResults) {
+        const resultData = {
+          criteria_id: result.criteria_id,
+          session_id: conversationRef.current.sessionId!,
+          user_id: '', // Will be filled from session
+          training_id: conversationRef.current.trainingId!,
+          evaluation_score: result.score,
+          evaluation_result: result.result,
+          explanation: result.explanation || `Agent evaluation: ${result.result}`,
+          section_id: conversationRef.current.sectionId,
+          user_interactions_json: JSON.stringify(conversationRef.current.messages),
+          context_data_json: JSON.stringify({
+            agent_id: conversationRef.current.agentId,
+            conversation_type: 'voice_chat',
+            criteria_title: result.criteria_title
+          }),
+          metadata_json: JSON.stringify({
+            source: 'elevenlabs_agent',
+            conversation_duration: Date.now() - (conversationRef.current.startTime || Date.now())
+          })
+        };
+
+        const savedResult = await api.createEvaluationResult(resultData);
+        savedResults.push(savedResult);
+        console.log('💾 Evaluation result saved:', result.criteria_title, result.result);
+      }
+
+      // Create evaluation report
+      const successfulCount = evaluationResults.filter(r => r.result === 'successful').length;
+      const unsuccessfulCount = evaluationResults.filter(r => r.result === 'unsuccessful').length;
+      const unknownCount = evaluationResults.filter(r => r.result === 'unknown').length;
+      const totalCount = evaluationResults.length;
+      
+      const overallScore = totalCount > 0 ? (successfulCount / totalCount) * 100 : 0;
+
+      const reportData = {
+        session_id: conversationRef.current.sessionId!,
+        user_id: '', // Will be filled from session
+        training_id: conversationRef.current.trainingId!,
+        report_title: `Agent Conversation Evaluation - ${new Date().toLocaleDateString()}`,
+        overall_score: overallScore,
+        summary: `Agent conversation completed with ${successfulCount} successful, ${unsuccessfulCount} unsuccessful, and ${unknownCount} unknown criteria evaluations.`,
+        detailed_analysis: `Total criteria evaluated: ${totalCount}. Success rate: ${overallScore.toFixed(1)}%.`,
+        recommendations: successfulCount === totalCount 
+          ? 'Excellent performance! Continue with current approach.'
+          : unsuccessfulCount > 0 
+            ? 'Review unsuccessful criteria and provide additional training.'
+            : 'Some criteria could not be evaluated. Consider providing more context.',
+        criteria_results_json: JSON.stringify(evaluationResults),
+        strengths: evaluationResults.filter(r => r.result === 'successful').map(r => r.criteria_title).join(', '),
+        weaknesses: evaluationResults.filter(r => r.result === 'unsuccessful').map(r => r.criteria_title).join(', '),
+        metadata_json: JSON.stringify({
+          source: 'elevenlabs_agent',
+          agent_id: conversationRef.current.agentId,
+          conversation_duration: Date.now() - (conversationRef.current.startTime || Date.now()),
+          total_messages: conversationRef.current.messages.length
+        })
+      };
+
+      await api.createEvaluationReport(reportData);
+      console.log('💾 Evaluation report created with overall score:', overallScore.toFixed(1) + '%');
+
+    } catch (error) {
+      console.error('❌ Failed to save evaluation results:', error);
+    }
+  }, []);
+
   const saveConversationSession = useCallback(async () => {
     if (!conversationRef.current.sessionId || conversationRef.current.messages.length === 0) {
       console.warn('⚠️ No session or messages to save');
@@ -570,22 +658,29 @@ export const useAgentConversation = () => {
           user_messages: conversationRef.current.messages.filter(m => m.type === 'user').length,
           agent_messages: conversationRef.current.messages.filter(m => m.type === 'agent').length,
           conversation_duration: Date.now() - (conversationRef.current.startTime || Date.now()),
-          full_conversation: conversationRef.current.messages
+          full_conversation: conversationRef.current.messages,
+          evaluation_results: conversationRef.current.evaluationResults
         }),
         interaction_metadata: JSON.stringify({
           conversation_type: 'voice_chat',
           agent_id: conversationRef.current.agentId,
-          message_count: conversationRef.current.messages.length
+          message_count: conversationRef.current.messages.length,
+          has_evaluation_results: !!conversationRef.current.evaluationResults?.length
         }),
         success: true
       };
 
       await api.createInteraction(conversationData);
       console.log('💾 Complete conversation session saved');
+
+      // Save evaluation results if available
+      if (conversationRef.current.evaluationResults?.length) {
+        await saveEvaluationResults();
+      }
     } catch (error) {
       console.error('❌ Failed to save conversation session:', error);
     }
-  }, []);
+  }, [saveEvaluationResults]);
 
   const initializeConversationSession = useCallback((
     sessionId: string,
@@ -599,7 +694,8 @@ export const useAgentConversation = () => {
       trainingId,
       agentId,
       startTime: Date.now(),
-      messages: []
+      messages: [],
+      evaluationResults: []
     };
     console.log('🎯 Conversation session initialized:', { sessionId, sectionId, agentId });
   }, []);
@@ -698,6 +794,20 @@ export const useAgentConversation = () => {
         
         if (data.type === "interruption") {
           console.log("⚠️ Interruption:", data.interruption_event.reason);
+        }
+        
+        if (data.type === "evaluation_results") {
+          const { evaluation_results_event } = data;
+          console.log("📊 Evaluation results received:", evaluation_results_event);
+          
+          // Parse evaluation results from ElevenLabs
+          try {
+            const results: EvaluationResult[] = evaluation_results_event.results || [];
+            conversationRef.current.evaluationResults = results;
+            console.log("✅ Evaluation results stored:", results);
+          } catch (error) {
+            console.error("❌ Error parsing evaluation results:", error);
+          }
         }
         
         if (data.type === "audio") {

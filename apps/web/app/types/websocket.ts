@@ -47,13 +47,27 @@ type PingEvent = BaseEvent & {
   };
 };
 
+type EvaluationResultsEvent = BaseEvent & {
+  type: "evaluation_results";
+  evaluation_results_event: {
+    results: Array<{
+      criteria_id: string;
+      criteria_title: string;
+      result: 'successful' | 'unsuccessful' | 'unknown';
+      score?: number;
+      explanation?: string;
+    }>;
+  };
+};
+
 export type ElevenLabsWebSocketEvent = 
   | UserTranscriptEvent
   | AgentResponseEvent
   | AgentResponseCorrectionEvent
   | AudioResponseEvent
   | InterruptionEvent
-  | PingEvent;
+  | PingEvent
+  | EvaluationResultsEvent;
 
 export type WebSocketMessage = {
   user_audio_chunk?: string;

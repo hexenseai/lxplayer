@@ -262,7 +262,7 @@ def duplicate_evaluation_criteria(
     return duplicate_criteria
 
 
-@router.get("/training/{training_id}/sections", response_model=List[dict])
+@router.get("/training/{training_id}/sections/", response_model=List[dict])
 def get_training_sections_for_criteria(
     training_id: str,
     session: Session = Depends(get_session),

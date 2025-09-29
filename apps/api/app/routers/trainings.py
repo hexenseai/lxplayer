@@ -716,10 +716,31 @@ def get_training_section(training_id: str, section_id: str, session: Session = D
         raise HTTPException(404, "Training section not found")
     
     result = section.model_dump()
+    
+    # Add asset information
     if section.asset_id:
         asset = session.get(Asset, section.asset_id)
         if asset:
             result["asset"] = asset.model_dump()
+    
+    # Add avatar information for LLM sections (always add if training has avatar)
+    if training.avatar_id and (section.type == 'llm_interaction' or section.type == 'llm_agent'):
+        print(f"🔍 Adding avatar for section {section.id} (type: {section.type}), training avatar_id: {training.avatar_id}")
+        avatar = session.get(Avatar, training.avatar_id)
+        if avatar:
+            print(f"✅ Avatar found: {avatar.name}")
+            result["avatar"] = avatar.model_dump()
+        else:
+            print(f"❌ Avatar not found for ID: {training.avatar_id}")
+    else:
+        print(f"🔍 Skipping avatar for section {section.id} - training.avatar_id: {training.avatar_id}, section.type: {section.type}")
+    
+    # Add overlay count for video sections
+    if section.type == 'video':
+        overlay_count = session.exec(
+            select(Overlay).where(Overlay.training_section_id == section.id)
+        ).all()
+        result["overlay_count"] = len(overlay_count)
     
     return result
 

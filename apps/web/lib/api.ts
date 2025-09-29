@@ -1728,4 +1728,28 @@ export const api = {
     }));
   },
 
+  // Agent Conversation Evaluation Results
+  createEvaluationResult: (resultData: {
+    criteria_id: string;
+    session_id: string;
+    user_id: string;
+    training_id: string;
+    evaluation_score?: number;
+    evaluation_result: string;
+    explanation: string;
+    section_id?: string;
+    user_interactions_json: string;
+    context_data_json: string;
+    metadata_json?: string;
+  }) => {
+    return request('/evaluation-results/', z.object({
+      id: z.string(),
+      message: z.string()
+    }), {
+      method: 'POST',
+      body: JSON.stringify(resultData)
+    });
+  },
+
+
 };
