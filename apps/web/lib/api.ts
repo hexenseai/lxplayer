@@ -1299,7 +1299,7 @@ export const api = {
     if (params?.section_id) queryString.append('section_id', params.section_id);
     if (params?.is_active !== undefined) queryString.append('is_active', params.is_active.toString());
     
-    const url = `/evaluation-criteria${queryString.toString() ? `?${queryString}` : ''}`;
+    const url = `/evaluation-criteria/${queryString.toString() ? `?${queryString}` : ''}`;
     return request(url, z.array(z.object({
       id: z.string(),
       training_id: z.string(),
@@ -1320,7 +1320,7 @@ export const api = {
   },
 
   getEvaluationCriteriaById: (criteriaId: string) => {
-    return request(`/evaluation-criteria/${criteriaId}`, z.object({
+    return request(`/evaluation-criteria/${criteriaId}/`, z.object({
       id: z.string(),
       training_id: z.string(),
       title: z.string(),
@@ -1351,7 +1351,7 @@ export const api = {
     order_index: number;
     is_active: boolean;
   }) => {
-    return request('/evaluation-criteria', z.object({
+    return request('/evaluation-criteria/', z.object({
       id: z.string(),
       training_id: z.string(),
       title: z.string(),
@@ -1384,7 +1384,7 @@ export const api = {
     order_index?: number;
     is_active?: boolean;
   }) => {
-    return request(`/evaluation-criteria/${criteriaId}`, z.object({
+    return request(`/evaluation-criteria/${criteriaId}/`, z.object({
       id: z.string(),
       training_id: z.string(),
       title: z.string(),
@@ -1407,7 +1407,7 @@ export const api = {
   },
 
   deleteEvaluationCriteria: (criteriaId: string) => {
-    return request(`/evaluation-criteria/${criteriaId}`, z.object({
+    return request(`/evaluation-criteria/${criteriaId}/`, z.object({
       message: z.string()
     }), {
       method: 'DELETE'
@@ -1415,7 +1415,7 @@ export const api = {
   },
 
   duplicateEvaluationCriteria: (criteriaId: string) => {
-    return request(`/evaluation-criteria/${criteriaId}/duplicate`, z.object({
+    return request(`/evaluation-criteria/${criteriaId}/duplicate/`, z.object({
       id: z.string(),
       training_id: z.string(),
       title: z.string(),
@@ -1437,7 +1437,7 @@ export const api = {
   },
 
   getTrainingSectionsForCriteria: (trainingId: string) => {
-    return request(`/evaluation-criteria/training/${trainingId}/sections`, z.array(z.object({
+    return request(`/evaluation-criteria/training/${trainingId}/sections/`, z.array(z.object({
       id: z.string(),
       title: z.string(),
       description: z.string().nullable().optional(),
