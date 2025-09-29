@@ -48,7 +48,7 @@ def get_evaluation_criteria(
     return criteria
 
 
-@router.get("/{criteria_id}", response_model=EvaluationCriteriaResponse)
+@router.get("/{criteria_id}/", response_model=EvaluationCriteriaResponse)
 def get_evaluation_criteria_by_id(
     criteria_id: str,
     session: Session = Depends(get_session),
@@ -125,7 +125,7 @@ def create_evaluation_criteria(
     return criteria
 
 
-@router.put("/{criteria_id}", response_model=EvaluationCriteriaResponse)
+@router.put("/{criteria_id}/", response_model=EvaluationCriteriaResponse)
 def update_evaluation_criteria(
     criteria_id: str,
     criteria_data: EvaluationCriteriaUpdate,
@@ -183,7 +183,7 @@ def update_evaluation_criteria(
     return criteria
 
 
-@router.delete("/{criteria_id}")
+@router.delete("/{criteria_id}/")
 def delete_evaluation_criteria(
     criteria_id: str,
     session: Session = Depends(get_session),
@@ -217,7 +217,7 @@ def delete_evaluation_criteria(
     return {"message": "Değerlendirme kriteri başarıyla silindi"}
 
 
-@router.post("/{criteria_id}/duplicate", response_model=EvaluationCriteriaResponse)
+@router.post("/{criteria_id}/duplicate/", response_model=EvaluationCriteriaResponse)
 def duplicate_evaluation_criteria(
     criteria_id: str,
     session: Session = Depends(get_session),
