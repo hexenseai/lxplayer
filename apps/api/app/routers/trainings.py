@@ -116,22 +116,36 @@ def list_system_trainings(
     current_user: User = Depends(get_current_user)
 ):
     """LXPlayer sistem eğitimlerini listele (sadece admin'ler için)"""
-    print(f"DEBUG: list_system_trainings called by user: {current_user.email}")
-    print(f"DEBUG: is_admin: {is_admin(current_user)}, is_super_admin: {is_super_admin(current_user)}")
+    print(f"🔍 DEBUG: list_system_trainings called by user: {current_user.email}")
+    print(f"🔍 DEBUG: is_admin: {is_admin(current_user)}, is_super_admin: {is_super_admin(current_user)}")
     
     if not is_admin(current_user) and not is_super_admin(current_user):
-        print("DEBUG: Access denied - user is not admin or super admin")
+        print("❌ DEBUG: Access denied - user is not admin or super admin")
         raise HTTPException(403, "Access denied")
     
-    # Sistem eğitimlerini al (company_id null olanlar)
+    # Sistem eğitimlerini al (company_id null olanlar + SuperAdmin'in oluşturduğu eğitimler)
     try:
-        trainings = session.exec(
-            select(Training).where(Training.company_id.is_(None))
-        ).all()
-        print(f"DEBUG: Found {len(trainings)} system trainings")
+        if is_super_admin(current_user):
+            # SuperAdmin için: company_id null olanlar + kendi oluşturduğu eğitimler
+            trainings = session.exec(
+                select(Training).where(
+                    (Training.company_id.is_(None)) | 
+                    (Training.created_by == current_user.id)
+                )
+            ).all()
+            print(f"✅ DEBUG: Found {len(trainings)} trainings for SuperAdmin (system + own)")
+        else:
+            # Normal admin için: sadece company_id null olanlar
+            trainings = session.exec(
+                select(Training).where(Training.company_id.is_(None))
+            ).all()
+            print(f"✅ DEBUG: Found {len(trainings)} system trainings for Admin")
+        
+        for training in trainings:
+            print(f"  - {training.id}: {training.title} (company_id: {training.company_id}, created_by: {training.created_by})")
         return trainings
     except Exception as e:
-        print(f"DEBUG: Error querying system trainings: {e}")
+        print(f"❌ DEBUG: Error querying system trainings: {e}")
         raise HTTPException(500, f"Database error: {str(e)}")
 
 

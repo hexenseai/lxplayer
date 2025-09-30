@@ -557,6 +557,14 @@ export default function StudioPage() {
                         >
                           Kopyala
                         </button>
+                        {(section as any).type === 'llm_agent' && (
+                          <button
+                            onClick={() => router.push(`/training-test?trainingId=${selectedTraining.id}`)}
+                            className="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-md hover:bg-yellow-700 transition-colors"
+                          >
+                            🧪 Test
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDeleteSection(section.id)}
                           className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"

@@ -12,9 +12,11 @@ import { useInteractionTracking } from '@/hooks/useInteractionTracking';
 interface InteractivePlayerProps {
   accessCode: string;
   userId?: string;
+  testMode?: boolean; // Test modu için yeni prop
+  testTrainingId?: string; // Test modu için training ID
 }
 
-export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ accessCode, userId }, ref) => {
+export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ accessCode, userId, testMode = false, testTrainingId }, ref) => {
   const loadingRef = useRef<boolean>(false);
   const sectionsRef = useRef<any[]>([]);
   const currentSectionRef = useRef<any>(null);
@@ -118,6 +120,12 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
   
   // Create or get session for tracking
   const createSession = async (trainingId: string) => {
+    // Test modunda session oluşturma
+    if (testMode) {
+      console.log('🧪 Test modu: Session oluşturulmayacak');
+      return;
+    }
+    
     if (sessionId || sessionCreateInFlightRef.current) return;
     sessionCreateInFlightRef.current = true;
     try {
@@ -222,7 +230,40 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     loadingRef.current = true;
     
     const loadTrainingData = async () => {
-      console.log('🔍 loadTrainingData called with accessCode:', accessCode);
+      console.log('🔍 loadTrainingData called with accessCode:', accessCode, 'testMode:', testMode);
+      
+      if (testMode && testTrainingId) {
+        // Test modunda trainingId ile yükle
+        console.log('🧪 Test modu: Training data yükleniyor...');
+        try {
+          const trainingData = await api.getTraining(testTrainingId);
+          const sectionsData = await api.listTrainingSections(testTrainingId);
+          
+          console.log('📚 Test modu training data:', trainingData);
+          console.log('📚 Test modu sections:', sectionsData);
+          
+          setTrainingTitle(trainingData.title);
+          setTrainingAvatar(trainingData.avatar);
+          setTrainingId(testTrainingId);
+          
+          // Sections'ları sırala ve ayarla
+          const sortedSections = sectionsData.sort((a, b) => a.order_index - b.order_index);
+          console.log('📚 Sorted sections:', sortedSections);
+          setSections(sortedSections);
+          sectionsRef.current = sortedSections;
+          
+          // İlk section'ı ayarla
+          if (sortedSections.length > 0) {
+            updateCurrentSection(sortedSections[0]);
+          }
+          
+          return;
+        } catch (error) {
+          console.error('Test modu training data yükleme hatası:', error);
+          return;
+        }
+      }
+      
       if (!accessCode) {
         console.log('❌ No accessCode provided, skipping training load');
         return;
@@ -609,8 +650,8 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
     <div className="w-full h-screen bg-gray-900">
       {renderSectionComponent()}
       
-      {/* Session Loading Overlay */}
-      {!sessionId && (
+      {/* Session Loading Overlay - Test modunda gösterme */}
+      {!sessionId && !testMode && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-3"></div>

@@ -1502,6 +1502,54 @@ export const api = {
     }));
   },
 
+  getTestModeEvaluation: (trainingId: string) => {
+    return request(`/evaluation-results/test-mode/${trainingId}`, z.object({
+      training_id: z.string(),
+      training_title: z.string(),
+      evaluations: z.array(z.object({
+        id: z.string(),
+        criteria: z.object({
+          id: z.string(),
+          name: z.string(),
+          description: z.string(),
+          weight: z.number()
+        }),
+        status: z.enum(['success', 'failed', 'unknown']),
+        score: z.number(),
+        comment: z.string(),
+        timestamp: z.string()
+      })),
+      overall_score: z.number(),
+      summary: z.string(),
+      recommendations: z.array(z.string()),
+      note: z.string()
+    }));
+  },
+
+  getElevenLabsEvaluation: (sessionId: string) => {
+    return request(`/elevenlabs-webhook/evaluation/${sessionId}`, z.object({
+      session_id: z.string(),
+      training_id: z.string().optional(),
+      evaluations: z.array(z.object({
+        id: z.string(),
+        criteria: z.object({
+          id: z.string(),
+          name: z.string(),
+          description: z.string(),
+          weight: z.number()
+        }),
+        status: z.enum(['success', 'failed', 'unknown']),
+        score: z.number(),
+        comment: z.string(),
+        timestamp: z.string()
+      })),
+      overall_score: z.number(),
+      summary: z.string(),
+      recommendations: z.array(z.string()),
+      note: z.string()
+    }));
+  },
+
   // ===== EVALUATION REPORTS API =====
 
   getEvaluationReports: (params?: {

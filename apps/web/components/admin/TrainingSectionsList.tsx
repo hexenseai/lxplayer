@@ -193,6 +193,12 @@ export function TrainingSectionsList({ trainingId }: TrainingSectionsListProps) 
                           🤖 Agent Test
                         </a>
                       )}
+                      <a
+                        href={`/training-test?trainingId=${trainingId}`}
+                        className="px-3 py-1.5 text-sm bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors border border-yellow-200"
+                      >
+                        🧪 Eğitim Testi
+                      </a>
                       <button
                         onClick={() => handleDeleteSection(section.id)}
                         className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors border border-red-200"

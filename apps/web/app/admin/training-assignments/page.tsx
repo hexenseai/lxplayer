@@ -60,9 +60,18 @@ export default function TrainingAssignmentsPage() {
       
       // Fetch companies, system trainings, and current assignments
       const [companiesData, trainingsData, assignmentsData] = await Promise.all([
-        api.listCompanies(),
-        api.listSystemTrainings(),
-        api.listCompanyTrainings()
+        api.listCompanies().catch(err => {
+          console.error('❌ Error fetching companies:', err);
+          return [];
+        }),
+        api.listSystemTrainings().catch(err => {
+          console.error('❌ Error fetching system trainings:', err);
+          return [];
+        }),
+        api.listCompanyTrainings().catch(err => {
+          console.error('❌ Error fetching company trainings:', err);
+          return [];
+        })
       ]);
       
       console.log('📊 Companies data:', companiesData);

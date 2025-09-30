@@ -337,3 +337,141 @@ def evaluate_session_with_llm(
         "status": "processing",
         "note": "Bu bir placeholder yanıttır. Gerçek LLM entegrasyonu geliştirilmelidir."
     }
+
+
+@router.get("/test-mode/{training_id}")
+def get_test_mode_evaluation(
+    training_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Test modu için değerlendirme verilerini döndür"""
+    # Sadece Admin ve SuperAdmin test modu değerlendirmesi yapabilir
+    if current_user.role not in ["SuperAdmin", "Admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Test modu değerlendirme yetkiniz yok"
+        )
+    
+    # Eğitimin varlığını kontrol et
+    training = session.get(Training, training_id)
+    if not training:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Eğitim bulunamadı"
+        )
+    
+    # Bu eğitim için aktif kriterleri getir
+    criteria = session.exec(
+        select(EvaluationCriteria)
+        .where(EvaluationCriteria.training_id == training_id)
+        .where(EvaluationCriteria.is_active == True)
+        .order_by(EvaluationCriteria.order_index)
+    ).all()
+    
+    if not criteria:
+        # Kriter yoksa varsayılan ElevenLabs kriterleri döndür
+        return {
+            "training_id": training_id,
+            "training_title": training.title,
+            "evaluations": [
+                {
+                    "id": "test_pronunciation",
+                    "criteria": {
+                        "id": "pronunciation",
+                        "name": "Telaffuz Kalitesi",
+                        "description": "Kelime ve cümle telaffuzunun doğruluğu ve netliği",
+                        "weight": 9
+                    },
+                    "status": "success",
+                    "score": 85,
+                    "comment": "Test modu: Telaffuz genel olarak çok iyi. Sadece birkaç kelimede küçük aksan farklılıkları var.",
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                {
+                    "id": "test_fluency",
+                    "criteria": {
+                        "id": "fluency",
+                        "name": "Akıcılık",
+                        "description": "Konuşmanın doğal akışı ve ritmi",
+                        "weight": 8
+                    },
+                    "status": "success",
+                    "score": 78,
+                    "comment": "Test modu: Konuşma akıcı ancak bazı yerlerde küçük duraksamalar mevcut.",
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                {
+                    "id": "test_intonation",
+                    "criteria": {
+                        "id": "intonation",
+                        "name": "Tonlama",
+                        "description": "Cümle vurguları ve ton değişimleri",
+                        "weight": 7
+                    },
+                    "status": "failed",
+                    "score": 45,
+                    "comment": "Test modu: Tonlama konusunda gelişim gerekiyor. Monoton bir konuşma tarzı var.",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            ],
+            "overall_score": 69,
+            "summary": f"Test modu değerlendirmesi: {training.title} eğitimi için temel ElevenLabs kriterleri değerlendirildi. Genel performans orta seviyede.",
+            "recommendations": [
+                "Gerçek kullanıcılarla test yaparak performansı ölçün",
+                "Değerlendirme kriterleri ekleyerek daha detaylı analiz yapın",
+                "Ses kalitesi ve telaffuz üzerinde çalışın",
+                "Tonlama egzersizleri yapın"
+            ],
+            "note": "Bu test modu değerlendirmesidir. Gerçek ElevenLabs API entegrasyonu için değerlendirme kriterleri tanımlanmalıdır."
+        }
+    
+    # Gerçek kriterler varsa, bunları kullanarak test modu değerlendirmesi oluştur
+    evaluations = []
+    for i, criterion in enumerate(criteria):
+        # Test modu için rastgele ama tutarlı sonuçlar oluştur
+        status_options = ['success', 'failed', 'unknown']
+        status = status_options[i % len(status_options)]
+        
+        if status == 'success':
+            score = 80 + (i * 5) % 20  # 80-100 arası
+            comment = f"Test modu: {criterion.title} kriteri başarıyla karşılandı. Performans beklenen seviyede."
+        elif status == 'failed':
+            score = 30 + (i * 10) % 40  # 30-70 arası
+            comment = f"Test modu: {criterion.title} kriterinde gelişim gerekiyor. Daha fazla pratik yapılmalı."
+        else:
+            score = 0
+            comment = f"Test modu: {criterion.title} kriteri henüz değerlendirilmedi."
+        
+        evaluations.append({
+            "id": f"test_{criterion.id}",
+            "criteria": {
+                "id": criterion.id,
+                "name": criterion.title,
+                "description": criterion.description or "",
+                "weight": criterion.weight
+            },
+            "status": status,
+            "score": score,
+            "comment": comment,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    
+    # Genel puan hesapla
+    valid_scores = [e["score"] for e in evaluations if e["score"] > 0]
+    overall_score = round(sum(valid_scores) / len(valid_scores)) if valid_scores else 0
+    
+    return {
+        "training_id": training_id,
+        "training_title": training.title,
+        "evaluations": evaluations,
+        "overall_score": overall_score,
+        "summary": f"Test modu değerlendirmesi: {training.title} eğitimi için {len(criteria)} kriter değerlendirildi. Genel performans {'iyi' if overall_score >= 70 else 'geliştirilmeli'} seviyede.",
+        "recommendations": [
+            "Gerçek kullanıcılarla test yaparak performansı ölçün",
+            "Değerlendirme kriterlerini gözden geçirin",
+            "Kullanıcı geri bildirimlerini toplayın",
+            "Ses kalitesi ve telaffuz üzerinde çalışın"
+        ],
+        "note": "Bu test modu değerlendirmesidir. Gerçek ElevenLabs API entegrasyonu için değerlendirme kriterleri tanımlanmalıdır."
+    }
