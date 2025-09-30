@@ -123,27 +123,16 @@ def list_system_trainings(
         print("❌ DEBUG: Access denied - user is not admin or super admin")
         raise HTTPException(403, "Access denied")
     
-    # Sistem eğitimlerini al (company_id null olanlar + SuperAdmin'in oluşturduğu eğitimler)
+    # TÜM eğitimleri al (kısıt yok - debug için)
     try:
-        if is_super_admin(current_user):
-            # SuperAdmin için: company_id null olanlar + kendi oluşturduğu eğitimler
-            trainings = session.exec(
-                select(Training).where(
-                    (Training.company_id.is_(None)) | 
-                    (Training.created_by == current_user.id)
-                )
-            ).all()
-            print(f"✅ DEBUG: Found {len(trainings)} trainings for SuperAdmin (system + own)")
-        else:
-            # Normal admin için: sadece company_id null olanlar
-            trainings = session.exec(
-                select(Training).where(Training.company_id.is_(None))
-            ).all()
-            print(f"✅ DEBUG: Found {len(trainings)} system trainings for Admin")
+        # Geçici olarak tüm eğitimleri getir
+        all_trainings = session.exec(select(Training)).all()
+        print(f"✅ DEBUG: Found {len(all_trainings)} total trainings in database")
         
-        for training in trainings:
-            print(f"  - {training.id}: {training.title} (company_id: {training.company_id}, created_by: {training.created_by})")
-        return trainings
+        for training in all_trainings:
+            print(f"  - {training.id}: {training.title} (company_id: {training.company_id})")
+        
+        return all_trainings
     except Exception as e:
         print(f"❌ DEBUG: Error querying system trainings: {e}")
         raise HTTPException(500, f"Database error: {str(e)}")
