@@ -24,6 +24,7 @@ export default function TrainingTestPage() {
   const [showEvaluation, setShowEvaluation] = useState(false);
   const [evaluationData, setEvaluationData] = useState<any>(null);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
+  const [evaluationSource, setEvaluationSource] = useState<string>('');
   
   const playerRef = useRef<any>(null);
 
@@ -95,6 +96,8 @@ export default function TrainingTestPage() {
             summary: elevenLabsResponse.summary,
             recommendations: elevenLabsResponse.recommendations
           });
+          setEvaluationSource('🔐 ElevenLabs Webhook (Gerçek Veri)');
+          console.log('✅ Gerçek ElevenLabs değerlendirme verisi kullanılıyor');
           return;
         }
       } catch (elevenLabsError) {
@@ -110,6 +113,8 @@ export default function TrainingTestPage() {
         summary: evaluationResponse.summary,
         recommendations: evaluationResponse.recommendations
       });
+      setEvaluationSource('🧪 Test Modu Mock Veri');
+      console.log('⚠️ Test modu mock değerlendirme verisi kullanılıyor');
       
     } catch (error) {
       console.error('Değerlendirme verileri yüklenirken hata:', error);
@@ -120,6 +125,8 @@ export default function TrainingTestPage() {
         summary: mockElevenLabsSummary,
         recommendations: mockElevenLabsRecommendations
       });
+      setEvaluationSource('📝 Hardcoded Mock Veri');
+      console.log('❌ Hata durumunda hardcoded mock veri kullanılıyor');
     } finally {
       setEvaluationLoading(false);
     }
@@ -294,28 +301,48 @@ export default function TrainingTestPage() {
             </div>
 
             {/* ElevenLabs Değerlendirme Raporu */}
-            {evaluationLoading ? (
-              <div className="bg-white rounded-lg border p-6">
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Değerlendirme verileri yükleniyor...</p>
-                </div>
+        {evaluationLoading ? (
+          <div className="bg-white rounded-lg border p-6">
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Değerlendirme verileri yükleniyor...</p>
+            </div>
+          </div>
+        ) : evaluationData ? (
+          <div>
+            {/* Veri Kaynağı Göstergesi */}
+            <div className="mb-4 p-3 rounded-lg border-l-4 border-blue-500 bg-blue-50">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-blue-800">Veri Kaynağı:</span>
+                <span className="text-sm text-blue-700">{evaluationSource}</span>
               </div>
-            ) : evaluationData ? (
-              <ElevenLabsEvaluationReport
-                evaluations={evaluationData.evaluations}
-                overallScore={evaluationData.overallScore}
-                summary={evaluationData.summary}
-                recommendations={evaluationData.recommendations}
-              />
-            ) : (
-              <ElevenLabsEvaluationReport
-                evaluations={mockElevenLabsEvaluations}
-                overallScore={72}
-                summary={mockElevenLabsSummary}
-                recommendations={mockElevenLabsRecommendations}
-              />
-            )}
+            </div>
+            
+            <ElevenLabsEvaluationReport
+              evaluations={evaluationData.evaluations}
+              overallScore={evaluationData.overallScore}
+              summary={evaluationData.summary}
+              recommendations={evaluationData.recommendations}
+            />
+          </div>
+        ) : (
+          <div>
+            {/* Veri Kaynağı Göstergesi */}
+            <div className="mb-4 p-3 rounded-lg border-l-4 border-gray-500 bg-gray-50">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-800">Veri Kaynağı:</span>
+                <span className="text-sm text-gray-700">📝 Hardcoded Mock Veri</span>
+              </div>
+            </div>
+            
+            <ElevenLabsEvaluationReport
+              evaluations={mockElevenLabsEvaluations}
+              overallScore={72}
+              summary={mockElevenLabsSummary}
+              recommendations={mockElevenLabsRecommendations}
+            />
+          </div>
+        )}
           </div>
         </div>
       </div>
