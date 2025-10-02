@@ -397,10 +397,12 @@ def copy_avatar_to_company(source_avatar: Avatar, target_company_id: str, curren
     # Create new avatar for target company
     new_avatar = Avatar(
         name=source_avatar.name,
+        personality=source_avatar.personality,
+        elevenlabs_voice_id=source_avatar.elevenlabs_voice_id,
         description=source_avatar.description,
-        avatar_json=source_avatar.avatar_json,
-        company_id=target_company_id,
-        created_by=current_user_id
+        image_url=source_avatar.image_url,
+        is_default=False,  # Kopyalanan avatar default değil
+        company_id=target_company_id
     )
     
     session.add(new_avatar)

@@ -47,6 +47,26 @@ export default function StudioPage() {
     }
   }, [trainingId, trainings]);
 
+  const loadAssignedTrainings = async () => {
+    try {
+      if (user?.company_id) {
+        // Kendi firmasına atanmış eğitimleri al
+        const companyTrainings = await api.listCompanyTrainings(user.company_id);
+        const assignedTrainings = companyTrainings
+          .filter(ct => ct.training)
+          .map(ct => ({
+            ...ct.training,
+            access_code: ct.access_code,
+            expectations: ct.expectations,
+            company_assignment: ct.company
+          }));
+        setSystemTrainings(assignedTrainings);
+      }
+    } catch (error) {
+      console.error('Error loading assigned trainings:', error);
+    }
+  };
+
   const loadTrainings = async () => {
     try {
       setLoading(true);
@@ -57,29 +77,8 @@ export default function StudioPage() {
         // SuperAdmin tüm eğitimleri görebilir
         trainingsData = await api.listTrainings();
       } else if (isAdmin && user?.company_id) {
-        // Admin hem kendi firmasına kopyalanmış hem de atanmış eğitimleri görebilir
-        
-        // 1. Kendi firmasına kopyalanmış eğitimleri al (Training.company_id = user.company_id)
-        const copiedTrainings = await api.listTrainings();
-        
-        // 2. Kendi firmasına atanmış eğitimleri al (CompanyTraining tablosundan)
-        const companyTrainings = await api.listCompanyTrainings(user.company_id);
-        const assignedTrainings = companyTrainings
-          .filter(ct => ct.training)
-          .map(ct => ({
-            ...ct.training,
-            access_code: ct.access_code,
-            expectations: ct.expectations,
-            // Bu eğitim atanmış bir eğitim olduğunu belirt
-            is_assigned: true,
-            company_assignment: ct.company
-          }));
-        
-        // 3. İki listeyi birleştir (duplicate'leri kaldır)
-        const allTrainings = [...copiedTrainings, ...assignedTrainings];
-        trainingsData = allTrainings.filter((training, index, self) => 
-          index === self.findIndex(t => t.id === training.id)
-        );
+        // Admin sadece kendi firmasına ait eğitimleri görebilir (kopyalanmış eğitimler)
+        trainingsData = await api.listTrainings();
       } else {
         trainingsData = [];
       }
@@ -753,6 +752,17 @@ export default function StudioPage() {
             </p>
           </div>
           <div className="flex gap-3">
+            {(isAdmin || isSuperAdmin) && (
+              <button
+                onClick={() => {
+                  setShowImportModal(true);
+                  loadAssignedTrainings();
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                İçeri Aktar
+              </button>
+            )}
             <button
               onClick={() => setShowCreateTrainingModal(true)}
               className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
@@ -776,15 +786,11 @@ export default function StudioPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                   {(() => {
-                    // Eğer atanmış bir eğitimse, atanmış olduğu firmanın adını göster
-                    if ((training as any).is_assigned) {
-                      return (training as any).company_assignment?.name || 'Atanmış Eğitim';
-                    }
-                    // Eğer kopyalanmış bir eğitimse, kendi firmasının adını göster
+                    // Eğer kendi firmasına ait bir eğitimse, firma adını göster
                     if ((training as any).company?.display_name) {
                       return (training as any).company.display_name;
                     }
-                    // Sistem eğitimi
+                    // Sistem eğitimi (SuperAdmin için)
                     return 'Sistem Eğitimi';
                   })()}
                 </div>
@@ -968,6 +974,89 @@ export default function StudioPage() {
               initialTraining={editingTraining} 
               onDone={handleTrainingEditComplete}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Eğitim İçeri Aktar</h2>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-gray-600 mb-4">
+                Firma için atanmış eğitimlerden birini seçerek kopyasını oluşturun. 
+                Bu işlem eğitimin tüm bağımlılıklarını (stiller, değerlendirme kriterleri, içerikler vb.) da kopyalar.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {systemTrainings.map((training) => (
+                <div key={training.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{training.title}</h3>
+                      {training.description && (
+                        <p className="text-gray-600 text-sm mb-2">{training.description}</p>
+                      )}
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                          Atanmış Eğitim
+                        </span>
+                        {training.avatar && (
+                          <span className="flex items-center gap-1">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            {training.avatar.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          setImportLoading(true);
+                          await api.importAssignedTraining(training.id);
+                          alert('Eğitim başarıyla içeri aktarıldı!');
+                          setShowImportModal(false);
+                          loadTrainings(); // Eğitim listesini yenile
+                        } catch (error: any) {
+                          console.error('Import error:', error);
+                          alert(error.message || 'Eğitim içeri aktarılırken bir hata oluştu.');
+                        } finally {
+                          setImportLoading(false);
+                        }
+                      }}
+                      disabled={importLoading}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {importLoading ? 'Aktarılıyor...' : 'İçeri Aktar'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              
+              {systemTrainings.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <p>Firma için atanmış eğitim bulunamadı.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
