@@ -8,7 +8,7 @@ import uuid
 
 router = APIRouter(prefix="/company-trainings", tags=["company-trainings"])
 
-print("🔧 Company trainings router loaded!")
+print("Company trainings router loaded!")
 
 @router.get("/test")
 def test_endpoint():

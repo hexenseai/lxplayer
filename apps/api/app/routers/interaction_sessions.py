@@ -794,7 +794,8 @@ def call_llm_api(message: str, context: dict) -> dict:
         if current_section and section_type in ['llm_interaction', 'llm_agent']:
             # Check if user explicitly requested to proceed to next section
             user_message_lower = message.lower()
-            if any(keyword in user_message_lower for keyword in ["sonraki bölüm", "next section", "devam et", "geç", "tamamlandı", "sonraki", "devam"]):
+            explicit_navigation_keywords = ["sonraki bölüm", "next section", "devam et", "geç", "tamamlandı", "sonraki", "devam", "ilerle", "next"]
+            if any(keyword in user_message_lower for keyword in explicit_navigation_keywords):
                 canProceedToNext = True
                 print(f"✅ User explicitly requested to proceed to next section: '{message}'")
                 # Override LLM response for explicit navigation requests
@@ -805,17 +806,28 @@ def call_llm_api(message: str, context: dict) -> dict:
                 recent_messages = context.get('recent_messages', [])
                 user_messages = [msg for msg in recent_messages if msg and isinstance(msg, dict) and msg.get('message_type') == 'user']
                 
-                # Check if user indicated completion
-                user_message_lower = message.lower()
-                completion_keywords = ["başka yok", "yeterli", "tamamlandı", "bitti", "hazırım", "devam", "tamam"]
+                # Check if user indicated completion with more comprehensive keywords
+                completion_keywords = [
+                    "başka yok", "yeterli", "tamamlandı", "bitti", "hazırım", "devam", "tamam", 
+                    "anladım", "öğrendim", "kavradım", "bitirdim", "tamam", "ok", "iyi", 
+                    "memnunum", "sorun yok", "anlaşıldı", "tamamlandı", "hazır", "ready"
+                ]
                 if any(keyword in user_message_lower for keyword in completion_keywords):
                     canProceedToNext = True
                     print(f"✅ User indicated completion: '{message}'")
                 
-                # If user has made at least 3 meaningful interactions, allow proceeding
-                elif len(user_messages) >= 3:
+                # For LLM interaction sections, be more lenient - allow proceeding after 2 meaningful interactions
+                elif len(user_messages) >= 2:
                     canProceedToNext = True
                     print(f"✅ Sufficient interactions completed ({len(user_messages)} user messages)")
+                
+                # Check if LLM response indicates completion or satisfaction
+                elif any(completion_indicator in llm_message.lower() for completion_indicator in [
+                    "anladınız", "öğrendiniz", "kavradınız", "memnun", "başarılı", "tamamlandı", 
+                    "hazır", "devam edebilir", "sonraki", "ilerleyebilir"
+                ]):
+                    canProceedToNext = True
+                    print(f"✅ LLM response indicates completion: '{llm_message}'")
                 
                 # Check if section script mentions specific tasks and they seem completed
                 section_script = current_section.get('script', '')

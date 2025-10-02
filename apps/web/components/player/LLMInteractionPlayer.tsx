@@ -220,6 +220,9 @@ export function LLMInteractionPlayer({
       
       // Check if we can proceed to next section
       console.log('🔍 Checking canProceedToNext:', response.canProceedToNext);
+      console.log('🔍 Current canProceed state:', canProceed);
+      console.log('🔍 Section progress status:', sectionProgress?.status);
+      
       if (response.canProceedToNext) {
         console.log('✅ Setting canProceed to true and calling onLLMAction');
         setCanProceed(true);
@@ -233,6 +236,7 @@ export function LLMInteractionPlayer({
         }
       } else {
         console.log('❌ canProceedToNext is false, not proceeding');
+        console.log('💡 Tip: "Sonraki bölüme geçmek istiyorum" yazarak butonu aktif edebilirsiniz');
       }
 
       // Handle LLM actions (navigation, etc.)
@@ -394,13 +398,22 @@ export function LLMInteractionPlayer({
                <span>Önceki</span>
              </button>
             <button
-              onClick={onNavigateNext}
-              disabled={(!canProceed && !sectionProgress?.status === 'completed') || !hasNextSection}
+              onClick={() => {
+                console.log('🚀 Next button clicked!');
+                console.log('🔍 canProceed:', canProceed);
+                console.log('🔍 sectionProgress?.status:', sectionProgress?.status);
+                console.log('🔍 hasNextSection:', hasNextSection);
+                onNavigateNext();
+              }}
+              disabled={(!canProceed && sectionProgress?.status !== 'completed') || !hasNextSection}
               className={`flex items-center space-x-1 px-3 py-1.5 text-sm rounded border transition-colors ${
                 (canProceed || sectionProgress?.status === 'completed') && hasNextSection
                   ? 'bg-green-600 hover:bg-green-700 text-white border-green-500'
                   : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
               }`}
+              title={(!canProceed && sectionProgress?.status !== 'completed') ? 
+                'Bu bölümü tamamlamak için LLM ile etkileşime geçin veya "Sonraki bölüme geçmek istiyorum" yazın' : 
+                'Sonraki bölüme geç'}
             >
               <span>Sonraki</span>
               <ArrowRight className="w-3 h-3" />
