@@ -32,14 +32,25 @@ interface FrameConfig {
   is_default: boolean;
 }
 
+interface AssignedTraining {
+  id: string;
+  title: string;
+  description?: string | null | undefined;
+  company_training_id: string;
+  expectations?: string | null | undefined;
+  access_code: string;
+}
+
 export default function ImportContent() {
   const [systemContent, setSystemContent] = useState<SystemContent | null>(null);
   const [availableStyles, setAvailableStyles] = useState<Style[]>([]);
   const [availableFrameConfigs, setAvailableFrameConfigs] = useState<FrameConfig[]>([]);
+  const [assignedTrainings, setAssignedTrainings] = useState<AssignedTraining[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [selectedFrameConfigs, setSelectedFrameConfigs] = useState<string[]>([]);
+  const [selectedTrainings, setSelectedTrainings] = useState<string[]>([]);
 
   useEffect(() => {
     loadSystemContent();
@@ -48,15 +59,17 @@ export default function ImportContent() {
   const loadSystemContent = async () => {
     try {
       setLoading(true);
-      const [content, styles, frameConfigs] = await Promise.all([
+      const [content, styles, frameConfigs, trainings] = await Promise.all([
         api.get('/imports/available-content'),
         api.get('/imports/styles'),
-        api.get('/imports/frame-configs')
+        api.get('/imports/frame-configs'),
+        api.getAssignedTrainings().catch(() => []) // Handle case where no assigned trainings
       ]);
       
       setSystemContent(content);
       setAvailableStyles(styles);
       setAvailableFrameConfigs(frameConfigs);
+      setAssignedTrainings(trainings);
     } catch (error) {
       console.error('Error loading system content:', error);
       alert('Sistem içeriği yüklenirken hata oluştu');
@@ -81,8 +94,16 @@ export default function ImportContent() {
     );
   };
 
+  const handleTrainingSelect = (trainingId: string) => {
+    setSelectedTrainings(prev => 
+      prev.includes(trainingId) 
+        ? prev.filter(id => id !== trainingId)
+        : [...prev, trainingId]
+    );
+  };
+
   const handleImportSelected = async () => {
-    if (selectedStyles.length === 0 && selectedFrameConfigs.length === 0) {
+    if (selectedStyles.length === 0 && selectedFrameConfigs.length === 0 && selectedTrainings.length === 0) {
       alert('Lütfen import etmek istediğiniz içerikleri seçin');
       return;
     }
@@ -99,7 +120,7 @@ export default function ImportContent() {
           importedCount++;
         } catch (error) {
           const style = availableStyles.find(s => s.id === styleId);
-          errors.push(`Stil "${style?.name}": ${error.message || 'Import hatası'}`);
+          errors.push(`Stil "${style?.name}": ${error instanceof Error ? error.message : 'Import hatası'}`);
         }
       }
 
@@ -110,7 +131,19 @@ export default function ImportContent() {
           importedCount++;
         } catch (error) {
           const config = availableFrameConfigs.find(c => c.id === configId);
-          errors.push(`Frame Config "${config?.name}": ${error.message || 'Import hatası'}`);
+          errors.push(`Frame Config "${config?.name}": ${error instanceof Error ? error.message : 'Import hatası'}`);
+        }
+      }
+
+      // Import selected trainings
+      for (const trainingId of selectedTrainings) {
+        try {
+          const result = await api.importAssignedTraining(trainingId);
+          importedCount++;
+          console.log(`Training imported: ${result.sections_copied} sections, ${result.overlays_copied} overlays, ${result.styles_copied} styles, ${result.frame_configs_copied} frame configs, ${result.avatars_copied} avatars`);
+        } catch (error) {
+          const training = assignedTrainings.find(t => t.id === trainingId);
+          errors.push(`Eğitim "${training?.title}": ${error instanceof Error ? error.message : 'Import hatası'}`);
         }
       }
 
@@ -123,6 +156,7 @@ export default function ImportContent() {
       // Clear selections
       setSelectedStyles([]);
       setSelectedFrameConfigs([]);
+      setSelectedTrainings([]);
       
       // Reload content
       loadSystemContent();
@@ -197,7 +231,7 @@ export default function ImportContent() {
         </div>
       )}
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
         {/* Styles Section */}
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <div className="flex justify-between items-center mb-4">
@@ -264,16 +298,54 @@ export default function ImportContent() {
             </div>
           )}
         </div>
+
+        {/* Assigned Trainings Section */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Atanmış Eğitimler</h3>
+          </div>
+          
+          {assignedTrainings.length === 0 ? (
+            <p className="text-gray-500 text-sm">Atanmış eğitim bulunamadı</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {assignedTrainings.map((training) => (
+                <label key={training.id} className="flex items-start space-x-3 p-2 hover:bg-gray-50 rounded">
+                  <input
+                    type="checkbox"
+                    checked={selectedTrainings.includes(training.id)}
+                    onChange={() => handleTrainingSelect(training.id)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium text-sm text-gray-900">{training.title}</div>
+                    {training.description && (
+                      <div className="text-xs text-gray-500">{training.description}</div>
+                    )}
+                    {training.expectations && (
+                      <div className="text-xs text-blue-600 mt-1">
+                        <strong>Beklentiler:</strong> {training.expectations}
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-400 mt-1">
+                      Access Code: {training.access_code}
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Import Button */}
       <div className="mt-6 flex justify-center">
         <button
           onClick={handleImportSelected}
-          disabled={importing || (selectedStyles.length === 0 && selectedFrameConfigs.length === 0)}
+          disabled={importing || (selectedStyles.length === 0 && selectedFrameConfigs.length === 0 && selectedTrainings.length === 0)}
           className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {importing ? 'İmport Ediliyor...' : `Seçilenleri İmport Et (${selectedStyles.length + selectedFrameConfigs.length})`}
+          {importing ? 'İmport Ediliyor...' : `Seçilenleri İmport Et (${selectedStyles.length + selectedFrameConfigs.length + selectedTrainings.length})`}
         </button>
       </div>
     </div>

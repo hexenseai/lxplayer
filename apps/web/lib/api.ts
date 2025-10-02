@@ -284,6 +284,10 @@ export const api = {
   // current user
   getCurrentUser: () => request('/auth/me', User),
   
+  // generic get and post methods
+  get: (url: string, schema?: z.ZodType<any>) => request(url, schema || z.any()),
+  post: (url: string, schema?: z.ZodType<any>, options?: RequestInit) => request(url, schema || z.any(), { method: 'POST', ...options }),
+  
   // trainings
   listTrainings: () => request('/trainings', z.array(Training)),
   getTraining: (id: string) => request(`/trainings/${id}`, Training),
@@ -1798,6 +1802,36 @@ export const api = {
       body: JSON.stringify(resultData)
     });
   },
+
+  // ===== IMPORT ASSIGNED TRAININGS API =====
+
+  getAssignedTrainings: () => request('/imports/assigned-trainings', z.array(z.object({
+    id: z.string(),
+    title: z.string(),
+    description: z.string().nullable().optional(),
+    company_training_id: z.string(),
+    expectations: z.string().nullable().optional(),
+    access_code: z.string()
+  }))),
+
+  importAssignedTraining: (trainingId: string) => request(
+    `/imports/trainings/${trainingId}`,
+    z.object({
+      message: z.string(),
+      imported_training: z.object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string().nullable().optional()
+      }),
+      sections_copied: z.number(),
+      overlays_copied: z.number(),
+      assets_copied: z.number(),
+      styles_copied: z.number(),
+      frame_configs_copied: z.number(),
+      avatars_copied: z.number()
+    }),
+    { method: 'POST' }
+  ),
 
 
 };
