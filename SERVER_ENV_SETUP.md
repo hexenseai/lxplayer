@@ -13,10 +13,10 @@ MINIO_ENDPOINT=minio:9000
 MINIO_SECURE=false
 
 # API Configuration
-NGINX_PROXY_URL=http://yodea.hexense.ai
+NGINX_PROXY_URL=https://yodea.hexense.ai
 
 # Frontend Configuration - ÖNEMLİ!
-NEXT_PUBLIC_API_URL=http://yodea.hexense.ai/api
+NEXT_PUBLIC_API_URL=https://yodea.hexense.ai/api
 NEXT_PUBLIC_CDN_URL=http://yodea.hexense.ai:9000/lxplayer
 NEXT_PUBLIC_TINYMCE_API_KEY=your_tinymce_api_key_here
 

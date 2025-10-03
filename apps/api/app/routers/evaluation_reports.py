@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select, and_
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
+import httpx
+import os
+import json
 
 from app.db import get_session
 from app.auth import get_current_user
@@ -390,3 +393,155 @@ def auto_generate_evaluation_report(
     )
     
     return create_evaluation_report(report_data, session, current_user)
+
+
+@router.get("/session/{session_id}/elevenlabs-conversation", response_model=Dict[str, Any])
+def get_elevenlabs_conversation_data(
+    session_id: str,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """ElevenLabs conversation verilerini getir"""
+    # Oturumun varlığını kontrol et
+    interaction_session = session.get(InteractionSession, session_id)
+    if not interaction_session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Oturum bulunamadı"
+        )
+    
+    # Yetki kontrolü
+    if current_user.role not in ["SuperAdmin", "Admin"]:
+        if interaction_session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bu oturum verilerine erişim yetkiniz yok"
+            )
+    
+    # ElevenLabs conversation_id kontrolü
+    if not interaction_session.elevenlabs_conversation_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bu oturum için ElevenLabs conversation ID bulunamadı"
+        )
+    
+    # ElevenLabs API'den conversation detaylarını getir
+    try:
+        elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
+        if not elevenlabs_api_key:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="ElevenLabs API key yapılandırılmamış"
+            )
+        
+        conversation_id = interaction_session.elevenlabs_conversation_id
+        
+        async def fetch_conversation_data():
+            async with httpx.AsyncClient() as client:
+                headers = {
+                    "xi-api-key": elevenlabs_api_key,
+                    "Content-Type": "application/json"
+                }
+                
+                url = f"https://api.elevenlabs.io/v1/convai/conversations/{conversation_id}"
+                
+                response = await client.get(url, headers=headers)
+                
+                if response.status_code == 200:
+                    return response.json()
+                elif response.status_code == 404:
+                    return None  # Conversation not found
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"ElevenLabs API hatası: {response.status_code}"
+                    )
+        
+        # Sync wrapper for async function
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        conversation_data = loop.run_until_complete(fetch_conversation_data())
+        
+        if conversation_data is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="ElevenLabs conversation bulunamadı"
+            )
+        
+        return {
+            "session_id": session_id,
+            "conversation_id": conversation_id,
+            "agent_id": interaction_session.elevenlabs_agent_id,
+            "conversation_data": conversation_data,
+            "has_analysis": conversation_data.get("analysis") is not None,
+            "status": conversation_data.get("status"),
+            "transcript_available": len(conversation_data.get("transcript", [])) > 0,
+            "audio_available": conversation_data.get("has_audio", False)
+        }
+        
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"ElevenLabs API bağlantı hatası: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"ElevenLabs conversation verisi alınırken hata: {str(e)}"
+        )
+
+
+@router.post("/session/{session_id}/update-conversation-id", response_model=Dict[str, Any])
+def update_conversation_id(
+    session_id: str,
+    conversation_data: Dict[str, Any],
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Interaction session'a ElevenLabs conversation ID'sini ekle/güncelle"""
+    # Oturumun varlığını kontrol et
+    interaction_session = session.get(InteractionSession, session_id)
+    if not interaction_session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Oturum bulunamadı"
+        )
+    
+    # Yetki kontrolü
+    if current_user.role not in ["SuperAdmin", "Admin"]:
+        if interaction_session.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bu oturumu güncelleme yetkiniz yok"
+            )
+    
+    # Conversation ID ve Agent ID'yi güncelle
+    if "conversation_id" in conversation_data:
+        interaction_session.elevenlabs_conversation_id = conversation_data["conversation_id"]
+    
+    if "agent_id" in conversation_data:
+        interaction_session.elevenlabs_agent_id = conversation_data["agent_id"]
+    
+    # Metadata'yı güncelle
+    metadata = json.loads(interaction_session.metadata_json or "{}")
+    metadata.update({
+        "elevenlabs_updated_at": datetime.utcnow().isoformat(),
+        "elevenlabs_update_by": current_user.id
+    })
+    interaction_session.metadata_json = json.dumps(metadata)
+    
+    session.add(interaction_session)
+    session.commit()
+    session.refresh(interaction_session)
+    
+    return {
+        "session_id": session_id,
+        "conversation_id": interaction_session.elevenlabs_conversation_id,
+        "agent_id": interaction_session.elevenlabs_agent_id,
+        "message": "Conversation ID başarıyla güncellendi"
+    }

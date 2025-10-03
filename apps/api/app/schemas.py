@@ -289,6 +289,7 @@ class InteractionSessionUpdate(BaseModel):
     total_time_spent: Optional[int] = None
     interactions_count: Optional[int] = None
     completion_percentage: Optional[float] = None
+    metadata_json: Optional[str] = None
 
 
 class InteractionSessionResponse(BaseModel):

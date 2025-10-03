@@ -322,17 +322,30 @@ async def create_interaction(
 ):
     """Record a user interaction"""
     try:
-        # Get session info
-        session_obj = session.get(Session, interaction.session_id)
+        # Get session info - try InteractionSession first, then fallback to Session
+        from app.models import InteractionSession
+        session_obj = session.get(InteractionSession, interaction.session_id)
+        if not session_obj:
+            # Fallback to old Session model
+            session_obj = session.get(Session, interaction.session_id)
+        
         if not session_obj:
             raise HTTPException(status_code=404, detail="Session not found")
         
         # Create interaction record
+        # Handle different session types
+        if hasattr(session_obj, 'company_id'):
+            # Old Session model
+            company_id = session_obj.company_id
+        else:
+            # InteractionSession model - no company_id field
+            company_id = None
+            
         interaction_record = UserInteraction(
             session_id=interaction.session_id,
             user_id=session_obj.user_id,
             training_id=session_obj.training_id,
-            company_id=session_obj.company_id,
+            company_id=company_id,
             interaction_type=interaction.interaction_type,
             section_id=interaction.section_id,
             overlay_id=interaction.overlay_id,
@@ -348,7 +361,7 @@ async def create_interaction(
         
         # Update training progress
         progress = get_or_create_training_progress(
-            session, session_obj.user_id, session_obj.training_id, session_obj.company_id
+            session, session_obj.user_id, session_obj.training_id, company_id
         )
         
         # Update progress based on interaction type
@@ -382,17 +395,30 @@ async def create_chat_message(
 ):
     """Record a chat message"""
     try:
-        # Get session info
-        session_obj = session.get(Session, message.session_id)
+        # Get session info - try InteractionSession first, then fallback to Session
+        from app.models import InteractionSession
+        session_obj = session.get(InteractionSession, message.session_id)
+        if not session_obj:
+            # Fallback to old Session model
+            session_obj = session.get(Session, message.session_id)
+        
         if not session_obj:
             raise HTTPException(status_code=404, detail="Session not found")
         
         # Create chat message record
+        # Handle different session types
+        if hasattr(session_obj, 'company_id'):
+            # Old Session model
+            company_id = session_obj.company_id
+        else:
+            # InteractionSession model - no company_id field
+            company_id = None
+            
         chat_record = ChatMessage(
             session_id=message.session_id,
             user_id=session_obj.user_id,
             training_id=session_obj.training_id,
-            company_id=session_obj.company_id,
+            company_id=company_id,
             message_type=message.message_type,
             content=message.content,
             section_id=message.section_id,
@@ -409,7 +435,7 @@ async def create_chat_message(
         
         # Update training progress
         progress = get_or_create_training_progress(
-            session, session_obj.user_id, session_obj.training_id, session_obj.company_id
+            session, session_obj.user_id, session_obj.training_id, company_id
         )
         
         # Update session last activity

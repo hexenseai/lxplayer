@@ -900,6 +900,7 @@ export const api = {
     total_time_spent?: number;
     interactions_count?: number;
     completion_percentage?: number;
+    metadata_json?: string;
   }) => request(
     `/interaction-sessions/${sessionId}`,
     z.object({
@@ -1911,6 +1912,46 @@ export const api = {
       rating_distribution: z.record(z.string(), z.number()),
       feedback_summary: z.string()
     })),
+
+  // ElevenLabs API
+  getElevenLabsConversation: (conversationId: string) => request(`/elevenlabs/conversation/${conversationId}`, z.object({
+    conversation_id: z.string(),
+    status: z.string().optional(),
+    transcript: z.array(z.object({
+      role: z.string(),
+      message: z.string(),
+      time_in_call_secs: z.number().optional()
+    })).optional(),
+    metadata: z.object({}).optional(),
+    analysis: z.object({}).optional(),
+    evaluation_results: z.array(z.object({
+      criteria_id: z.string(),
+      criteria_title: z.string(),
+      result: z.enum(['successful', 'unsuccessful', 'unknown']),
+      score: z.number().optional(),
+      explanation: z.string().optional()
+    })).optional()
+  })),
+
+  getSessionConversation: (sessionId: string) => request(`/elevenlabs/session/${sessionId}/conversation`, z.object({
+    session_id: z.string(),
+    conversation_id: z.string(),
+    status: z.string().optional(),
+    transcript: z.array(z.object({
+      role: z.string(),
+      message: z.string(),
+      time_in_call_secs: z.number().optional()
+    })).optional(),
+    metadata: z.object({}).optional(),
+    analysis: z.object({}).optional(),
+    evaluation_results: z.array(z.object({
+      criteria_id: z.string(),
+      criteria_title: z.string(),
+      result: z.enum(['successful', 'unsuccessful', 'unknown']),
+      score: z.number().optional(),
+      explanation: z.string().optional()
+    })).optional()
+  })),
 
 
 };

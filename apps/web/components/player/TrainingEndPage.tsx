@@ -53,6 +53,79 @@ interface EvaluationResult {
   evaluated_at: string;
 }
 
+interface ElevenLabsConversationData {
+  session_id: string;
+  conversation_id: string;
+  agent_id: string | null;
+  conversation_data: {
+    agent_id: string;
+    conversation_id: string;
+    status: string;
+    user_id: string | null;
+    transcript: Array<{
+      role: string;
+      agent_metadata?: {
+        agent_id: string;
+        workflow_node_id: string | null;
+      };
+      message: string;
+      multivoice_message: any;
+      tool_calls: any[];
+      tool_results: any[];
+      feedback: any;
+      llm_override: any;
+      time_in_call_secs: number;
+      conversation_turn_metrics?: {
+        metrics: {
+          convai_tts_service_ttfb?: {
+            elapsed_time: number;
+          };
+        };
+      };
+      rag_retrieval_info: any;
+      llm_usage: any;
+      interrupted: boolean;
+      original_message: string;
+      source_medium: any;
+    }>;
+    metadata: {
+      start_time_unix_secs: number;
+      accepted_time_unix_secs: number;
+      call_duration_secs: number;
+      cost: number;
+      feedback: {
+        overall_score: number | null;
+        likes: number;
+        dislikes: number;
+      };
+      termination_reason: string;
+      error: any;
+      main_language: string;
+    };
+    analysis: {
+      evaluation_criteria_results: {
+        [key: string]: {
+          criteria_id: string;
+          result: 'success' | 'failure' | 'unknown';
+          rationale: string;
+        };
+      };
+      data_collection_results: any;
+      call_successful: 'success' | 'failure';
+      transcript_summary: string;
+      call_summary_title: string;
+    };
+    conversation_initiation_client_data: any;
+    has_audio: boolean;
+    has_user_audio: boolean;
+    has_response_audio: boolean;
+  };
+  has_analysis: boolean;
+  status: string;
+  transcript_available: boolean;
+  audio_available: boolean;
+}
+
 interface EvaluationReport {
   id: string;
   report_title: string;
@@ -98,6 +171,7 @@ export function TrainingEndPage({
   const [evaluationReport, setEvaluationReport] = useState<EvaluationReport | null>(null);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [elevenLabsData, setElevenLabsData] = useState<ElevenLabsConversationData | null>(null);
 
   // Load analytics on mount
   useEffect(() => {
@@ -116,7 +190,7 @@ export function TrainingEndPage({
     }
   }, [sessionId, accessCode, userId]);
 
-  // Load evaluation data
+  // Load evaluation data from ElevenLabs conversation
   const loadEvaluationData = async (isRefresh = false) => {
     if (!sessionId) {
       console.log('❌ No session ID available for evaluation data');
@@ -131,23 +205,64 @@ export function TrainingEndPage({
     }
     
     try {
-      // Load evaluation results
-      console.log('🔍 Fetching evaluation results...');
-      const results = await api.get(`/evaluation-results?session_id=${sessionId}`);
-      console.log('📊 Evaluation results:', results);
-      setEvaluationResults(results);
-      
-      // Load evaluation report if exists
+      // First try to get evaluation results from webhook (existing system)
+      console.log('🔍 Fetching evaluation results from webhook...');
       try {
-        console.log('🔍 Fetching evaluation reports...');
-        const reports = await api.get(`/evaluation-reports?session_id=${sessionId}`);
-        console.log('📋 Evaluation reports:', reports);
-        if (reports && reports.length > 0) {
-          setEvaluationReport(reports[0]);
+        const results = await api.get(`/evaluation-results?session_id=${sessionId}`);
+        console.log('📊 Evaluation results from webhook:', results);
+        if (results && results.length > 0) {
+          setEvaluationResults(results);
+          
+          // Load evaluation report if exists
+          try {
+            console.log('🔍 Fetching evaluation reports...');
+            const reports = await api.get(`/evaluation-reports?session_id=${sessionId}`);
+            console.log('📋 Evaluation reports:', reports);
+            if (reports && reports.length > 0) {
+              setEvaluationReport(reports[0]);
+            }
+          } catch (error) {
+            console.log('No evaluation report found:', error);
+          }
+          return; // Success, exit early
         }
       } catch (error) {
-        console.log('No evaluation report found:', error);
+        console.log('No webhook evaluation results found:', error);
       }
+      
+      // If no webhook data, try ElevenLabs conversation API
+      console.log('🔍 Fetching ElevenLabs conversation data...');
+      try {
+        const conversationData = await api.get(`/evaluation-reports/session/${sessionId}/elevenlabs-conversation`);
+        console.log('📊 ElevenLabs conversation data:', conversationData);
+        
+        // Store the raw ElevenLabs data
+        setElevenLabsData(conversationData);
+        
+        // Convert ElevenLabs evaluation criteria to our format
+        if (conversationData.conversation_data?.analysis?.evaluation_criteria_results) {
+          const criteriaResults = conversationData.conversation_data.analysis.evaluation_criteria_results;
+          const convertedResults = Object.entries(criteriaResults).map(([key, result]: [string, any]) => ({
+            id: key,
+            criteria: {
+              id: key,
+              name: getCriteriaDisplayName(key),
+              description: getCriteriaDescription(key),
+              weight: 1
+            },
+            evaluation_score: getScoreFromResult(result.result),
+            evaluation_result: result.result,
+            explanation: result.rationale,
+            evaluated_at: new Date().toISOString()
+          }));
+          
+          setEvaluationResults(convertedResults);
+          console.log('✅ Converted ElevenLabs evaluation results:', convertedResults);
+        }
+      } catch (error) {
+        console.log('No ElevenLabs conversation data found:', error);
+      }
+      
     } catch (error) {
       console.error('Failed to load evaluation data:', error);
     } finally {
@@ -163,6 +278,42 @@ export function TrainingEndPage({
   const refreshEvaluationData = async () => {
     console.log('🔄 Manual refresh of evaluation data requested');
     await loadEvaluationData(true);
+  };
+
+  // Helper functions for ElevenLabs data conversion
+  const getCriteriaDisplayName = (criteriaId: string): string => {
+    const names: { [key: string]: string } = {
+      'sirket_sistem_tanitim': 'Şirket & Sistem Tanıtımı',
+      'ihtiyac_analizi': 'İhtiyaç Analizi',
+      'itiraz_karsilama': 'İtiraz Karşılama',
+      'soru_cevap': 'Soru & Cevap',
+      'satis_kapatma': 'Satış Kapatma',
+      'ikna_kabiliyeti': 'İkna Kabiliyeti',
+      'buz_kirma': 'Buz Kırma'
+    };
+    return names[criteriaId] || criteriaId;
+  };
+
+  const getCriteriaDescription = (criteriaId: string): string => {
+    const descriptions: { [key: string]: string } = {
+      'sirket_sistem_tanitim': 'Şirketin kurumsal kimliği ve sistem özelliklerinin tanıtılması',
+      'ihtiyac_analizi': 'Müşterinin ihtiyaçlarının ve koşullarının analiz edilmesi',
+      'itiraz_karsilama': 'Müşteri itirazlarına etkili cevaplar verilmesi',
+      'soru_cevap': 'Müşteri sorularına doğru ve yeterli cevaplar verilmesi',
+      'satis_kapatma': 'Satış sürecinin başarıyla tamamlanması',
+      'ikna_kabiliyeti': 'Müşteriyi ikna etme ve satın alma kararı aldırma',
+      'buz_kirma': 'Müşteri ile sıcak ve samimi bir ilişki kurma'
+    };
+    return descriptions[criteriaId] || '';
+  };
+
+  const getScoreFromResult = (result: string): number => {
+    switch (result) {
+      case 'success': return 85;
+      case 'failure': return 25;
+      case 'unknown': return 50;
+      default: return 50;
+    }
   };
 
   const loadTrainingAnalytics = async () => {
@@ -204,16 +355,19 @@ export function TrainingEndPage({
     try {
       // Get all user sessions for this training
       const sessions = await api.listSessions();
-      const userSessions = sessions.filter(s => 
+      
+      // Type guard for session objects
+      const userSessions = sessions.filter((s: any) => 
+        s && typeof s === 'object' &&
         s.training_id === trainingId && 
         s.user_id === userId &&
         s.status !== 'abandoned'
-      );
+      ) as any[];
 
       if (userSessions.length === 0) return;
 
       // Get the most recent completed session
-      const completedSession = userSessions.find(s => s.status === 'completed') || userSessions[0];
+      const completedSession = userSessions.find((s: any) => s.status === 'completed') || userSessions[0];
       
       // Calculate analytics from session data
       const totalTime = calculateTotalTime(userSessions);
@@ -470,9 +624,17 @@ export function TrainingEndPage({
               <span className="text-white font-semibold">Toplam Süre</span>
             </div>
             <div className="text-3xl font-bold text-white mb-1">
-              {formatTime(analytics.totalTimeSpent)}
+              {elevenLabsData?.conversation_data?.metadata?.call_duration_secs 
+                ? formatTime(elevenLabsData.conversation_data.metadata.call_duration_secs)
+                : formatTime(analytics.totalTimeSpent)
+              }
             </div>
-            <div className="text-sm text-blue-200">Eğitimde geçirilen zaman</div>
+            <div className="text-sm text-blue-200">
+              {elevenLabsData?.conversation_data?.metadata?.call_duration_secs 
+                ? 'Konuşma süresi' 
+                : 'Eğitimde geçirilen zaman'
+              }
+            </div>
           </div>
 
           <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 backdrop-blur-sm rounded-xl p-6 border border-green-500/30">
@@ -489,23 +651,28 @@ export function TrainingEndPage({
           <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 backdrop-blur-sm rounded-xl p-6 border border-purple-500/30">
             <div className="flex items-center gap-3 mb-3">
               <MessageSquare className="w-8 h-8 text-purple-400" />
-              <span className="text-white font-semibold">Etkileşimler</span>
+              <span className="text-white font-semibold">Konuşma</span>
             </div>
             <div className="text-3xl font-bold text-white mb-1">
-              {analytics.totalInteractions}
+              {elevenLabsData?.conversation_data?.transcript?.length || analytics.totalInteractions}
             </div>
-            <div className="text-sm text-purple-200">Toplam etkileşim sayısı</div>
+            <div className="text-sm text-purple-200">
+              {elevenLabsData?.conversation_data?.transcript?.length 
+                ? 'Konuşma turu' 
+                : 'Toplam etkileşim sayısı'
+              }
+            </div>
           </div>
 
           <div className="bg-gradient-to-br from-orange-600/20 to-orange-800/20 backdrop-blur-sm rounded-xl p-6 border border-orange-500/30">
             <div className="flex items-center gap-3 mb-3">
               <Star className="w-8 h-8 text-orange-400" />
-              <span className="text-white font-semibold">Katılım</span>
+              <span className="text-white font-semibold">Genel Skor</span>
             </div>
             <div className="text-3xl font-bold text-white mb-1">
-              {analytics.averageEngagement}%
+              {calculateOverallScore()}
             </div>
-            <div className="text-sm text-orange-200">Ortalama katılım skoru</div>
+            <div className="text-sm text-orange-200">Değerlendirme puanı</div>
           </div>
         </motion.div>
 
@@ -570,15 +737,97 @@ export function TrainingEndPage({
                       <p className="text-xs text-slate-300 mb-3">{result.criteria.description}</p>
                       <div className="text-xs text-slate-400">
                         <div className="mb-1">
-                          <span className="font-medium">Sonuç:</span> {result.evaluation_result}
+                          <span className="font-medium">Sonuç:</span> 
+                          <span className={`ml-1 px-2 py-1 rounded text-xs ${
+                            result.evaluation_result === 'success' ? 'bg-green-500/20 text-green-400' :
+                            result.evaluation_result === 'failure' ? 'bg-red-500/20 text-red-400' :
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {result.evaluation_result === 'success' ? '✅ Başarılı' :
+                             result.evaluation_result === 'failure' ? '❌ Başarısız' :
+                             '❓ Belirsiz'}
+                          </span>
                         </div>
-                        <div>
-                          <span className="font-medium">Açıklama:</span> {result.explanation}
+                        <div className="mt-2">
+                          <span className="font-medium">Açıklama:</span> 
+                          <p className="mt-1 text-slate-300">{result.explanation}</p>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Conversation Summary */}
+                {elevenLabsData?.conversation_data?.analysis && (
+                  <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
+                    <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <MessageSquare className="w-5 h-5 text-blue-400" />
+                      Konuşma Özeti
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h5 className="font-medium text-slate-300 mb-2">Konuşma Başlığı</h5>
+                        <p className="text-slate-400 text-sm">{elevenLabsData.conversation_data.analysis.call_summary_title}</p>
+                      </div>
+                      
+                      <div>
+                        <h5 className="font-medium text-slate-300 mb-2">Genel Durum</h5>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          elevenLabsData.conversation_data.analysis.call_successful === 'success' 
+                            ? 'bg-green-500/20 text-green-400' 
+                            : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {elevenLabsData.conversation_data.analysis.call_successful === 'success' 
+                            ? '✅ Başarılı' 
+                            : '❌ Başarısız'}
+                        </span>
+                      </div>
+                      
+                      <div className="md:col-span-2">
+                        <h5 className="font-medium text-slate-300 mb-2">Özet</h5>
+                        <p className="text-slate-400 text-sm">{elevenLabsData.conversation_data.analysis.transcript_summary}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Conversation Transcript */}
+                {elevenLabsData?.conversation_data?.transcript && elevenLabsData.conversation_data.transcript.length > 0 && (
+                  <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
+                    <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <Video className="w-5 h-5 text-purple-400" />
+                      Konuşma Metni
+                    </h4>
+                    
+                    <div className="space-y-3">
+                      {elevenLabsData.conversation_data.transcript.map((turn, index) => (
+                        <div key={index} className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              turn.role === 'agent' 
+                                ? 'bg-blue-500/20 text-blue-400' 
+                                : 'bg-green-500/20 text-green-400'
+                            }`}>
+                              {turn.role === 'agent' ? '🤖 Asistan' : '👤 Kullanıcı'}
+                            </span>
+                            {turn.time_in_call_secs > 0 && (
+                              <span className="text-xs text-slate-400">
+                                {formatTime(turn.time_in_call_secs)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-slate-300 text-sm">{turn.message}</p>
+                          {turn.interrupted && (
+                            <span className="inline-block mt-2 px-2 py-1 bg-orange-500/20 text-orange-400 text-xs rounded">
+                              Kesintiye uğradı
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Evaluation Report */}
                 {evaluationReport && (
@@ -625,8 +874,9 @@ export function TrainingEndPage({
               <div className="text-center py-8">
                 <BarChart3 className="w-12 h-12 text-slate-500 mx-auto mb-4" />
                 <div className="text-slate-300">Bu eğitim için henüz değerlendirme sonucu bulunmuyor.</div>
-                <div className="text-slate-400 text-sm mt-2">ElevenLabs webhook'undan veri bekleniyor...</div>
+                <div className="text-slate-400 text-sm mt-2">ElevenLabs konuşma analizi bekleniyor...</div>
                 <div className="text-slate-500 text-xs mt-3">
+                  Değerlendirme verileri webhook veya konuşma API'sinden alınacak. 
                   Veri gelmediyse yukarıdaki "Yenile" butonunu kullanabilirsiniz.
                 </div>
               </div>

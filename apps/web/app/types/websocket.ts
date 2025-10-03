@@ -60,6 +60,22 @@ type EvaluationResultsEvent = BaseEvent & {
   };
 };
 
+type ConversationInitiatedEvent = BaseEvent & {
+  type: "conversation_initiated";
+  conversation_initiated_event: {
+    conversation_id: string;
+    agent_id: string;
+  };
+};
+
+type ConversationInitiationMetadataEvent = BaseEvent & {
+  type: "conversation_initiation_metadata";
+  conversation_initiation_metadata_event: {
+    conversation_id: string;
+    agent_id: string;
+  };
+};
+
 export type ElevenLabsWebSocketEvent = 
   | UserTranscriptEvent
   | AgentResponseEvent
@@ -67,7 +83,9 @@ export type ElevenLabsWebSocketEvent =
   | AudioResponseEvent
   | InterruptionEvent
   | PingEvent
-  | EvaluationResultsEvent;
+  | EvaluationResultsEvent
+  | ConversationInitiatedEvent
+  | ConversationInitiationMetadataEvent;
 
 export type WebSocketMessage = {
   user_audio_chunk?: string;
@@ -76,5 +94,13 @@ export type WebSocketMessage = {
   contextual_update?: {
     type: "contextual_update";
     text: string;
+  };
+  conversation_initiation_settings?: {
+    turn_detection: {
+      type: "server_vad";
+      threshold: number;
+      prefix_padding_ms: number;
+      silence_duration_ms: number;
+    };
   };
 };

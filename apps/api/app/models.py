@@ -200,7 +200,7 @@ class Session(SQLModel, table=True):
 
 class UserInteraction(SQLModel, table=True):
     id: str = Field(default_factory=gen_uuid, primary_key=True)
-    session_id: str = Field(foreign_key="session.id")
+    session_id: str = Field(foreign_key="interactionsession.id")
     user_id: Optional[str] = Field(default=None, foreign_key="user.id")
     training_id: str = Field(foreign_key="training.id")
     company_id: Optional[str] = Field(default=None, foreign_key="company.id")
@@ -255,7 +255,7 @@ class TrainingProgress(SQLModel, table=True):
 
 class ChatMessage(SQLModel, table=True):
     id: str = Field(default_factory=gen_uuid, primary_key=True)
-    session_id: str = Field(foreign_key="session.id")
+    session_id: str = Field(foreign_key="interactionsession.id")
     user_id: Optional[str] = Field(default=None, foreign_key="user.id")
     training_id: str = Field(foreign_key="training.id")
     company_id: Optional[str] = Field(default=None, foreign_key="company.id")
@@ -284,7 +284,7 @@ class ChatMessage(SQLModel, table=True):
 
 class InteractionLog(SQLModel, table=True):
     id: str = Field(default_factory=gen_uuid, primary_key=True)
-    session_id: str = Field(foreign_key="session.id")
+    session_id: str = Field(foreign_key="interactionsession.id")
     timestamp: datetime = Field(default_factory=auto_now)
     event: str
     data_json: str = Field(default="{}")
@@ -330,6 +330,10 @@ class InteractionSession(SQLModel, table=True):
     # LLM context and state
     llm_context_json: str = Field(default="{}", description="Current LLM context as JSON")
     current_phase: str = Field(default="greeting", description="greeting|interaction|completion")
+    
+    # ElevenLabs conversation tracking
+    elevenlabs_conversation_id: Optional[str] = Field(default=None, description="ElevenLabs conversation ID")
+    elevenlabs_agent_id: Optional[str] = Field(default=None, description="ElevenLabs agent ID")
     
     # Metadata
     metadata_json: str = Field(default="{}", description="Additional session metadata")

@@ -26,6 +26,7 @@ interface ConversationSession {
   sectionId?: string;
   trainingId?: string;
   agentId?: string;
+  conversationId?: string; // ElevenLabs conversation_id
   startTime?: number;
   messages: ConversationMessage[];
   evaluationResults?: EvaluationResult[];
@@ -470,7 +471,7 @@ export const useAgentConversation = () => {
               console.log('🔇 Audio source finished');
             };
             
-            source.onerror = (error) => {
+            (source as any).onerror = (error: any) => {
               console.error('❌ Audio source error:', error);
               setIsPlaying(false);
               isPlayingRef.current = false;
@@ -661,12 +662,12 @@ export const useAgentConversation = () => {
           full_conversation: conversationRef.current.messages,
           evaluation_results: conversationRef.current.evaluationResults
         }),
-        interaction_metadata: JSON.stringify({
+        interaction_metadata: {
           conversation_type: 'voice_chat',
           agent_id: conversationRef.current.agentId,
           message_count: conversationRef.current.messages.length,
           has_evaluation_results: !!conversationRef.current.evaluationResults?.length
-        }),
+        },
         success: true
       };
 
@@ -714,24 +715,23 @@ export const useAgentConversation = () => {
       // Create WebSocket connection
       const websocket = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}`);
       
-      websocket.onopen = () => {
+      websocket.onopen = async () => {
         console.log('✅ ElevenLabs WebSocket connected');
         setIsConnected(true);
         
-        // Session ID'yi metadata olarak gönder
-        if (conversationRef.current?.sessionId) {
-          console.log('📤 Sending session metadata to ElevenLabs:', conversationRef.current.sessionId);
-          sendMessage(websocket, {
-            type: "conversation_initiation_settings",
-            conversation_initiation_settings: {
-              metadata: {
-                session_id: conversationRef.current.sessionId,
-                training_id: conversationRef.current.trainingId,
-                section_id: conversationRef.current.sectionId
-              }
+        // Send conversation initiation data to trigger conversation_initiated event
+        console.log('📤 Sending conversation initiation data...');
+        sendMessage(websocket, {
+          type: "conversation_initiation_client_data",
+          conversation_initiation_settings: {
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 500
             }
-          });
-        }
+          }
+        });
         
         // Small delay to ensure state is updated
         setTimeout(() => {
@@ -741,6 +741,7 @@ export const useAgentConversation = () => {
       
       websocket.onmessage = async (event) => {
         const data = JSON.parse(event.data) as ElevenLabsWebSocketEvent;
+        console.log('📨 Received WebSocket message:', data.type, data);
         
         // Handle ping events to keep connection alive
         if (data.type === "ping") {
@@ -752,6 +753,75 @@ export const useAgentConversation = () => {
           }, data.ping_event.ping_ms);
         }
         
+        if (data.type === "conversation_initiation_metadata") {
+          const { conversation_initiation_metadata_event } = data;
+          console.log("📋 Conversation initiation metadata received:", conversation_initiation_metadata_event);
+          
+          // Store conversation_id from metadata (this might be the actual conversation_id we need)
+          if (conversation_initiation_metadata_event.conversation_id) {
+            conversationRef.current.conversationId = conversation_initiation_metadata_event.conversation_id;
+            console.log("🎯 Conversation ID from metadata:", conversation_initiation_metadata_event.conversation_id);
+            
+            // Save conversation_id to backend interaction session
+            if (conversationRef.current.sessionId) {
+              try {
+              // Use the new API endpoint to update conversation ID
+              await fetch(`http://localhost:8000/evaluation-reports/session/${conversationRef.current.sessionId}/update-conversation-id`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                  conversation_id: conversation_initiation_metadata_event.conversation_id,
+                  agent_id: conversation_initiation_metadata_event.agent_id
+                })
+              });
+                
+                console.log('💾 ElevenLabs conversation ID saved to interaction session from metadata:', conversation_initiation_metadata_event.conversation_id);
+              } catch (error) {
+                console.error('❌ Failed to save conversation ID to session:', error);
+                // Fallback to localStorage
+                localStorage.setItem('elevenlabs_conversation_id', conversation_initiation_metadata_event.conversation_id);
+                localStorage.setItem('elevenlabs_agent_id', conversation_initiation_metadata_event.agent_id);
+              }
+            }
+          }
+        }
+        
+        if (data.type === "conversation_initiated") {
+          const { conversation_initiated_event } = data;
+          console.log("🎯 Conversation initiated from ElevenLabs:", conversation_initiated_event.conversation_id);
+          
+          // Store conversation_id for later use
+          conversationRef.current.conversationId = conversation_initiated_event.conversation_id;
+          
+          // Save conversation_id to backend interaction session
+          if (conversationRef.current.sessionId) {
+            try {
+              // Use the new API endpoint to update conversation ID
+              await fetch(`http://localhost:8000/evaluation-reports/session/${conversationRef.current.sessionId}/update-conversation-id`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                  conversation_id: conversation_initiated_event.conversation_id,
+                  agent_id: conversation_initiated_event.agent_id
+                })
+              });
+              
+              console.log('💾 ElevenLabs conversation ID saved to interaction session:', conversation_initiated_event.conversation_id);
+            } catch (error) {
+              console.error('❌ Failed to save conversation ID to session:', error);
+              // Fallback to localStorage
+              localStorage.setItem('elevenlabs_conversation_id', conversation_initiated_event.conversation_id);
+              localStorage.setItem('elevenlabs_agent_id', conversation_initiated_event.agent_id);
+            }
+          }
+        }
+        
         if (data.type === "user_transcript") {
           const { user_transcription_event } = data;
           console.log("📝 User transcript:", user_transcription_event.user_transcript);
@@ -761,13 +831,13 @@ export const useAgentConversation = () => {
             type: 'user',
             content: user_transcription_event.user_transcript,
             timestamp: Date.now(),
-            confidence: user_transcription_event.confidence || undefined
+            confidence: (user_transcription_event as any).confidence || undefined
           };
           conversationRef.current.messages.push(userMessage);
           
           // Save to database
           await saveConversationMessage('user', user_transcription_event.user_transcript, {
-            confidence: user_transcription_event.confidence,
+            confidence: (user_transcription_event as any).confidence,
             event_type: 'user_transcript'
           });
         }
@@ -785,7 +855,7 @@ export const useAgentConversation = () => {
           conversationRef.current.messages.push(agentMessage);
           
           // Save to database
-          await saveConversationMessage('assistant', agent_response_event.agent_response, {
+          await saveConversationMessage('agent', agent_response_event.agent_response, {
             event_type: 'agent_response'
           });
         }
@@ -795,13 +865,20 @@ export const useAgentConversation = () => {
           console.log("🔄 Agent response correction:", agent_response_correction_event.corrected_agent_response);
           
           // Update the last agent message with corrected response
-          const lastAgentIndex = conversationRef.current.messages.findLastIndex(m => m.type === 'agent');
+          // Find last agent message index (manual implementation for compatibility)
+          let lastAgentIndex = -1;
+          for (let i = conversationRef.current.messages.length - 1; i >= 0; i--) {
+            if (conversationRef.current.messages[i].type === 'agent') {
+              lastAgentIndex = i;
+              break;
+            }
+          }
           if (lastAgentIndex !== -1) {
             conversationRef.current.messages[lastAgentIndex].content = agent_response_correction_event.corrected_agent_response;
           }
           
           // Save corrected response to database
-          await saveConversationMessage('assistant', agent_response_correction_event.corrected_agent_response, {
+          await saveConversationMessage('agent', agent_response_correction_event.corrected_agent_response, {
             event_type: 'agent_response_correction',
             is_correction: true
           });

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { type TrainingSection } from '@/lib/api';
 import { Mic, MicOff, Volume2, Bot, ArrowLeft, ArrowRight, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@lxplayer/ui';
@@ -19,7 +19,7 @@ interface LLMAgentPlayerProps {
 
 type ViewState = 'loading' | 'voice-chat' | 'error';
 
-export function LLMAgentPlayer({ section, trainingAvatar, onComplete, onNavigateNext, onNavigatePrevious, onLLMAction, sessionId, trainingId, userId }: LLMAgentPlayerProps) {
+const LLMAgentPlayerComponent = ({ section, trainingAvatar, onComplete, onNavigateNext, onNavigatePrevious, onLLMAction, sessionId, trainingId, userId }: LLMAgentPlayerProps) => {
   
   // Sadece llm_agent section'lar için çalış
   if (section.type !== 'llm_agent') {
@@ -117,7 +117,7 @@ export function LLMAgentPlayer({ section, trainingAvatar, onComplete, onNavigate
         stopConversation();
       }
     };
-  }, [sessionId, trainingId, section.id, agentId, initializeConversationSession]);
+  }, [sessionId, trainingId, section.id, agentId]);
 
   // Watch for connection status changes
   useEffect(() => {
@@ -127,13 +127,16 @@ export function LLMAgentPlayer({ section, trainingAvatar, onComplete, onNavigate
       // Send context and transition to voice-chat mode
       if (section) {
         console.log('📝 Sending contextual update...');
-        sendContextualUpdate(`Training section: ${section.title}. Description: ${section.description}. Script: ${section.script}`);
+        // Add a small delay to ensure WebSocket is fully ready
+        setTimeout(() => {
+          sendContextualUpdate(`Training section: ${section.title}. Description: ${section.description}. Script: ${section.script}`);
+        }, 100);
       }
       setViewState('voice-chat');
     }
-  }, [isConnected, viewState, section, sendContextualUpdate]);
+  }, [isConnected, viewState, section]);
 
-  const handleStartSession = async () => {
+  const handleStartSession = useCallback(async () => {
     try {
       console.log('🚀 Starting WebSocket conversation with agent:', agentId);
       setError(null);
@@ -157,7 +160,7 @@ export function LLMAgentPlayer({ section, trainingAvatar, onComplete, onNavigate
       setError('Failed to start conversation');
       setViewState('error');
     }
-  };
+  }, [agentId, startConversation]);
 
   const handleEndSession = async () => {
     try {
@@ -309,7 +312,7 @@ export function LLMAgentPlayer({ section, trainingAvatar, onComplete, onNavigate
           <div className="flex-1 flex flex-col items-center justify-center p-8">
             <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-4" />
             <h3 className="text-lg font-semibold text-white mb-2">
-              ElevenLabs Agent Başlatılıyor...
+              AI Asistan Başlatılıyor...
             </h3>
             <p className="text-slate-300 text-center">
               {section.title} için sesli sohbet hazırlanıyor.
@@ -322,7 +325,7 @@ export function LLMAgentPlayer({ section, trainingAvatar, onComplete, onNavigate
             {/* Sol taraf - Durum */}
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-              <span className="text-sm text-slate-300">ElevenLabs Agent Başlatılıyor...</span>
+              <span className="text-sm text-slate-300">AI Asistan Başlatılıyor...</span>
             </div>
 
             {/* Sağ taraf - İptal */}
@@ -591,7 +594,7 @@ export function LLMAgentPlayer({ section, trainingAvatar, onComplete, onNavigate
             <div className="text-center">
               {!isConnected ? (
                 <div className="text-gray-500">
-                  <p className="text-lg mb-2">ElevenLabs Agent bağlanıyor...</p>
+                  <p className="text-lg mb-2">AI Asistan bağlanıyor...</p>
                   <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                 </div>
               ) : isRecording ? (
@@ -735,4 +738,7 @@ export function LLMAgentPlayer({ section, trainingAvatar, onComplete, onNavigate
   }
 
   return null;
-}
+};
+
+// Memoize the component to prevent unnecessary re-renders
+export const LLMAgentPlayer = React.memo(LLMAgentPlayerComponent);

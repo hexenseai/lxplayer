@@ -242,7 +242,7 @@ export default function LLMAgentTestPage() {
               Geri
             </Button>
             <div>
-              <h1 className="text-xl font-semibold">LLM Agent Test - WebSocket API</h1>
+              <h1 className="text-xl font-semibold">AI Asistan Test</h1>
               <p className="text-sm text-gray-600">{section.title}</p>
             </div>
           </div>
@@ -446,25 +446,25 @@ export default function LLMAgentTestPage() {
             <p>Section Type: {section?.type || 'N/A'}</p>
             <p>Section Agent ID: {section?.agent_id || 'N/A'}</p>
             <p>Microphone Permission: {microphonePermission}</p>
-            <p>WebSocket Connected: {isConnected ? 'Yes' : 'No'}</p>
-            <p>Recording: {isRecording ? 'Yes' : 'No'}</p>
-            <p>Playing: {isPlaying ? 'Yes' : 'No'}</p>
-            <p>Voice Chat Mode: Active</p>
-            <p>getUserMedia Available: {typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function' ? 'Yes' : 'No'}</p>
-            <p>HTTPS: {location.protocol === 'https:' ? 'Yes' : 'No'}</p>
+            <p>Bağlantı Durumu: {isConnected ? 'Bağlı' : 'Bağlı Değil'}</p>
+            <p>Kayıt: {isRecording ? 'Aktif' : 'Pasif'}</p>
+            <p>Oynatma: {isPlaying ? 'Aktif' : 'Pasif'}</p>
+            <p>Sesli Sohbet Modu: Aktif</p>
+            <p>Mikrofon Erişimi: {typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function' ? 'Mevcut' : 'Mevcut Değil'}</p>
+            <p>Güvenli Bağlantı: {location.protocol === 'https:' ? 'Aktif' : 'Pasif'}</p>
             {webSocketError && <p className="text-red-600">Error: {webSocketError}</p>}
           </div>
           
           <div className="mt-4 pt-4 border-t border-gray-300">
-            <h5 className="font-medium mb-2">Audio Debug Bilgileri</h5>
+            <h5 className="font-medium mb-2">Ses Debug Bilgileri</h5>
             <div className="text-xs text-gray-600 space-y-1">
-              <p>🔧 Doğru Base64 Birleştirme</p>
-              <p>🔧 Binary → Combine → Re-encode</p>
-              <p>🔧 Asenkron buffer (250ms) + Senkron oynatma</p>
-              <p>🔧 Base64 validation ve error handling</p>
-              <p>🔧 Fallback individual chunk system</p>
-              <p className="text-green-600">✅ Base64 decode hatası çözüldü</p>
-              <p className="text-green-600">✅ Chunk birleştirme düzeltildi</p>
+              <p>🔧 Ses verisi birleştirme</p>
+              <p>🔧 Veri işleme ve kodlama</p>
+              <p>🔧 Asenkron tampon (250ms) + Senkron oynatma</p>
+              <p>🔧 Veri doğrulama ve hata yönetimi</p>
+              <p>🔧 Yedek parça sistemi</p>
+              <p className="text-green-600">✅ Ses kodlama hatası çözüldü</p>
+              <p className="text-green-600">✅ Parça birleştirme düzeltildi</p>
               <p className="text-green-600">✅ Ses gelme sorunu çözüldü</p>
               <p className="text-blue-600">💡 Artık sesler düzgün çalacak</p>
             </div>
