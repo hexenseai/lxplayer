@@ -718,6 +718,21 @@ export const useAgentConversation = () => {
         console.log('✅ ElevenLabs WebSocket connected');
         setIsConnected(true);
         
+        // Session ID'yi metadata olarak gönder
+        if (conversationRef.current?.sessionId) {
+          console.log('📤 Sending session metadata to ElevenLabs:', conversationRef.current.sessionId);
+          sendMessage(websocket, {
+            type: "conversation_initiation_settings",
+            conversation_initiation_settings: {
+              metadata: {
+                session_id: conversationRef.current.sessionId,
+                training_id: conversationRef.current.trainingId,
+                section_id: conversationRef.current.sectionId
+              }
+            }
+          });
+        }
+        
         // Small delay to ensure state is updated
         setTimeout(() => {
           console.log('🔄 WebSocket connection established, ready for audio streaming');

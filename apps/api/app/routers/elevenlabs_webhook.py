@@ -250,19 +250,21 @@ def parse_elevenlabs_webhook(webhook_data: Dict[str, Any]) -> Optional[Dict[str,
         data = webhook_data.get("data", {})
         analysis = data.get("analysis", {})
         
-        # Session ID'yi conversation_id'den al (veya metadata'dan)
+        # Session ID'yi metadata'dan al (öncelikli)
         conversation_id = data.get("conversation_id")
         agent_id = data.get("agent_id")
         
-        # Session ID'yi conversation_id'den türet veya metadata'dan al
+        # Session ID'yi metadata'dan al (öncelikli)
         session_id = None
-        if conversation_id:
-            # conversation_id'yi session_id olarak kullan
-            session_id = conversation_id
-        else:
-            # Fallback: metadata'dan al
-            metadata = webhook_data.get("metadata", {})
+        metadata = webhook_data.get("metadata", {})
+        if metadata and metadata.get("session_id"):
+            # Metadata'dan session_id'yi al
             session_id = metadata.get("session_id")
+            logger.info(f"📋 Session ID from metadata: {session_id}")
+        elif conversation_id:
+            # Fallback: conversation_id'yi session_id olarak kullan
+            session_id = conversation_id
+            logger.info(f"📋 Session ID from conversation_id: {session_id}")
         
         if not session_id:
             logger.warning("⚠️ No session_id found in webhook data")
