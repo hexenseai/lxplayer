@@ -30,6 +30,7 @@ class TrainingIn(BaseModel):
     access_code: str | None = None
     avatar_id: str | None = None
     company_id: str | None = None
+    show_evaluation_report: bool | None = None
 
 
 class TrainingSectionIn(BaseModel):
