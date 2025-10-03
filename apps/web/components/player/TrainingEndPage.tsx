@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, Trophy, Clock, Target, MessageSquare, Video, Star, RotateCcw, Home, Share2, Download } from 'lucide-react';
+import { CheckCircle, Trophy, Clock, Target, MessageSquare, Video, Star, RotateCcw, Home, Share2, Download, BarChart3, TrendingUp, Award } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { api } from '@/lib/api';
 
@@ -12,6 +12,8 @@ interface TrainingEndPageProps {
   userId?: string;
   totalSections: number;
   sessionId?: string;
+  trainingId?: string;
+  showEvaluationReport?: boolean;
   onRestartTraining: () => void;
   onGoHome: () => void;
 }
@@ -37,6 +39,33 @@ interface Achievement {
   earned: boolean;
 }
 
+interface EvaluationResult {
+  id: string;
+  criteria: {
+    id: string;
+    name: string;
+    description: string;
+    weight: number;
+  };
+  evaluation_score: number;
+  evaluation_result: string;
+  explanation: string;
+  evaluated_at: string;
+}
+
+interface EvaluationReport {
+  id: string;
+  report_title: string;
+  overall_score: number;
+  summary: string;
+  detailed_analysis: string;
+  recommendations: string;
+  strengths: string;
+  weaknesses: string;
+  status: string;
+  generated_at: string;
+}
+
 export function TrainingEndPage({
   trainingTitle,
   trainingDescription,
@@ -45,6 +74,8 @@ export function TrainingEndPage({
   userId,
   totalSections,
   sessionId,
+  trainingId,
+  showEvaluationReport = false,
   onRestartTraining,
   onGoHome
 }: TrainingEndPageProps) {
@@ -61,11 +92,46 @@ export function TrainingEndPage({
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCertificate, setShowCertificate] = useState(false);
+  
+  // Evaluation state
+  const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
+  const [evaluationReport, setEvaluationReport] = useState<EvaluationReport | null>(null);
+  const [evaluationLoading, setEvaluationLoading] = useState(false);
+  const [showEvaluationDetails, setShowEvaluationDetails] = useState(false);
 
   // Load analytics on mount
   useEffect(() => {
     loadTrainingAnalytics();
-  }, [sessionId, accessCode, userId]);
+    if (showEvaluationReport && sessionId) {
+      loadEvaluationData();
+    }
+  }, [sessionId, accessCode, userId, showEvaluationReport]);
+
+  // Load evaluation data
+  const loadEvaluationData = async () => {
+    if (!sessionId) return;
+    
+    setEvaluationLoading(true);
+    try {
+      // Load evaluation results
+      const results = await api.get(`/evaluation-results?session_id=${sessionId}`);
+      setEvaluationResults(results);
+      
+      // Load evaluation report if exists
+      try {
+        const reports = await api.get(`/evaluation-reports?session_id=${sessionId}`);
+        if (reports && reports.length > 0) {
+          setEvaluationReport(reports[0]);
+        }
+      } catch (error) {
+        console.log('No evaluation report found:', error);
+      }
+    } catch (error) {
+      console.error('Failed to load evaluation data:', error);
+    } finally {
+      setEvaluationLoading(false);
+    }
+  };
 
   const loadTrainingAnalytics = async () => {
     try {
@@ -262,6 +328,34 @@ export function TrainingEndPage({
   };
 
   const earnedAchievements = achievements.filter(a => a.earned);
+
+  // Calculate overall evaluation score
+  const calculateOverallScore = () => {
+    if (evaluationResults.length === 0) return 0;
+    
+    const totalWeight = evaluationResults.reduce((sum, result) => sum + result.criteria.weight, 0);
+    const weightedScore = evaluationResults.reduce((sum, result) => 
+      sum + (result.evaluation_score * result.criteria.weight), 0
+    );
+    
+    return totalWeight > 0 ? Math.round(weightedScore / totalWeight) : 0;
+  };
+
+  // Get score color based on value
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-green-400';
+    if (score >= 60) return 'text-yellow-400';
+    if (score >= 40) return 'text-orange-400';
+    return 'text-red-400';
+  };
+
+  // Get score background color
+  const getScoreBgColor = (score: number) => {
+    if (score >= 80) return 'bg-green-500/20 border-green-500/30';
+    if (score >= 60) return 'bg-yellow-500/20 border-yellow-500/30';
+    if (score >= 40) return 'bg-orange-500/20 border-orange-500/30';
+    return 'bg-red-500/20 border-red-500/30';
+  };
 
   if (loading) {
     return (
@@ -463,6 +557,16 @@ export function TrainingEndPage({
             <span>Sertifika İndir</span>
           </button>
           
+          {showEvaluationReport && evaluationResults.length > 0 && (
+            <button
+              onClick={() => setShowEvaluationDetails(!showEvaluationDetails)}
+              className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              <BarChart3 className="w-5 h-5" />
+              <span>{showEvaluationDetails ? 'Değerlendirmeyi Gizle' : 'Değerlendirme Sonuçları'}</span>
+            </button>
+          )}
+          
           <button
             onClick={onRestartTraining}
             className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
@@ -499,6 +603,117 @@ export function TrainingEndPage({
           </div>
         </motion.div>
       </div>
+
+      {/* Evaluation Results Section */}
+      {showEvaluationReport && showEvaluationDetails && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9, duration: 0.5 }}
+          className="mt-12"
+        >
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+              <Award className="w-6 h-6 text-blue-400" />
+              Değerlendirme Sonuçları
+            </h3>
+
+            {evaluationLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <div className="text-slate-300">Değerlendirme sonuçları yükleniyor...</div>
+              </div>
+            ) : evaluationResults.length > 0 ? (
+              <div className="space-y-6">
+                {/* Overall Score */}
+                <div className={`${getScoreBgColor(calculateOverallScore())} rounded-lg p-6 border`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-lg font-semibold text-white mb-2">Genel Değerlendirme Puanı</h4>
+                      <p className="text-slate-300">Tüm kriterlerin ağırlıklı ortalaması</p>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-4xl font-bold ${getScoreColor(calculateOverallScore())}`}>
+                        {calculateOverallScore()}
+                      </div>
+                      <div className="text-slate-300 text-sm">/ 100</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Individual Criteria Results */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {evaluationResults.map((result) => (
+                    <div key={result.id} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                      <div className="flex items-center justify-between mb-3">
+                        <h5 className="font-semibold text-white">{result.criteria.name}</h5>
+                        <div className={`text-2xl font-bold ${getScoreColor(result.evaluation_score)}`}>
+                          {result.evaluation_score}
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-300 mb-3">{result.criteria.description}</p>
+                      <div className="text-xs text-slate-400">
+                        <div className="mb-1">
+                          <span className="font-medium">Sonuç:</span> {result.evaluation_result}
+                        </div>
+                        <div>
+                          <span className="font-medium">Açıklama:</span> {result.explanation}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Evaluation Report */}
+                {evaluationReport && (
+                  <div className="bg-slate-700/50 rounded-lg p-6 border border-slate-600">
+                    <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-green-400" />
+                      Detaylı Değerlendirme Raporu
+                    </h4>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <h5 className="font-medium text-slate-300 mb-2">Özet</h5>
+                        <p className="text-slate-400 text-sm">{evaluationReport.summary}</p>
+                      </div>
+                      
+                      <div>
+                        <h5 className="font-medium text-slate-300 mb-2">Detaylı Analiz</h5>
+                        <p className="text-slate-400 text-sm">{evaluationReport.detailed_analysis}</p>
+                      </div>
+                      
+                      <div>
+                        <h5 className="font-medium text-slate-300 mb-2">Öneriler</h5>
+                        <p className="text-slate-400 text-sm">{evaluationReport.recommendations}</p>
+                      </div>
+                      
+                      {evaluationReport.strengths && (
+                        <div>
+                          <h5 className="font-medium text-green-400 mb-2">Güçlü Yanlar</h5>
+                          <p className="text-slate-400 text-sm">{evaluationReport.strengths}</p>
+                        </div>
+                      )}
+                      
+                      {evaluationReport.weaknesses && (
+                        <div>
+                          <h5 className="font-medium text-orange-400 mb-2">Geliştirilmesi Gereken Alanlar</h5>
+                          <p className="text-slate-400 text-sm">{evaluationReport.weaknesses}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <BarChart3 className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+                <div className="text-slate-300">Bu eğitim için henüz değerlendirme sonucu bulunmuyor.</div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

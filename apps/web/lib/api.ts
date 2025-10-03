@@ -10,6 +10,7 @@ export const Training = z.object({
   ai_flow: z.string().nullable().optional(), 
   access_code: z.string().nullable().optional(), 
   avatar_id: z.string().nullable().optional(),
+  show_evaluation_report: z.boolean().optional(),
   avatar: z.object({
     id: z.string(),
     name: z.string(),
@@ -1832,6 +1833,83 @@ export const api = {
     }),
     { method: 'POST' }
   ),
+
+  // training feedback
+  createTrainingFeedback: (input: {
+    session_id: string;
+    training_id: string;
+    overall_rating: number;
+    content_quality: number;
+    ease_of_understanding: number;
+    interactivity: number;
+    technical_quality: number;
+    what_did_you_like?: string;
+    what_could_be_improved?: string;
+    additional_comments?: string;
+    is_anonymous?: boolean;
+  }) => request('/training-feedback', z.object({
+    id: z.string(),
+    session_id: z.string(),
+    user_id: z.string(),
+    training_id: z.string(),
+    overall_rating: z.number(),
+    content_quality: z.number(),
+    ease_of_understanding: z.number(),
+    interactivity: z.number(),
+    technical_quality: z.number(),
+    what_did_you_like: z.string().nullable(),
+    what_could_be_improved: z.string().nullable(),
+    additional_comments: z.string().nullable(),
+    is_anonymous: z.boolean(),
+    created_at: z.string(),
+    company_id: z.string().nullable(),
+    metadata_json: z.string()
+  }), { method: 'POST', body: JSON.stringify(input) }),
+
+  getTrainingFeedback: (session_id?: string, training_id?: string) => 
+    request(`/training-feedback?${session_id ? `session_id=${session_id}` : ''}${training_id ? `&training_id=${training_id}` : ''}`, 
+      z.array(z.object({
+        id: z.string(),
+        session_id: z.string(),
+        user_id: z.string(),
+        training_id: z.string(),
+        overall_rating: z.number(),
+        content_quality: z.number(),
+        ease_of_understanding: z.number(),
+        interactivity: z.number(),
+        technical_quality: z.number(),
+        what_did_you_like: z.string().nullable(),
+        what_could_be_improved: z.string().nullable(),
+        additional_comments: z.string().nullable(),
+        is_anonymous: z.boolean(),
+        created_at: z.string(),
+        company_id: z.string().nullable(),
+        metadata_json: z.string()
+      }))
+    ),
+
+  checkFeedbackExists: (session_id: string) => 
+    request(`/training-feedback/session/${session_id}/exists`, z.object({
+      session_id: z.string(),
+      feedback_exists: z.boolean(),
+      feedback_id: z.string().nullable()
+    })),
+
+  getTrainingFeedbackAnalytics: (training_id: string) => 
+    request(`/training-feedback/training/${training_id}/analytics`, z.object({
+      training_id: z.string(),
+      training_title: z.string(),
+      total_feedbacks: z.number(),
+      average_ratings: z.object({
+        overall: z.number(),
+        content_quality: z.number(),
+        ease_of_understanding: z.number(),
+        interactivity: z.number(),
+        technical_quality: z.number()
+      }),
+      rating_distribution: z.record(z.string(), z.number()),
+      feedback_summary: z.string()
+    })),
 
 
 };

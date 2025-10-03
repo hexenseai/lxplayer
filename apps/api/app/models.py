@@ -84,6 +84,7 @@ class Training(SQLModel, table=True):
     access_code: Optional[str] = Field(default=None, description="Access code for interactive player")
     avatar_id: Optional[str] = Field(default=None, foreign_key="avatar.id", description="Avatar for this training")
     company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+    show_evaluation_report: bool = Field(default=False, description="Whether to show evaluation report at the end of training")
 
 
 class TrainingSection(SQLModel, table=True):
@@ -471,6 +472,36 @@ class EvaluationReport(SQLModel, table=True):
     # Metadata
     generated_by: Optional[str] = Field(default=None, foreign_key="user.id", description="Raporu oluşturan")
     reviewed_by: Optional[str] = Field(default=None, foreign_key="user.id", description="Raporu inceleyen")
+    company_id: Optional[str] = Field(default=None, foreign_key="company.id")
+    metadata_json: str = Field(default="{}", description="Ek metadata")
+
+
+class TrainingFeedback(SQLModel, table=True):
+    """Kullanıcı eğitim değerlendirme feedback'i"""
+    id: str = Field(default_factory=gen_uuid, primary_key=True)
+    session_id: str = Field(foreign_key="interactionsession.id", description="Hangi oturum için feedback")
+    user_id: str = Field(foreign_key="user.id", description="Feedback veren kullanıcı")
+    training_id: str = Field(foreign_key="training.id", description="Hangi eğitim")
+    
+    # Değerlendirme puanları (1-5 arası)
+    overall_rating: int = Field(description="Genel değerlendirme (1-5)")
+    content_quality: int = Field(description="İçerik kalitesi (1-5)")
+    ease_of_understanding: int = Field(description="Anlaşılabilirlik (1-5)")
+    interactivity: int = Field(description="Etkileşimlilik (1-5)")
+    technical_quality: int = Field(description="Teknik kalite (1-5)")
+    
+    # Açık uçlu feedback
+    what_did_you_like: Optional[str] = Field(default=None, description="Beğenilen yönler")
+    what_could_be_improved: Optional[str] = Field(default=None, description="Geliştirilebilir yönler")
+    additional_comments: Optional[str] = Field(default=None, description="Ek yorumlar")
+    
+    # Anonimlik tercihi
+    is_anonymous: bool = Field(default=False, description="Anonim feedback mi")
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Metadata
     company_id: Optional[str] = Field(default=None, foreign_key="company.id")
     metadata_json: str = Field(default="{}", description="Ek metadata")
 

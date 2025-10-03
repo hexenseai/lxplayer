@@ -531,3 +531,37 @@ class EvaluationReportResponse(BaseModel):
     company_id: Optional[str] = None
     metadata_json: str
 
+
+# Training Feedback Schemas
+class TrainingFeedbackCreate(BaseModel):
+    session_id: str
+    training_id: str
+    overall_rating: int = Field(ge=1, le=5, description="Genel değerlendirme (1-5)")
+    content_quality: int = Field(ge=1, le=5, description="İçerik kalitesi (1-5)")
+    ease_of_understanding: int = Field(ge=1, le=5, description="Anlaşılabilirlik (1-5)")
+    interactivity: int = Field(ge=1, le=5, description="Etkileşimlilik (1-5)")
+    technical_quality: int = Field(ge=1, le=5, description="Teknik kalite (1-5)")
+    what_did_you_like: Optional[str] = None
+    what_could_be_improved: Optional[str] = None
+    additional_comments: Optional[str] = None
+    is_anonymous: bool = False
+    metadata_json: str = "{}"
+
+
+class TrainingFeedbackResponse(BaseModel):
+    id: str
+    session_id: str
+    user_id: str
+    training_id: str
+    overall_rating: int
+    content_quality: int
+    ease_of_understanding: int
+    interactivity: int
+    technical_quality: int
+    what_did_you_like: Optional[str] = None
+    what_could_be_improved: Optional[str] = None
+    additional_comments: Optional[str] = None
+    is_anonymous: bool
+    created_at: datetime
+    company_id: Optional[str] = None
+    metadata_json: str
