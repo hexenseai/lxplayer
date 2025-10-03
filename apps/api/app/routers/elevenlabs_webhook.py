@@ -56,6 +56,12 @@ async def receive_elevenlabs_evaluation(
         # Request body'yi al
         body = await request.body()
         
+        # Detaylı logging başlat
+        logger.info("🚀 ElevenLabs webhook endpoint hit!")
+        logger.info(f"📊 Request headers: {dict(request.headers)}")
+        logger.info(f"📦 Request body size: {len(body)} bytes")
+        logger.info(f"🔐 Signature header: {x_elevenlabs_signature}")
+        
         # Webhook signature'ını doğrula
         if not x_elevenlabs_signature:
             logger.warning("⚠️ No webhook signature provided")
@@ -73,7 +79,8 @@ async def receive_elevenlabs_evaluation(
         
         webhook_data = json.loads(body.decode('utf-8'))
         
-        logger.info(f"🔍 ElevenLabs webhook received and verified: {webhook_data}")
+        logger.info("✅ ElevenLabs webhook signature verified!")
+        logger.info(f"🔍 Full webhook data: {json.dumps(webhook_data, indent=2)}")
         
         # ElevenLabs webhook type kontrolü
         if webhook_data.get('type') != 'post_call_transcription':
@@ -152,6 +159,108 @@ def test_webhook_endpoint():
         "timestamp": datetime.utcnow().isoformat(),
         "secret_configured": bool(ELEVENLABS_WEBHOOK_SECRET)
     }
+
+@router.get("/monitor")
+def monitor_webhook_activity(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
+):
+    """Son webhook aktivitelerini izle"""
+    try:
+        # Son 24 saatteki evaluation sonuçlarını al
+        from datetime import timedelta
+        cutoff_time = datetime.utcnow() - timedelta(hours=24)
+        
+        # Son evaluation sonuçları
+        recent_evaluations = session.exec(
+            select(EvaluationResult)
+            .where(EvaluationResult.created_at >= cutoff_time)
+            .where(EvaluationResult.llm_model == "elevenlabs")
+            .order_by(EvaluationResult.created_at.desc())
+            .limit(50)
+        ).all()
+        
+        # Session'lara göre grupla
+        session_stats = {}
+        for eval_result in recent_evaluations:
+            session_id = eval_result.session_id
+            if session_id not in session_stats:
+                session_stats[session_id] = {
+                    "session_id": session_id,
+                    "user_id": eval_result.user_id,
+                    "training_id": eval_result.training_id,
+                    "evaluations_count": 0,
+                    "last_evaluation": eval_result.created_at,
+                    "criteria_evaluated": [],
+                    "total_score": 0
+                }
+            
+            session_stats[session_id]["evaluations_count"] += 1
+            session_stats[session_id]["criteria_evaluated"].append({
+                "criteria_id": eval_result.criteria_id,
+                "score": eval_result.evaluation_score,
+                "status": eval_result.evaluation_result,
+                "timestamp": eval_result.created_at.isoformat()
+            })
+            session_stats[session_id]["total_score"] += eval_result.evaluation_score or 0
+        
+        return {
+            "status": "success",
+            "monitoring_period": "last_24_hours",
+            "total_evaluations": len(recent_evaluations),
+            "unique_sessions": len(session_stats),
+            "sessions": list(session_stats.values()),
+            "webhook_secret_configured": bool(ELEVENLABS_WEBHOOK_SECRET),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error monitoring webhook activity: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to monitor webhook activity: {str(e)}"
+        )
+
+@router.post("/debug")
+async def debug_webhook(
+    request: Request,
+    session: Session = Depends(get_session)
+):
+    """Webhook debug endpoint - signature doğrulaması olmadan test"""
+    try:
+        body = await request.body()
+        headers = dict(request.headers)
+        
+        # Raw data'yı logla
+        logger.info("🔍 DEBUG WEBHOOK CALLED")
+        logger.info(f"📊 Headers: {headers}")
+        logger.info(f"📦 Body size: {len(body)} bytes")
+        logger.info(f"📝 Raw body: {body.decode('utf-8', errors='ignore')}")
+        
+        # JSON parse etmeye çalış
+        try:
+            webhook_data = json.loads(body.decode('utf-8'))
+            logger.info(f"✅ Parsed JSON: {json.dumps(webhook_data, indent=2)}")
+        except Exception as e:
+            logger.error(f"❌ JSON parse error: {e}")
+            webhook_data = None
+        
+        return {
+            "status": "debug_received",
+            "headers": headers,
+            "body_size": len(body),
+            "body_preview": body.decode('utf-8', errors='ignore')[:500],
+            "parsed_json": webhook_data,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Debug webhook error: {e}")
+        return {
+            "status": "debug_error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 
 @router.get("/evaluation/{session_id}")

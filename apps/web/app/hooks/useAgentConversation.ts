@@ -551,11 +551,11 @@ export const useAgentConversation = () => {
         message_type: messageType,
         content: content,
         section_id: conversationRef.current.sectionId,
-        message_metadata: JSON.stringify({
+        message_metadata: {
           agent_id: conversationRef.current.agentId,
           conversation_type: 'voice_chat',
           ...metadata
-        })
+        }
       });
       console.log('💾 Conversation message saved:', messageType, content.substring(0, 50) + '...');
     } catch (error) {

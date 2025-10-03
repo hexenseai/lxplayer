@@ -566,7 +566,7 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
         totalSections={sections.length}
         sessionId={interactionSessionId || undefined}
         trainingId={trainingId || undefined}
-        showEvaluationReport={companyTraining?.show_evaluation_report || false}
+        showEvaluationReport={true}
         onRestartTraining={restartTraining}
         onGoHome={goHome}
       />
