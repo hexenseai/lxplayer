@@ -15,8 +15,8 @@ def get_auth_token():
     """SuperAdmin token al"""
     try:
         response = requests.post(f"{BASE_URL}/auth/login", json={
-            "email": "superadmin@lxplayer.com",
-            "password": "superadmin123"
+            "email": "admin@lxplayer.com",
+            "password": "admin123"
         })
         
         if response.status_code == 200:

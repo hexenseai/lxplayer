@@ -75,7 +75,7 @@ export function TrainingEndPage({
   totalSections,
   sessionId,
   trainingId,
-  showEvaluationReport = false,
+  showEvaluationReport = true, // Zorunlu olarak true
   onRestartTraining,
   onGoHome
 }: TrainingEndPageProps) {
@@ -97,7 +97,6 @@ export function TrainingEndPage({
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
   const [evaluationReport, setEvaluationReport] = useState<EvaluationReport | null>(null);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
-  const [showEvaluationDetails, setShowEvaluationDetails] = useState(false);
 
   // Load analytics on mount
   useEffect(() => {
@@ -110,10 +109,11 @@ export function TrainingEndPage({
     });
     
     loadTrainingAnalytics();
-    if (showEvaluationReport && sessionId) {
+    // Her zaman değerlendirme verilerini yükle
+    if (sessionId) {
       loadEvaluationData();
     }
-  }, [sessionId, accessCode, userId, showEvaluationReport]);
+  }, [sessionId, accessCode, userId]);
 
   // Load evaluation data
   const loadEvaluationData = async () => {
@@ -494,152 +494,12 @@ export function TrainingEndPage({
           </div>
         </motion.div>
 
-        {/* Detailed Analytics */}
+        {/* Evaluation Results Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7, duration: 0.5 }}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12"
-        >
-          {/* Activity Breakdown */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-            <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <Video className="w-6 h-6 text-blue-400" />
-              Aktivite Dağılımı
-            </h3>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Video İzleme Süresi</span>
-                <span className="text-white font-semibold">{formatTime(analytics.videoTimeWatched)}</span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">LLM Etkileşimleri</span>
-                <span className="text-white font-semibold">{analytics.llmInteractions}</span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Sesli Etkileşimler</span>
-                <span className="text-white font-semibold">{analytics.agentInteractions}</span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Toplam Etkileşim</span>
-                <span className="text-white font-semibold">{analytics.totalInteractions}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Achievements */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-            <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <Trophy className="w-6 h-6 text-yellow-400" />
-              Başarımlar ({earnedAchievements.length}/{achievements.length})
-            </h3>
-            
-            <div className="grid grid-cols-2 gap-3">
-              {achievements.map((achievement) => (
-                <div 
-                  key={achievement.id}
-                  className={`p-3 rounded-lg border transition-all ${
-                    achievement.earned 
-                      ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-100' 
-                      : 'bg-gray-500/10 border-gray-500/20 text-gray-400'
-                  }`}
-                >
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">{achievement.icon}</div>
-                    <div className="text-sm font-medium">{achievement.title}</div>
-                    <div className="text-xs opacity-75">{achievement.description}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Debug Info */}
-        <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 mb-6">
-          <h4 className="text-red-400 font-semibold mb-2">🐛 Debug Info:</h4>
-          <div className="text-sm text-red-200 space-y-1">
-            <div>showEvaluationReport: <span className="font-mono">{String(showEvaluationReport)}</span></div>
-            <div>sessionId: <span className="font-mono">{sessionId || 'null'}</span></div>
-            <div>trainingId: <span className="font-mono">{trainingId || 'null'}</span></div>
-            <div>evaluationResults: <span className="font-mono">{evaluationResults.length}</span></div>
-            <div>evaluationLoading: <span className="font-mono">{String(evaluationLoading)}</span></div>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8, duration: 0.5 }}
-          className="flex flex-col sm:flex-row gap-4 justify-center"
-        >
-          <button
-            onClick={() => setShowCertificate(true)}
-            className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-          >
-            <Download className="w-5 h-5" />
-            <span>Sertifika İndir</span>
-          </button>
-          
-          {showEvaluationReport && (
-            <button
-              onClick={() => setShowEvaluationDetails(!showEvaluationDetails)}
-              className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              <BarChart3 className="w-5 h-5" />
-              <span>{showEvaluationDetails ? 'Değerlendirmeyi Gizle' : 'Değerlendirme Sonuçları'}</span>
-            </button>
-          )}
-          
-          <button
-            onClick={onRestartTraining}
-            className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-          >
-            <RotateCcw className="w-5 h-5" />
-            <span>Eğitimi Tekrarla</span>
-          </button>
-          
-          <button
-            onClick={onGoHome}
-            className="flex items-center justify-center gap-3 px-8 py-4 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all duration-300 border border-white/20 hover:border-white/30"
-          >
-            <Home className="w-5 h-5" />
-            <span>Ana Sayfaya Dön</span>
-          </button>
-        </motion.div>
-
-        {/* Motivational Message */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.9, duration: 0.5 }}
-          className="text-center mt-12 max-w-2xl mx-auto"
-        >
-          <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 backdrop-blur-sm rounded-xl p-6 border border-green-500/30">
-            <h4 className="text-lg font-semibold text-white mb-3">
-              🌟 Harika bir performans sergiledınız!
-            </h4>
-            <p className="text-slate-300 leading-relaxed">
-              Bu eğitimi tamamlayarak yeni bilgi ve beceriler kazandınız. 
-              Öğrenmeye devam etmek ve bu bilgileri uygulamaya dökmek için 
-              diğer eğitimlerimizi de keşfedebilirsiniz.
-            </p>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Evaluation Results Section */}
-      {showEvaluationReport && showEvaluationDetails && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.9, duration: 0.5 }}
-          className="mt-12"
+          className="mb-12"
         >
           <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
             <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
@@ -671,16 +531,16 @@ export function TrainingEndPage({
                 </div>
 
                 {/* Individual Criteria Results */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {evaluationResults.map((result) => (
                     <div key={result.id} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
                       <div className="flex items-center justify-between mb-3">
-                        <h5 className="font-semibold text-white">{result.criteria.name}</h5>
-                        <div className={`text-2xl font-bold ${getScoreColor(result.evaluation_score)}`}>
+                        <h5 className="font-semibold text-white text-sm">{result.criteria.name}</h5>
+                        <div className={`text-xl font-bold ${getScoreColor(result.evaluation_score)}`}>
                           {result.evaluation_score}
                         </div>
                       </div>
-                      <p className="text-sm text-slate-300 mb-3">{result.criteria.description}</p>
+                      <p className="text-xs text-slate-300 mb-3">{result.criteria.description}</p>
                       <div className="text-xs text-slate-400">
                         <div className="mb-1">
                           <span className="font-medium">Sonuç:</span> {result.evaluation_result}
@@ -738,11 +598,66 @@ export function TrainingEndPage({
               <div className="text-center py-8">
                 <BarChart3 className="w-12 h-12 text-slate-500 mx-auto mb-4" />
                 <div className="text-slate-300">Bu eğitim için henüz değerlendirme sonucu bulunmuyor.</div>
+                <div className="text-slate-400 text-sm mt-2">ElevenLabs webhook'undan veri bekleniyor...</div>
               </div>
             )}
           </div>
         </motion.div>
-      )}
+
+
+        {/* Action Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8, duration: 0.5 }}
+          className="flex flex-col sm:flex-row gap-4 justify-center"
+        >
+          <button
+            onClick={() => setShowCertificate(true)}
+            className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            <Download className="w-5 h-5" />
+            <span>Sertifika İndir</span>
+          </button>
+          
+          
+          <button
+            onClick={onRestartTraining}
+            className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            <RotateCcw className="w-5 h-5" />
+            <span>Eğitimi Tekrarla</span>
+          </button>
+          
+          <button
+            onClick={onGoHome}
+            className="flex items-center justify-center gap-3 px-8 py-4 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all duration-300 border border-white/20 hover:border-white/30"
+          >
+            <Home className="w-5 h-5" />
+            <span>Ana Sayfaya Dön</span>
+          </button>
+        </motion.div>
+
+        {/* Motivational Message */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.9, duration: 0.5 }}
+          className="text-center mt-12 max-w-2xl mx-auto"
+        >
+          <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 backdrop-blur-sm rounded-xl p-6 border border-green-500/30">
+            <h4 className="text-lg font-semibold text-white mb-3">
+              🌟 Harika bir performans sergiledınız!
+            </h4>
+            <p className="text-slate-300 leading-relaxed">
+              Bu eğitimi tamamlayarak yeni bilgi ve beceriler kazandınız. 
+              Öğrenmeye devam etmek ve bu bilgileri uygulamaya dökmek için 
+              diğer eğitimlerimizi de keşfedebilirsiniz.
+            </p>
+          </div>
+        </motion.div>
+      </div>
+
     </div>
   );
 }
