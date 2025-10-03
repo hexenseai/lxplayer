@@ -388,7 +388,7 @@ export function OverlayComponent({ overlay, onAction, onButtonClick, isVisible, 
     };
 
     const rewriteHtmlAssetUrls = (html: string): string => {
-      const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer').replace(/\/$/, '');
+      const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'https://yodea.hexense.ai:9000/lxplayer').replace(/\/$/, '');
       const api = process.env.NEXT_PUBLIC_API_URL || '';
       const cdnOrigin = cdn.split('/').slice(0, 3).join('/'); // http://host:port
       const cdnPathPrefix = cdn.replace(cdnOrigin, '').replace(/^\//, ''); // lxplayer

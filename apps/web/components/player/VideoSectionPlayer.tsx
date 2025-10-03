@@ -46,7 +46,7 @@ function buildVideoUrl(section: TrainingSection): string | undefined {
     return undefined;
   }
 
-  const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'http://yodea.hexense.ai:9000/lxplayer').replace(/\/+$/, '');
+  const cdn = (process.env.NEXT_PUBLIC_CDN_URL || 'https://yodea.hexense.ai:9000/lxplayer').replace(/\/+$/, '');
   console.log('🌐 CDN URL:', cdn);
   
   const fromObj = (value?: string) => value ? (value.startsWith('http') ? value : `${cdn}/${encodeURIComponent(value)}`) : undefined;

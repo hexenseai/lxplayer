@@ -339,7 +339,7 @@ async def create_interaction(
             video_time=interaction.video_time,
             duration=interaction.duration,
             content=interaction.content,
-            interaction_metadata=json.dumps(interaction.interaction_metadata or {}),
+            interaction_metadata=interaction.interaction_metadata if isinstance(interaction.interaction_metadata, str) else json.dumps(interaction.interaction_metadata or {}),
             response_time=interaction.response_time,
             success=interaction.success
         )

@@ -244,10 +244,39 @@ async def send_message_to_llm(
     # Get session
     session = db.get(InteractionSession, session_id)
     if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found"
-        )
+        print(f"❌ Session not found: {session_id}")
+        # Try to find session by user_id and training_id if session_id is invalid
+        try:
+            # Parse message request to get additional context
+            if hasattr(message_request, 'training_id') and message_request.training_id:
+                print(f"🔍 Trying to find session by training_id: {message_request.training_id}")
+                session = db.exec(
+                    select(InteractionSession)
+                    .where(InteractionSession.training_id == message_request.training_id)
+                    .where(InteractionSession.status == "active")
+                    .order_by(InteractionSession.created_at.desc())
+                ).first()
+                
+                if session:
+                    print(f"✅ Found alternative session: {session.id}")
+                    session_id = session.id  # Update session_id
+                else:
+                    print(f"❌ No alternative session found")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Session not found: {session_id}"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Session not found: {session_id}"
+                )
+        except Exception as e:
+            print(f"❌ Error finding alternative session: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session not found: {session_id}"
+            )
     
     if session.status != "active":
         raise HTTPException(

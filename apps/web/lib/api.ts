@@ -203,7 +203,7 @@ export const Style = z.object({
 export type Style = z.infer<typeof Style>;
 
 async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
-  const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const base = process.env.NEXT_PUBLIC_API_URL || 'https://yodea.hexense.ai/api';
   const url = `${base}${path}`;
   console.log('🌐 API Request:', { path, url, method: init?.method || 'GET' });
   
