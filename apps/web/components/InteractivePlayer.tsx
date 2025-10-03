@@ -171,6 +171,10 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
       setInteractionSessionId(interactionSession.id);
       setIsSessionReady(true);
       
+      // Session ID'yi localStorage'a kaydet
+      localStorage.setItem('interactionSessionId', interactionSession.id);
+      console.log('💾 Session ID saved to localStorage:', interactionSession.id);
+      
       // Flow analysis'ı yükle
       await loadFlowAnalysis(interactionSession.id);
       
@@ -246,6 +250,12 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
           setTrainingAvatar(trainingData.avatar);
           setTrainingId(testTrainingId);
           
+          // Test modunda da companyTraining ayarla
+          setCompanyTraining({
+            training_id: testTrainingId,
+            show_evaluation_report: trainingData.show_evaluation_report || false
+          } as CompanyTraining);
+          
           // Sections'ları sırala ve ayarla
           const sortedSections = sectionsData.sort((a, b) => a.order_index - b.order_index);
           console.log('📚 Sorted sections:', sortedSections);
@@ -281,6 +291,17 @@ export const InteractivePlayer = forwardRef<any, InteractivePlayerProps>(({ acce
         
         // Set training ID for session creation
         setTrainingId(trainingData.id);
+        
+        // CompanyTraining bilgilerini ayarla (show_evaluation_report için)
+        if (trainingData.company_training) {
+          setCompanyTraining(trainingData.company_training);
+        } else {
+          // Fallback: training data'dan show_evaluation_report'u al
+          setCompanyTraining({
+            training_id: trainingData.id,
+            show_evaluation_report: trainingData.show_evaluation_report || false
+          } as CompanyTraining);
+        }
         
         // Test avatar if none exists
         if (!trainingData.avatar) {

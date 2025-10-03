@@ -101,6 +101,14 @@ export function TrainingEndPage({
 
   // Load analytics on mount
   useEffect(() => {
+    console.log('🔍 TrainingEndPage Debug Info:', {
+      showEvaluationReport,
+      sessionId,
+      trainingId,
+      accessCode,
+      userId
+    });
+    
     loadTrainingAnalytics();
     if (showEvaluationReport && sessionId) {
       loadEvaluationData();
@@ -109,17 +117,26 @@ export function TrainingEndPage({
 
   // Load evaluation data
   const loadEvaluationData = async () => {
-    if (!sessionId) return;
+    if (!sessionId) {
+      console.log('❌ No session ID available for evaluation data');
+      return;
+    }
     
+    console.log('🔄 Loading evaluation data for session:', sessionId);
     setEvaluationLoading(true);
+    
     try {
       // Load evaluation results
+      console.log('🔍 Fetching evaluation results...');
       const results = await api.get(`/evaluation-results?session_id=${sessionId}`);
+      console.log('📊 Evaluation results:', results);
       setEvaluationResults(results);
       
       // Load evaluation report if exists
       try {
+        console.log('🔍 Fetching evaluation reports...');
         const reports = await api.get(`/evaluation-reports?session_id=${sessionId}`);
+        console.log('📋 Evaluation reports:', reports);
         if (reports && reports.length > 0) {
           setEvaluationReport(reports[0]);
         }
@@ -542,6 +559,18 @@ export function TrainingEndPage({
           </div>
         </motion.div>
 
+        {/* Debug Info */}
+        <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 mb-6">
+          <h4 className="text-red-400 font-semibold mb-2">🐛 Debug Info:</h4>
+          <div className="text-sm text-red-200 space-y-1">
+            <div>showEvaluationReport: <span className="font-mono">{String(showEvaluationReport)}</span></div>
+            <div>sessionId: <span className="font-mono">{sessionId || 'null'}</span></div>
+            <div>trainingId: <span className="font-mono">{trainingId || 'null'}</span></div>
+            <div>evaluationResults: <span className="font-mono">{evaluationResults.length}</span></div>
+            <div>evaluationLoading: <span className="font-mono">{String(evaluationLoading)}</span></div>
+          </div>
+        </div>
+
         {/* Action Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -557,7 +586,7 @@ export function TrainingEndPage({
             <span>Sertifika İndir</span>
           </button>
           
-          {showEvaluationReport && evaluationResults.length > 0 && (
+          {showEvaluationReport && (
             <button
               onClick={() => setShowEvaluationDetails(!showEvaluationDetails)}
               className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
