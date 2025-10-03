@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Input, Label } from '@lxplayer/ui';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import type { Training } from '@/lib/api';
+import type { Training, Company } from '@/lib/api';
 import type { Avatar } from '@/lib/types';
 import { api } from '@/lib/api';
 import { useUser } from '@/hooks/useUser';
@@ -14,22 +14,28 @@ const Schema = z.object({
   title: z.string().min(1), 
   description: z.string().optional(),
   avatar_id: z.string().optional(),
-  access_code: z.string().optional()
+  access_code: z.string().optional(),
+  company_id: z.string().optional(),
+  show_evaluation_report: z.boolean().optional()
 });
 
 type FormValues = z.infer<typeof Schema>;
 
 export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Training; onDone?: () => void }) {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, isSuperAdmin } = useUser();
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [loadingAvatars, setLoadingAvatars] = useState(true);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(true);
   
   const defaultValues = initialTraining ? { 
     title: initialTraining.title, 
     description: initialTraining.description ?? undefined,
     avatar_id: initialTraining.avatar_id ?? '',
-    access_code: initialTraining.access_code ?? ''
+    access_code: initialTraining.access_code ?? '',
+    company_id: initialTraining.company_id ?? '',
+    show_evaluation_report: initialTraining.show_evaluation_report ?? false
   } : undefined;
   
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setError, setValue } = useForm<FormValues>({ 
@@ -49,8 +55,24 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
       }
     };
 
+    const fetchCompanies = async () => {
+      try {
+        const companies = await api.listCompanies();
+        setCompanies(companies);
+      } catch (error) {
+        console.error('Error fetching companies:', error);
+      } finally {
+        setLoadingCompanies(false);
+      }
+    };
+
     fetchAvatars();
-  }, []);
+    if (isSuperAdmin) {
+      fetchCompanies();
+    } else {
+      setLoadingCompanies(false);
+    }
+  }, [isSuperAdmin]);
 
   // Reset form when initialTraining changes
   useEffect(() => {
@@ -59,13 +81,16 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
         title: initialTraining.title,
         description: initialTraining.description ?? undefined,
         avatar_id: initialTraining.avatar_id ?? '',
-        access_code: initialTraining.access_code ?? ''
+        access_code: initialTraining.access_code ?? '',
+        company_id: initialTraining.company_id ?? '',
+        show_evaluation_report: initialTraining.show_evaluation_report ?? false
       };
       console.log('🔄 Form reset values:', newValues);
       console.log('📋 Available avatars:', avatars.map(a => ({ id: a.id, name: a.name })));
+      console.log('🏢 Available companies:', companies.map(c => ({ id: c.id, name: c.name })));
       reset(newValues);
     }
-  }, [initialTraining, reset, avatars]);
+  }, [initialTraining, reset, avatars, companies]);
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -87,7 +112,8 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
           ai_flow: initialTraining.ai_flow,
           access_code: values.access_code || undefined,
           avatar_id: values.avatar_id || undefined,
-          company_id: companyId
+          company_id: values.company_id || companyId,
+          show_evaluation_report: values.show_evaluation_report || false
         });
       } else {
         await api.createTraining({
@@ -95,7 +121,8 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
           description: values.description || undefined,
           avatar_id: values.avatar_id || undefined,
           access_code: values.access_code || undefined,
-          company_id: user?.company_id || undefined
+          company_id: values.company_id || user?.company_id || undefined,
+          show_evaluation_report: values.show_evaluation_report || false
         });
       }
       
@@ -157,6 +184,31 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
         </p>
       </div>
       
+      {isSuperAdmin && (
+        <div>
+          <Label htmlFor="company_id">Firma</Label>
+          <select
+            id="company_id"
+            {...register('company_id')}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Firma seçin (opsiyonel)</option>
+            {loadingCompanies ? (
+              <option disabled>Firmalar yükleniyor...</option>
+            ) : (
+              companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))
+            )}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Eğitimin hangi firmaya ait olduğunu seçin. Boş bırakılırsa eğitim genel erişime açık olur.
+          </p>
+        </div>
+      )}
+
       <div>
         <Label htmlFor="avatar_id">Avatar</Label>
         <select
@@ -179,6 +231,24 @@ export function TrainingForm({ initialTraining, onDone }: { initialTraining?: Tr
           Eğitim için kullanılacak avatarı seçin. Avatar, eğitim sırasında AI asistanın kişiliğini belirler.
         </p>
       </div>
+
+      <div>
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="show_evaluation_report"
+            {...register('show_evaluation_report')}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+          />
+          <Label htmlFor="show_evaluation_report" className="text-sm font-medium text-gray-700">
+            Eğitim sonunda değerlendirme raporu göster
+          </Label>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          Bu seçenek işaretlendiğinde, eğitim tamamlandığında kullanıcıya değerlendirme raporu gösterilir.
+        </p>
+      </div>
+
       <div className="flex justify-end gap-3 pt-2">
         <button 
           disabled={isSubmitting} 

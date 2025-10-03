@@ -10,6 +10,7 @@ export const Training = z.object({
   ai_flow: z.string().nullable().optional(), 
   access_code: z.string().nullable().optional(), 
   avatar_id: z.string().nullable().optional(),
+  company_id: z.string().nullable().optional(),
   show_evaluation_report: z.boolean().optional(),
   avatar: z.object({
     id: z.string(),

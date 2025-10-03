@@ -162,6 +162,10 @@ class TrainingCreate(BaseModel):
     description: Optional[str] = None
     flow_id: Optional[str] = None
     ai_flow: Optional[str] = None
+    access_code: Optional[str] = None
+    avatar_id: Optional[str] = None
+    company_id: Optional[str] = None
+    show_evaluation_report: bool = False
     organization_id: Optional[str] = None
 
 
@@ -170,6 +174,10 @@ class TrainingUpdate(BaseModel):
     description: Optional[str] = None
     flow_id: Optional[str] = None
     ai_flow: Optional[str] = None
+    access_code: Optional[str] = None
+    avatar_id: Optional[str] = None
+    company_id: Optional[str] = None
+    show_evaluation_report: Optional[bool] = None
     organization_id: Optional[str] = None
 
 
@@ -179,6 +187,10 @@ class TrainingResponse(BaseModel):
     description: Optional[str] = None
     flow_id: Optional[str] = None
     ai_flow: Optional[str] = None
+    access_code: Optional[str] = None
+    avatar_id: Optional[str] = None
+    company_id: Optional[str] = None
+    show_evaluation_report: bool = False
     organization_id: Optional[str] = None
 
 
