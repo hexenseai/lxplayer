@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, Trophy, Clock, Target, MessageSquare, Video, Star, RotateCcw, Home, Share2, Download, BarChart3, TrendingUp, Award } from 'lucide-react';
+import { CheckCircle, Trophy, Clock, Target, MessageSquare, Video, Star, RotateCcw, Home, Share2, Download, BarChart3, TrendingUp, Award, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { api } from '@/lib/api';
 
@@ -97,6 +97,7 @@ export function TrainingEndPage({
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
   const [evaluationReport, setEvaluationReport] = useState<EvaluationReport | null>(null);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Load analytics on mount
   useEffect(() => {
@@ -116,14 +117,18 @@ export function TrainingEndPage({
   }, [sessionId, accessCode, userId]);
 
   // Load evaluation data
-  const loadEvaluationData = async () => {
+  const loadEvaluationData = async (isRefresh = false) => {
     if (!sessionId) {
       console.log('❌ No session ID available for evaluation data');
       return;
     }
     
-    console.log('🔄 Loading evaluation data for session:', sessionId);
-    setEvaluationLoading(true);
+    console.log('🔄 Loading evaluation data for session:', sessionId, isRefresh ? '(refresh)' : '');
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setEvaluationLoading(true);
+    }
     
     try {
       // Load evaluation results
@@ -146,8 +151,18 @@ export function TrainingEndPage({
     } catch (error) {
       console.error('Failed to load evaluation data:', error);
     } finally {
-      setEvaluationLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setEvaluationLoading(false);
+      }
     }
+  };
+
+  // Refresh evaluation data
+  const refreshEvaluationData = async () => {
+    console.log('🔄 Manual refresh of evaluation data requested');
+    await loadEvaluationData(true);
   };
 
   const loadTrainingAnalytics = async () => {
@@ -502,10 +517,22 @@ export function TrainingEndPage({
           className="mb-12"
         >
           <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-            <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-              <Award className="w-6 h-6 text-blue-400" />
-              Değerlendirme Sonuçları
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                <Award className="w-6 h-6 text-blue-400" />
+                Değerlendirme Sonuçları
+              </h3>
+              <button
+                onClick={refreshEvaluationData}
+                disabled={refreshing || evaluationLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 hover:text-blue-300 rounded-lg border border-blue-500/30 hover:border-blue-500/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                <span className="text-sm font-medium">
+                  {refreshing ? 'Yenileniyor...' : 'Yenile'}
+                </span>
+              </button>
+            </div>
 
             {evaluationLoading ? (
               <div className="text-center py-8">
@@ -599,6 +626,9 @@ export function TrainingEndPage({
                 <BarChart3 className="w-12 h-12 text-slate-500 mx-auto mb-4" />
                 <div className="text-slate-300">Bu eğitim için henüz değerlendirme sonucu bulunmuyor.</div>
                 <div className="text-slate-400 text-sm mt-2">ElevenLabs webhook'undan veri bekleniyor...</div>
+                <div className="text-slate-500 text-xs mt-3">
+                  Veri gelmediyse yukarıdaki "Yenile" butonunu kullanabilirsiniz.
+                </div>
               </div>
             )}
           </div>
