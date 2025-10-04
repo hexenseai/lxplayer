@@ -766,7 +766,7 @@ export const useAgentConversation = () => {
             if (conversationRef.current.sessionId) {
               try {
               // Use the new API endpoint to update conversation ID
-              await fetch(`http://localhost:8000/evaluation-reports/session/${conversationRef.current.sessionId}/update-conversation-id`, {
+              await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://yodea.hexense.ai'}/evaluation-reports/session/${conversationRef.current.sessionId}/update-conversation-id`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -800,7 +800,7 @@ export const useAgentConversation = () => {
           if (conversationRef.current.sessionId) {
             try {
               // Use the new API endpoint to update conversation ID
-              await fetch(`http://localhost:8000/evaluation-reports/session/${conversationRef.current.sessionId}/update-conversation-id`, {
+              await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://yodea.hexense.ai'}/evaluation-reports/session/${conversationRef.current.sessionId}/update-conversation-id`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
